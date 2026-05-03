@@ -58,12 +58,8 @@ export interface BusinessSettings {
 // Business CRUD
 // ---------------------------------------------------------------------------
 
-export async function getAllBusinesses(guildId: string): Promise<BusinessRecord[]> {
-  const rows = await db
-    .select()
-    .from(businesses)
-    .where(eq(businesses.guildId, guildId))
-    .orderBy(businesses.name)
+export async function getAllBusinesses(_guildId?: string): Promise<BusinessRecord[]> {
+  const rows = await db.select().from(businesses).orderBy(businesses.name)
   return rows.map(toBusinessRecord)
 }
 

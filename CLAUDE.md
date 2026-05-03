@@ -43,8 +43,8 @@ Do this **in the same response** as the code change, not as a follow-up.
 
 ## Memory and environment
 
-- **Never run `tsc` directly** — it will OOM on the VPS. Always use `pnpm typecheck`.
-- Run `pnpm typecheck` after every non-trivial change to catch type errors before finishing.
+- **Never run `pnpm typecheck`, `tsc`, `npx tsc`, `pnpm build`, or any other TypeScript compilation command automatically.** These OOM the VPS. Only run them if the user explicitly asks.
+- If you suspect a type error, describe it in text — do not run a type check to confirm.
 
 ---
 

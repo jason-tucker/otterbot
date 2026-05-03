@@ -1,6 +1,6 @@
 // Syncs businesses.config.ts → database for all configured guilds.
 // Run: pnpm db:seed
-// Safe to run multiple times (upserts, won't duplicate).
+// Safe to run multiple times (upserts, non-destructive for runtime data).
 
 import 'dotenv/config'
 import { REST, Routes } from 'discord.js'
@@ -33,13 +33,8 @@ async function seedGuild(guildId: string) {
   const roleMap = new Map(guildRoles.map((r) => [r.name, r.id]))
   console.log(`Fetched ${guildRoles.length} roles from guild.`)
 
-  // Print Portal Admin role ID as a convenience
-  const portalAdminId = roleMap.get('Portal Admin')
-  if (portalAdminId) {
-    console.log(`ℹ️  Portal Admin role ID: ${portalAdminId}  ← add to DISCORD_PORTAL_ADMIN_ROLE_ID in .env`)
-  }
-
   for (const config of BUSINESSES) {
+    // Look up by slug — businesses are not guild-scoped (role mappings are)
     const existing = await db
       .select()
       .from(businesses)
@@ -50,9 +45,14 @@ async function seedGuild(guildId: string) {
 
     if (existing.length > 0) {
       businessId = existing[0].id
+      // Update name/provider/settings only — don't overwrite runtime changes
       await db
         .update(businesses)
-        .set({ name: config.name, providerType: config.providerType, active: true, settings: config.settings ?? null })
+        .set({
+          name: config.name,
+          providerType: config.providerType,
+          settings: config.settings as Record<string, unknown> ?? existing[0].settings,
+        })
         .where(eq(businesses.id, businessId))
     } else {
       const inserted = await db
@@ -63,13 +63,13 @@ async function seedGuild(guildId: string) {
           providerType: config.providerType,
           guildId,
           active: true,
-          settings: config.settings ?? null,
+          settings: (config.settings as Record<string, unknown>) ?? {},
         })
         .returning({ id: businesses.id })
       businessId = inserted[0].id
     }
 
-    // Remove old mappings for this business+guild only, then re-insert
+    // Replace role mappings for this business+guild
     await db
       .delete(businessRoleMappings)
       .where(and(eq(businessRoleMappings.businessId, businessId), eq(businessRoleMappings.guildId, guildId)))
@@ -89,7 +89,12 @@ async function seedGuild(guildId: string) {
         businessId,
         guildId,
         roleId,
+        roleName: role.name,
         rank: role.rank,
+        label: role.name,
+        isBase: false,
+        autoGrantEmployee: false,
+        minRankToAssign: 'manager',
       })
       mapped++
     }
