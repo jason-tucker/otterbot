@@ -9,6 +9,7 @@ interface MkCharacterProfile {
   csn: string
   dob: string | null
   phoneNumber: string
+  bankNumber: string
 }
 
 async function fetchCharacters(discordId: string) {
@@ -25,6 +26,7 @@ async function fetchCharacters(discordId: string) {
     csn: p.csn || null,
     dob: p.dob,
     phoneNumber: p.phoneNumber || null,
+    bankNumber: p.bankNumber || null,
   }))
 }
 
@@ -48,5 +50,5 @@ export async function handleTicketCharSelect(interaction: StringSelectMenuIntera
     return
   }
 
-  await interaction.editReply({ ...buildTicketCharacterEmbed(character, targetDiscordId), components: [] })
+  await interaction.editReply(buildTicketCharacterEmbed(character, targetDiscordId))
 }

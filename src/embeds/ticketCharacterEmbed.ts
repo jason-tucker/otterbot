@@ -1,4 +1,10 @@
-import { EmbedBuilder } from 'discord.js'
+import {
+  ContainerBuilder,
+  TextDisplayBuilder,
+  SeparatorBuilder,
+  SeparatorSpacingSize,
+  MessageFlags,
+} from 'discord.js'
 
 interface TicketCharacter {
   id: string
@@ -6,23 +12,37 @@ interface TicketCharacter {
   csn: string | null
   dob: string | null
   phoneNumber: string | null
+  bankNumber: string | null
 }
 
 export function buildTicketCharacterEmbed(character: TicketCharacter, discordId: string) {
-  const embed = new EmbedBuilder()
-    .setColor(0x5865f2)
-    .setTitle(character.name)
-    .setDescription(`<@${discordId}>`)
-    .setFooter({ text: 'via Otterbot' })
-    .setTimestamp()
+  const fields: string[] = []
+  if (character.csn) fields.push(`**CSN** · \`${character.csn}\``)
+  if (character.dob) fields.push(`**Date of Birth** · \`${character.dob}\``)
+  if (character.phoneNumber) fields.push(`**Phone** · \`${character.phoneNumber}\``)
+  if (character.bankNumber) fields.push(`**Bank** · \`${character.bankNumber}\``)
 
-  const fields: { name: string; value: string; inline: boolean }[] = []
+  const container = new ContainerBuilder()
+    .setAccentColor(0x5865f2)
+    .addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(`### ${character.name}\n<@${discordId}>`)
+    )
+    .addSeparatorComponents(
+      new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Large)
+    )
 
-  if (character.csn) fields.push({ name: 'CSN', value: character.csn, inline: true })
-  if (character.dob) fields.push({ name: 'Date of Birth', value: character.dob, inline: true })
-  if (character.phoneNumber) fields.push({ name: 'Phone', value: character.phoneNumber, inline: true })
+  if (fields.length > 0) {
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(fields.join('\n'))
+    )
+  }
 
-  if (fields.length > 0) embed.addFields(fields)
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent('-# via Otterbot')
+  )
 
-  return { embeds: [embed], components: [] }
+  return {
+    components: [container],
+    flags: MessageFlags.IsComponentsV2,
+  }
 }

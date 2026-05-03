@@ -1,4 +1,16 @@
-import { ChannelType, type Client, type TextChannel, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, ActionRowBuilder } from 'discord.js'
+import {
+  ChannelType,
+  type Client,
+  type TextChannel,
+  StringSelectMenuBuilder,
+  StringSelectMenuOptionBuilder,
+  ActionRowBuilder,
+  ContainerBuilder,
+  TextDisplayBuilder,
+  SeparatorBuilder,
+  SeparatorSpacingSize,
+  MessageFlags,
+} from 'discord.js'
 import { env } from '../../config/env'
 import { buildTicketCharacterEmbed } from '../../embeds/ticketCharacterEmbed'
 
@@ -12,6 +24,7 @@ interface MkCharacterProfile {
   csn: string
   dob: string | null
   phoneNumber: string
+  bankNumber: string
 }
 
 async function fetchCharacters(discordId: string) {
@@ -28,6 +41,7 @@ async function fetchCharacters(discordId: string) {
     csn: p.csn || null,
     dob: p.dob,
     phoneNumber: p.phoneNumber || null,
+    bankNumber: p.bankNumber || null,
   }))
 }
 
@@ -60,9 +74,21 @@ export function registerTicketChannelCreate(client: Client): void {
     }
 
     if (characters.length === 0) {
-      await channel.send(
-        `Hey <@${targetDiscordId}>! It looks like you don't have a character linked to your Discord account. Please visit https://mke.euphoric.gg to assign your character, then let us know and we can help you further.`
-      )
+      await channel.send({
+        components: [
+          new ContainerBuilder()
+            .setAccentColor(0xed4245)
+            .addTextDisplayComponents(
+              new TextDisplayBuilder().setContent(
+                `Hey <@${targetDiscordId}>! It looks like you don't have a character linked to your Discord account.\n\nPlease visit **https://mke.euphoric.gg** to assign your character, then let us know and we can help you further.`
+              )
+            )
+            .addTextDisplayComponents(
+              new TextDisplayBuilder().setContent('-# via Otterbot')
+            ),
+        ],
+        flags: MessageFlags.IsComponentsV2,
+      })
       return
     }
 
@@ -84,8 +110,22 @@ export function registerTicketChannelCreate(client: Client): void {
       )
 
     await channel.send({
-      content: `<@${targetDiscordId}> We found multiple characters linked to your account. Please select yours below.`,
-      components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)],
+      components: [
+        new ContainerBuilder()
+          .setAccentColor(0x5865f2)
+          .addTextDisplayComponents(
+            new TextDisplayBuilder().setContent(
+              `<@${targetDiscordId}> We found multiple characters linked to your account. Please select yours below.`
+            )
+          )
+          .addSeparatorComponents(
+            new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Large)
+          )
+          .addActionRowComponents(
+            new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)
+          ),
+      ],
+      flags: MessageFlags.IsComponentsV2,
     })
   })
 }
