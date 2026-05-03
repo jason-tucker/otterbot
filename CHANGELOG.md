@@ -7,6 +7,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+- "Manage Employee" right-click context menu now respects sudo — sudo users are no longer blocked with "no management permissions"
+
 ### Changed
 - `/employee` UI rebuilt with Discord Components V2 — container layout with accent color, section with avatar thumbnail, text displays, and separators replacing the legacy embed
 

@@ -4,7 +4,10 @@ import {
   type UserContextMenuCommandInteraction,
 } from 'discord.js'
 import { resolveBusinesses } from '../services/permissionService'
+import { isSudoUser } from '../services/sudoService'
+import { getAllBusinesses } from '../services/portalService'
 import { runEmployeeManage } from './employee'
+import type { ResolvedBusiness } from '../services/permissionService'
 
 // Right-click a user → Apps → "Manage Employee"
 export const data = new ContextMenuCommandBuilder()
@@ -21,13 +24,22 @@ export async function execute(interaction: UserContextMenuCommandInteraction): P
   await interaction.deferReply({ ephemeral: true })
 
   const commandMember = await interaction.guild.members.fetch(interaction.user.id)
+  const sudo = isSudoUser(commandMember)
   const resolved = await resolveBusinesses(commandMember)
-  const manageable = resolved.filter((r) => r.rank === 'manager' || r.rank === 'owner')
+
+  let manageable: ResolvedBusiness[]
+  if (sudo) {
+    const allBizRecords = await getAllBusinesses(interaction.guild.id)
+    manageable = allBizRecords.map((b) => ({
+      business: b,
+      rank: 'owner' as const,
+    }))
+  } else {
+    manageable = resolved.filter((r) => r.rank === 'manager' || r.rank === 'owner')
+  }
 
   if (manageable.length === 0) {
-    await interaction.editReply(
-      'You do not have management permissions for any business.',
-    )
+    await interaction.editReply('You do not have management permissions for any business.')
     return
   }
 
