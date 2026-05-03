@@ -40,6 +40,7 @@ export const data = new SlashCommandBuilder()
       .addChoices({ name: 'Top', value: 'top' }, { name: 'Bottom', value: 'bottom' })
   )
   .setDMPermission(false)
+  .setDefaultMemberPermissions(0)
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!interaction.inGuild() || !interaction.guild) {

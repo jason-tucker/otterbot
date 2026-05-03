@@ -14,6 +14,7 @@ export const data = new ContextMenuCommandBuilder()
   .setName('Manage Employee')
   .setType(ApplicationCommandType.User)
   .setDMPermission(false)
+  .setDefaultMemberPermissions(0)
 
 export async function execute(interaction: UserContextMenuCommandInteraction): Promise<void> {
   if (!interaction.inGuild() || !interaction.guild) {

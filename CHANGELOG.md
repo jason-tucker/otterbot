@@ -8,6 +8,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Changed
+- `/portal`, `/employee`, "Manage Employee" context menu, and `/movechannel` now set `defaultMemberPermissions(0)` — hidden from @everyone by default; roles are configured once in Server Settings → Integrations
 - McKenzie Enterprises is now read-only in `/employee` — roles are managed by the MKE website; no hire/fire/promote/demote buttons are shown
 
 ### Fixed

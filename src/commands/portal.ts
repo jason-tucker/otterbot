@@ -8,6 +8,7 @@ export const data = new SlashCommandBuilder()
   .setName('portal')
   .setDescription('Sudo: manage businesses, role mappings, and owners')
   .setDMPermission(false)
+  .setDefaultMemberPermissions(0)
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!interaction.inGuild() || !interaction.guild) {

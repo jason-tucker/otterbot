@@ -27,6 +27,7 @@ export const data = new SlashCommandBuilder()
   .setName('employee')
   .setDescription('Manage employee roles for your business')
   .setDMPermission(false)
+  .setDefaultMemberPermissions(0)
   .addUserOption((opt) =>
     opt.setName('user').setDescription('The Discord user to manage').setRequired(true),
   )
