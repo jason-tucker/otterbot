@@ -51,5 +51,5 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   const sessionKey = storeBusinessRosterSession({ resolved, roster })
   const response = buildBusinessEmbed({ name: roster.businessName, providerType: 'mckenzie' }, roster, sessionKey)
-  await interaction.editReply(response)
+  await interaction.editReply({ ...response, content: null })
 }

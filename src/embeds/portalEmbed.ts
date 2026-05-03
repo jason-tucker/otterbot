@@ -1,18 +1,21 @@
 import {
-  EmbedBuilder,
+  ContainerBuilder,
+  TextDisplayBuilder,
+  SeparatorBuilder,
+  SeparatorSpacingSize,
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
+  MessageFlags,
   type MessageActionRowComponentBuilder,
 } from 'discord.js'
 import type { BusinessRecord, RoleMappingRecord, BusinessOwnerRecord } from '../services/portalService'
 
 type PortalViewPayload = {
-  embeds: EmbedBuilder[]
-  components: ActionRowBuilder<MessageActionRowComponentBuilder>[]
-  content?: string
+  flags: number
+  components: (ContainerBuilder | ActionRowBuilder<MessageActionRowComponentBuilder>)[]
 }
 
 // ---------------------------------------------------------------------------
@@ -24,27 +27,44 @@ export function buildPortalMainMenu(
   sessionKey: string,
   errorMessage?: string,
 ): PortalViewPayload {
-  const embed = new EmbedBuilder()
-    .setColor(0x5865f2)
-    .setTitle('Portal — Business Management')
-    .setDescription(
-      businesses.length === 0
-        ? 'No businesses configured. Create one to get started.'
-        : `**${businesses.length}** business${businesses.length === 1 ? '' : 'es'} configured.\nSelect one to manage it, or create a new one.`,
-    )
-    .addFields({
-      name: 'Businesses',
-      value:
-        businesses.length === 0
-          ? 'None'
-          : businesses
-              .map((b) => `${b.active ? '✅' : '❌'} **${b.name}** (\`${b.slug}\`)`)
-              .join('\n'),
-    })
-    .setFooter({ text: 'Sudo mode' })
-    .setTimestamp()
+  const container = new ContainerBuilder().setAccentColor(0x5865f2)
 
-  const components: ActionRowBuilder<MessageActionRowComponentBuilder>[] = []
+  // Header
+  const headerLines = ['## Portal — Business Management']
+  if (errorMessage) headerLines.push(`\n${errorMessage}`)
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(headerLines.join('\n'))
+  )
+
+  container.addSeparatorComponents(
+    new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Large)
+  )
+
+  // Business list
+  if (businesses.length === 0) {
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent('No businesses configured yet.\nUse **Create Business** to add the first one.')
+    )
+  } else {
+    const lines = businesses.map(
+      (b) => `${b.active ? '✅' : '❌'} **${b.name}** · \`${b.slug}\` · ${b.providerType}`
+    )
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(lines.join('\n'))
+    )
+  }
+
+  // Footer
+  container.addSeparatorComponents(
+    new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small)
+  )
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(
+      `-# ${businesses.length} business${businesses.length === 1 ? '' : 'es'} configured · Sudo mode`
+    )
+  )
+
+  const components: (ContainerBuilder | ActionRowBuilder<MessageActionRowComponentBuilder>)[] = [container]
 
   if (businesses.length > 0) {
     components.push(
@@ -57,10 +77,10 @@ export function buildPortalMainMenu(
               new StringSelectMenuOptionBuilder()
                 .setLabel(b.name)
                 .setDescription(`${b.active ? 'Active' : 'Inactive'} · ${b.slug}`)
-                .setValue(b.id),
-            ),
-          ),
-      ),
+                .setValue(b.id)
+            )
+          )
+      )
     )
   }
 
@@ -69,11 +89,11 @@ export function buildPortalMainMenu(
       new ButtonBuilder()
         .setCustomId(`portal_create:${sessionKey}`)
         .setLabel('Create Business')
-        .setStyle(ButtonStyle.Success),
-    ),
+        .setStyle(ButtonStyle.Success)
+    )
   )
 
-  return { embeds: [embed], components, content: errorMessage ?? null! }
+  return { flags: MessageFlags.IsComponentsV2, components }
 }
 
 // ---------------------------------------------------------------------------
@@ -87,31 +107,53 @@ export function buildPortalBusinessDetail(
   sessionKey: string,
 ): PortalViewPayload {
   const settings = biz.settings as Record<string, unknown>
+
   const activeFlags: string[] = []
-  if (settings.managersCanPromote) activeFlags.push('managersCanPromote')
-  if (settings.managersCanAssignCustomRoles) activeFlags.push('managersCanAssignCustomRoles')
-  if (settings.ownersCanManageOwners) activeFlags.push('ownersCanManageOwners')
-  if (settings.higherRolesAutoGrantEmployee) activeFlags.push('higherRolesAutoGrantEmployee')
-  if (settings.allowOwnerRoleFallback) activeFlags.push('allowOwnerRoleFallback')
-  if (settings.apiEnabled) activeFlags.push('apiEnabled')
+  if (settings.managersCanPromote) activeFlags.push('Managers Promote')
+  if (settings.managersCanAssignCustomRoles) activeFlags.push('Mgrs Custom Roles')
+  if (settings.ownersCanManageOwners) activeFlags.push('Owners Manage Owners')
+  if (settings.higherRolesAutoGrantEmployee) activeFlags.push('Auto-Grant Employee')
+  if (settings.allowOwnerRoleFallback) activeFlags.push('Owner Role Fallback')
+  if (settings.apiEnabled) activeFlags.push('API Enabled')
 
-  const embed = new EmbedBuilder()
-    .setColor(biz.active ? 0x5865f2 : 0x95a5a6)
-    .setTitle(biz.name)
-    .addFields(
-      { name: 'Slug', value: `\`${biz.slug}\``, inline: true },
-      { name: 'Provider', value: biz.providerType, inline: true },
-      { name: 'Status', value: biz.active ? '✅ Active' : '❌ Inactive', inline: true },
-      { name: 'Owners', value: `${owners.length} registered`, inline: true },
-      { name: 'Role Mappings', value: `${roleMappings.length} configured`, inline: true },
-      { name: 'Active Flags', value: activeFlags.length > 0 ? activeFlags.join(', ') : 'None', inline: true },
+  const container = new ContainerBuilder().setAccentColor(biz.active ? 0x5865f2 : 0x95a5a6)
+
+  // Header
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(
+      `## ${biz.name}\n-# \`${biz.slug}\` · ${biz.providerType} · ${biz.active ? '✅ Active' : '❌ Inactive'}`
     )
-    .setFooter({ text: `ID: ${biz.id}` })
-    .setTimestamp()
+  )
 
-  if (settings.apiBusinessName) {
-    embed.addFields({ name: 'API Business Name', value: String(settings.apiBusinessName), inline: true })
-  }
+  container.addSeparatorComponents(
+    new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Large)
+  )
+
+  // Stats row
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(
+      `**Owners** · ${owners.length} registered     **Role Mappings** · ${roleMappings.length} configured`
+    )
+  )
+
+  container.addSeparatorComponents(
+    new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small)
+  )
+
+  // Flags
+  const flagsText = activeFlags.length > 0 ? activeFlags.join(' · ') : 'None'
+  const apiLine = settings.apiBusinessName ? `\n**API Business Name** · \`${settings.apiBusinessName}\`` : ''
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(`**Active Flags** · ${flagsText}${apiLine}`)
+  )
+
+  // Footer
+  container.addSeparatorComponents(
+    new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small)
+  )
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(`-# ID: \`${biz.id}\` · Sudo mode`)
+  )
 
   const row1 = new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
     new ButtonBuilder()
@@ -136,11 +178,11 @@ export function buildPortalBusinessDetail(
     biz.active
       ? new ButtonBuilder()
           .setCustomId(`portal_deactivate:${sessionKey}`)
-          .setLabel('Deactivate Business')
+          .setLabel('Deactivate')
           .setStyle(ButtonStyle.Danger)
       : new ButtonBuilder()
           .setCustomId(`portal_reactivate:${sessionKey}`)
-          .setLabel('Reactivate Business')
+          .setLabel('Reactivate')
           .setStyle(ButtonStyle.Success),
     new ButtonBuilder()
       .setCustomId(`portal_main:${sessionKey}`)
@@ -148,7 +190,7 @@ export function buildPortalBusinessDetail(
       .setStyle(ButtonStyle.Secondary),
   )
 
-  return { embeds: [embed], components: [row1, row2] }
+  return { flags: MessageFlags.IsComponentsV2, components: [container, row1, row2] }
 }
 
 // ---------------------------------------------------------------------------
@@ -181,42 +223,60 @@ export function buildPortalRolesView(
     }
   }
 
-  const lines: string[] = []
-  for (const rank of ['employee', 'manager', 'owner'] as const) {
-    const entries = byRank[rank]
-    if (entries.length === 0) continue
-    lines.push(`**${RANK_LABEL[rank]}**`)
-    for (const m of entries) {
-      const tags: string[] = []
-      if (m.isBase) tags.push('base')
-      if (m.autoGrantEmployee) tags.push('auto-grant')
-      const suffix = tags.length > 0 ? ` [${tags.join(', ')}]` : ''
-      const displayLabel = m.label ?? m.roleName ?? m.roleId
-      lines.push(`• \`${m.roleId}\` — ${displayLabel}${suffix}`)
-    }
-  }
-  if (byRank.custom.length > 0) {
-    lines.push('**Custom**')
-    for (const m of byRank.custom) {
-      const displayLabel = m.label ?? m.roleName ?? m.roleId
-      lines.push(`• \`${m.roleId}\` — ${displayLabel} (min: ${m.minRankToAssign})`)
-    }
-  }
+  const container = new ContainerBuilder().setAccentColor(0x5865f2)
 
-  const embed = new EmbedBuilder()
-    .setColor(0x5865f2)
-    .setTitle(`${biz.name} — Role Mappings`)
-    .setDescription(
-      roleMappings.length === 0
-        ? 'No role mappings configured. Add roles to enable employee management.'
-        : lines.join('\n'),
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(`## ${biz.name} — Role Mappings`)
+  )
+
+  container.addSeparatorComponents(
+    new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Large)
+  )
+
+  if (roleMappings.length === 0) {
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        'No role mappings configured.\nAdd roles to enable employee management for this business.'
+      )
     )
-    .setFooter({ text: `${roleMappings.length} mapping${roleMappings.length === 1 ? '' : 's'} configured` })
-    .setTimestamp()
+  } else {
+    const lines: string[] = []
+    for (const rank of ['employee', 'manager', 'owner'] as const) {
+      const entries = byRank[rank]
+      if (entries.length === 0) continue
+      lines.push(`**${RANK_LABEL[rank]}**`)
+      for (const m of entries) {
+        const tags: string[] = []
+        if (m.isBase) tags.push('base')
+        if (m.autoGrantEmployee) tags.push('auto-grant')
+        const suffix = tags.length > 0 ? ` [${tags.join(', ')}]` : ''
+        const label = m.label ?? m.roleName ?? m.roleId
+        lines.push(`· \`${m.roleId}\` — ${label}${suffix}`)
+      }
+    }
+    if (byRank.custom.length > 0) {
+      lines.push('**Custom**')
+      for (const m of byRank.custom) {
+        const label = m.label ?? m.roleName ?? m.roleId
+        lines.push(`· \`${m.roleId}\` — ${label} (min: ${m.minRankToAssign})`)
+      }
+    }
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(lines.join('\n'))
+    )
+  }
 
-  const components: ActionRowBuilder<MessageActionRowComponentBuilder>[] = []
+  container.addSeparatorComponents(
+    new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small)
+  )
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(
+      `-# ${roleMappings.length} mapping${roleMappings.length === 1 ? '' : 's'} configured · Sudo mode`
+    )
+  )
 
-  components.push(
+  const components: (ContainerBuilder | ActionRowBuilder<MessageActionRowComponentBuilder>)[] = [
+    container,
     new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId(`portal_add_role:${sessionKey}`)
@@ -227,7 +287,7 @@ export function buildPortalRolesView(
         .setLabel('← Back')
         .setStyle(ButtonStyle.Secondary),
     ),
-  )
+  ]
 
   if (roleMappings.length > 0) {
     components.push(
@@ -240,14 +300,14 @@ export function buildPortalRolesView(
               new StringSelectMenuOptionBuilder()
                 .setLabel(`Remove: ${m.label ?? m.roleName ?? m.roleId}`)
                 .setDescription(`${RANK_LABEL[m.rank] ?? m.rank} · ID: ${m.roleId}`)
-                .setValue(m.id),
-            ),
-          ),
-      ),
+                .setValue(m.id)
+            )
+          )
+      )
     )
   }
 
-  return { embeds: [embed], components }
+  return { flags: MessageFlags.IsComponentsV2, components }
 }
 
 // ---------------------------------------------------------------------------
@@ -259,22 +319,42 @@ export function buildPortalOwnersView(
   owners: BusinessOwnerRecord[],
   sessionKey: string,
 ): PortalViewPayload {
-  const embed = new EmbedBuilder()
-    .setColor(0x5865f2)
-    .setTitle(`${biz.name} — Owners`)
-    .setDescription(
-      owners.length === 0
-        ? 'No owners registered. Use "Add Owner" to designate a Discord user as a business owner.'
-        : owners
-            .map((o) => `• <@${o.discordUserId}> — added <t:${Math.floor(o.addedAt.getTime() / 1000)}:R>`)
-            .join('\n'),
+  const container = new ContainerBuilder().setAccentColor(0x5865f2)
+
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(`## ${biz.name} — Owners`)
+  )
+
+  container.addSeparatorComponents(
+    new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Large)
+  )
+
+  if (owners.length === 0) {
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        'No owners registered.\nUse **Add Owner** to designate a Discord user as a business owner.'
+      )
     )
-    .setFooter({ text: `${owners.length} owner${owners.length === 1 ? '' : 's'} registered` })
-    .setTimestamp()
+  } else {
+    const lines = owners.map(
+      (o) => `· <@${o.discordUserId}> — added <t:${Math.floor(o.addedAt.getTime() / 1000)}:R>`
+    )
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(lines.join('\n'))
+    )
+  }
 
-  const components: ActionRowBuilder<MessageActionRowComponentBuilder>[] = []
+  container.addSeparatorComponents(
+    new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small)
+  )
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(
+      `-# ${owners.length} owner${owners.length === 1 ? '' : 's'} registered · Sudo mode`
+    )
+  )
 
-  components.push(
+  const components: (ContainerBuilder | ActionRowBuilder<MessageActionRowComponentBuilder>)[] = [
+    container,
     new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId(`portal_add_owner:${sessionKey}`)
@@ -285,7 +365,7 @@ export function buildPortalOwnersView(
         .setLabel('← Back')
         .setStyle(ButtonStyle.Secondary),
     ),
-  )
+  ]
 
   if (owners.length > 0) {
     components.push(
@@ -298,14 +378,14 @@ export function buildPortalOwnersView(
               new StringSelectMenuOptionBuilder()
                 .setLabel(`Remove: ${o.discordUserId}`)
                 .setDescription(`Added ${o.addedAt.toLocaleDateString()}`)
-                .setValue(o.discordUserId),
-            ),
-          ),
-      ),
+                .setValue(o.discordUserId)
+            )
+          )
+      )
     )
   }
 
-  return { embeds: [embed], components }
+  return { flags: MessageFlags.IsComponentsV2, components }
 }
 
 // ---------------------------------------------------------------------------
@@ -345,18 +425,38 @@ export function buildPortalPermsView(
 ): PortalViewPayload {
   const settings = biz.settings as Record<string, unknown>
 
-  const lines = ALL_FLAGS.map(
-    (f) => `${Boolean(settings[f]) ? '✅' : '❌'} **${FLAG_LABELS[f]}** — ${FLAG_DESCRIPTIONS[f]}`,
-  )
-  const apiNameLine = settings.apiBusinessName
-    ? `\n\n**API Business Name:** ${settings.apiBusinessName}`
-    : ''
+  const container = new ContainerBuilder().setAccentColor(0x5865f2)
 
-  const embed = new EmbedBuilder()
-    .setColor(0x5865f2)
-    .setTitle(`${biz.name} — Permission Flags`)
-    .setDescription(lines.join('\n') + apiNameLine)
-    .setTimestamp()
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(`## ${biz.name} — Permission Flags`)
+  )
+
+  container.addSeparatorComponents(
+    new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Large)
+  )
+
+  const lines = ALL_FLAGS.map(
+    (f) => `${Boolean(settings[f]) ? '✅' : '❌'} **${FLAG_LABELS[f]}** — ${FLAG_DESCRIPTIONS[f]}`
+  )
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(lines.join('\n'))
+  )
+
+  if (settings.apiBusinessName) {
+    container.addSeparatorComponents(
+      new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small)
+    )
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(`**API Business Name** · \`${settings.apiBusinessName}\``)
+    )
+  }
+
+  container.addSeparatorComponents(
+    new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small)
+  )
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent('-# Sudo mode')
+  )
 
   const makeToggle = (flag: string) =>
     new ButtonBuilder()
@@ -385,5 +485,5 @@ export function buildPortalPermsView(
       .setStyle(ButtonStyle.Secondary),
   )
 
-  return { embeds: [embed], components: [row1, row2, row3] }
+  return { flags: MessageFlags.IsComponentsV2, components: [container, row1, row2, row3] }
 }

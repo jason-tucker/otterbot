@@ -1,4 +1,13 @@
-import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js'
+import {
+  ContainerBuilder,
+  TextDisplayBuilder,
+  SeparatorBuilder,
+  SeparatorSpacingSize,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  MessageFlags,
+} from 'discord.js'
 import { randomUUID } from 'crypto'
 import type { BusinessRoster } from '../services/providers/IBusinessProvider'
 import { registerSendable } from '../utils/sendable'
@@ -9,77 +18,99 @@ interface BusinessInfo {
 }
 
 export function buildBusinessEmbed(info: BusinessInfo, roster: BusinessRoster | null, sessionKey?: string) {
-  const embed = new EmbedBuilder()
-    .setColor(0x5865f2)
-    .setTitle(roster?.businessName ?? info.name)
-    .setFooter({ text: 'via Otterbot' })
-    .setTimestamp()
-
   if (!roster) {
-    embed.setDescription('Could not reach the API. Try again in a moment.')
-    return { embeds: [embed], components: [] }
+    const container = new ContainerBuilder()
+      .setAccentColor(0x95a5a6)
+      .addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(`## ${info.name}\n⚠️ Could not reach the API. Try again in a moment.`)
+      )
+      .addTextDisplayComponents(
+        new TextDisplayBuilder().setContent('-# via Otterbot')
+      )
+    return { flags: MessageFlags.IsComponentsV2, components: [container] }
   }
-
-  const sendKey = `business:${randomUUID()}`
 
   const employees = roster.members.filter((m) => m.role === 'employee')
   const owner = roster.members.find((m) => m.role === 'owner')
 
-  embed.addFields(
-    {
-      name: 'Owner',
-      value: owner ? `${owner.name}${owner.csn ? ` (${owner.csn})` : ''}` : 'Unknown',
-      inline: true,
-    },
-    {
-      name: 'Employees',
-      value: `${employees.length}`,
-      inline: true,
-    }
+  const container = new ContainerBuilder().setAccentColor(0x5865f2)
+
+  // Header
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(`## ${roster.businessName}`)
   )
 
-  if (employees.length > 0) {
-    const shown = employees.slice(0, 20)
-    const lines = shown.map((e) => `• ${e.name}${e.csn ? ` — ${e.csn}` : ''}`)
-    if (employees.length > 20) lines.push(`… and ${employees.length - 20} more`)
+  container.addSeparatorComponents(
+    new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Large)
+  )
 
-    embed.addFields({
-      name: 'Roster',
-      value: lines.join('\n'),
-      inline: false,
-    })
+  // Owner + count
+  const ownerText = owner
+    ? `${owner.name}${owner.csn ? ` · \`${owner.csn}\`` : ''}${owner.discordId ? ` · <@${owner.discordId}>` : ''}`
+    : 'Unknown'
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(
+      `**Owner** · ${ownerText}\n**Total Employees** · ${employees.length}`
+    )
+  )
+
+  // Roster
+  if (employees.length > 0) {
+    container.addSeparatorComponents(
+      new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small)
+    )
+    const shown = employees.slice(0, 20)
+    const lines = shown.map((e) => `· ${e.name}${e.csn ? ` — \`${e.csn}\`` : ''}`)
+    if (employees.length > 20) lines.push(`-# … and ${employees.length - 20} more not shown`)
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(`### Roster\n${lines.join('\n')}`)
+    )
   } else if (info.providerType === 'discord-only') {
-    embed.addFields({
-      name: 'Roster',
-      value: 'Roster management coming soon for non-API businesses.',
-      inline: false,
-    })
+    container.addSeparatorComponents(
+      new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small)
+    )
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent('-# Roster management coming soon for this business.')
+    )
   }
 
-  registerSendable(sendKey, () => ({ embeds: [embed] }))
-
-  const sendRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`send_to_channel:${sendKey}`)
-      .setLabel('Send to Channel')
-      .setEmoji('📢')
-      .setStyle(ButtonStyle.Secondary)
+  // Footer
+  container.addSeparatorComponents(
+    new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small)
+  )
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent('-# via Otterbot')
   )
 
-  const components: ActionRowBuilder<ButtonBuilder>[] = []
+  const sendKey = `business:${randomUUID()}`
+  registerSendable(sendKey, () => ({
+    components: [container],
+    flags: MessageFlags.IsComponentsV2,
+  }))
+
+  const actionRows: ActionRowBuilder<ButtonBuilder>[] = []
 
   if (sessionKey && roster.members.length > 0) {
-    const lookupRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`business_lookup:${sessionKey}`)
-        .setLabel('Lookup Employee')
-        .setEmoji('🔍')
-        .setStyle(ButtonStyle.Secondary)
+    actionRows.push(
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`business_lookup:${sessionKey}`)
+          .setLabel('Lookup Employee')
+          .setEmoji('🔍')
+          .setStyle(ButtonStyle.Secondary)
+      )
     )
-    components.push(lookupRow)
   }
 
-  components.push(sendRow)
+  actionRows.push(
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`send_to_channel:${sendKey}`)
+        .setLabel('Send to Channel')
+        .setEmoji('📢')
+        .setStyle(ButtonStyle.Secondary)
+    )
+  )
 
-  return { embeds: [embed], components }
+  return { flags: MessageFlags.IsComponentsV2, components: [container, ...actionRows] }
 }

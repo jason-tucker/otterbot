@@ -31,5 +31,6 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     guildId: interaction.guild.id,
   })
 
-  await interaction.editReply(buildPortalMainMenu(businesses, sessionKey))
+  const portalMenu = buildPortalMainMenu(businesses, sessionKey)
+  await interaction.editReply({ ...portalMenu, content: null })
 }

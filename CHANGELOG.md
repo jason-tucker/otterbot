@@ -10,6 +10,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 - Ticket auto-lookup: when a new channel is created in the ticket category, the bot looks up the opener in the MKE API and posts their character info — or a character selector if they have multiple characters, or a link to assign one if none found
 
+### Changed
+- All embeds migrated to Discord Components V2 (ContainerBuilder, TextDisplayBuilder, SeparatorBuilder) — richer layout, better visual hierarchy across `/lookup`, `/business`, `/portal`, and `/employee`
+- `/lookup` customer embed now shows bank number alongside CSN, DOB, and phone
+
 ### Fixed
 - `/help` now shows public commands (artsize, tcsheet, printinfo, caked) to all users — previously blocked anyone without a staff role entirely
 

@@ -188,5 +188,5 @@ export async function showCharacterEmbed(
   })
 
   const response = buildCustomerEmbed(character, business, standingTyped, rank, targetDiscordId, Number(notesCount), sessionKey)
-  await interaction.editReply({ ...response, components: response.components })
+  await interaction.editReply({ ...response, content: null })
 }
