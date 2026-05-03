@@ -60,13 +60,13 @@ export async function handleEmployeeActionButton(interaction: ButtonInteraction)
     : resolved.find((r) => r.business.id === session.businessId && (r.rank === 'manager' || r.rank === 'owner'))
 
   if (!managedBusiness && !sudo) {
-    await interaction.editReply({ content: 'You no longer have management access to this business.', components: [], embeds: [] })
+    await interaction.editReply({ content: 'You no longer have management access to this business.', components: [] })
     return
   }
 
   const config = await getEmployeeBusinessConfig(session.businessId, interaction.guild.id)
   if (!config) {
-    await interaction.editReply({ content: 'Employee management is not configured for this business.', components: [], embeds: [] })
+    await interaction.editReply({ content: 'Employee management is not configured for this business.', components: [] })
     return
   }
 
@@ -74,7 +74,7 @@ export async function handleEmployeeActionButton(interaction: ButtonInteraction)
   try {
     targetMember = await interaction.guild.members.fetch(session.targetDiscordId)
   } catch {
-    await interaction.editReply({ content: 'The target user is no longer in this server.', components: [], embeds: [] })
+    await interaction.editReply({ content: 'The target user is no longer in this server.', components: [] })
     return
   }
 
@@ -97,7 +97,7 @@ export async function handleEmployeeActionButton(interaction: ButtonInteraction)
   })()
 
   if (!permCheck.allowed) {
-    await interaction.editReply({ content: `Permission denied: ${permCheck.reason}`, components: [], embeds: [] })
+    await interaction.editReply({ content: `Permission denied: ${permCheck.reason}`, components: [] })
     return
   }
 
@@ -143,11 +143,11 @@ export async function handleEmployeeActionButton(interaction: ButtonInteraction)
     success = true
   } catch (err) {
     if (err instanceof RoleMissingError) {
-      await interaction.editReply({ content: `**Role not found:** \`${err.roleName}\`\nCheck the business role config in ${cmd('portal', interaction.guildId!)}.`, components: [], embeds: [] })
+      await interaction.editReply({ content: `**Role not found:** \`${err.roleName}\`\nCheck the business role config in ${cmd('portal', interaction.guildId!)}.`, components: [] })
       return
     }
     if (err instanceof RoleHierarchyError) {
-      await interaction.editReply({ content: `**Role hierarchy error:** Cannot manage \`${err.roleName}\`. The bot's role must be above all business roles.`, components: [], embeds: [] })
+      await interaction.editReply({ content: `**Role hierarchy error:** Cannot manage \`${err.roleName}\`. The bot's role must be above all business roles.`, components: [] })
       return
     }
     throw err

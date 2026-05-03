@@ -7,8 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
-### Fixed
-- `/employee` no longer shows duplicate owner buttons ("Add as Owner" + "Make Owner") for sudo users — sudo always uses "Make Owner" (DB-authoritative + best-effort Discord role sync)
+### Changed
+- `/employee` UI rebuilt with Discord Components V2 — container layout with accent color, section with avatar thumbnail, text displays, and separators replacing the legacy embed
 
 ---
 

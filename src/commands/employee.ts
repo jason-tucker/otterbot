@@ -130,7 +130,6 @@ export async function showEmployeeManageEmbed(
     await interaction.editReply({
       content: `Employee management is not configured for **${resolved.business.name}** yet. Use ${cmd('portal', interaction.guild!.id)} to add role mappings.`,
       components: [],
-      embeds: [],
     })
     return
   }

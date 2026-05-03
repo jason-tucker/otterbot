@@ -1,10 +1,16 @@
 import {
-  EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
+  ContainerBuilder,
+  SectionBuilder,
+  TextDisplayBuilder,
+  SeparatorBuilder,
+  ThumbnailBuilder,
+  SeparatorSpacingSize,
+  MessageFlags,
   type GuildMember,
   type MessageActionRowComponentBuilder,
 } from 'discord.js'
@@ -26,12 +32,6 @@ const RANK_COLORS: Record<string, number> = {
   none: 0x5865f2,
 }
 
-/**
- * Build the employee management embed and dynamic action components.
- * Status and permissions are recomputed fresh on every render.
- *
- * @param isSudo - if true, all action buttons are shown regardless of rank
- */
 export function buildEmployeeManageEmbed(
   targetMember: GuildMember,
   config: DbEmployeeBusinessConfig,
@@ -41,21 +41,19 @@ export function buildEmployeeManageEmbed(
   isSudo: boolean,
   allConfigs: { name: string; config: DbEmployeeBusinessConfig; isOwner: boolean }[],
 ): {
-  embeds: EmbedBuilder[]
-  components: ActionRowBuilder<MessageActionRowComponentBuilder>[]
+  flags: number
+  components: (ContainerBuilder | ActionRowBuilder<MessageActionRowComponentBuilder>)[]
 } {
   const color = RANK_COLORS[status.highestRank ?? 'none'] ?? RANK_COLORS.none
 
-  // Build cross-business employment summary from pre-fetched configs
+  // Cross-business employment summary
   const employmentSummary: string[] = []
   for (const { name, config: bConfig, isOwner: dbOwner } of allConfigs) {
     const hasEmp = !!bConfig.roles.employee && targetMember.roles.cache.has(bConfig.roles.employee.roleId)
     const hasMgr = !!bConfig.roles.manager && targetMember.roles.cache.has(bConfig.roles.manager.roleId)
     const hasOwnRole = !!bConfig.roles.owner && targetMember.roles.cache.has(bConfig.roles.owner.roleId)
     const effectiveOwner = dbOwner || (bConfig.permissions.allowOwnerRoleFallback && hasOwnRole)
-    const customHeld = bConfig.roles.custom.filter(
-      (cr) => targetMember.roles.cache.has(cr.roleId),
-    )
+    const customHeld = bConfig.roles.custom.filter((cr) => targetMember.roles.cache.has(cr.roleId))
     if (!hasEmp && !hasMgr && !effectiveOwner && customHeld.length === 0) continue
     const parts: string[] = []
     if (effectiveOwner) parts.push('Owner')
@@ -66,11 +64,8 @@ export function buildEmployeeManageEmbed(
   }
 
   const createdAt = Math.floor(targetMember.user.createdTimestamp / 1000)
-  const joinedAt = targetMember.joinedTimestamp
-    ? Math.floor(targetMember.joinedTimestamp / 1000)
-    : null
+  const joinedAt = targetMember.joinedTimestamp ? Math.floor(targetMember.joinedTimestamp / 1000) : null
 
-  // Current status in selected business
   let businessStatusText: string
   if (!status.inBusiness) {
     businessStatusText = 'Not employed'
@@ -83,26 +78,56 @@ export function buildEmployeeManageEmbed(
     businessStatusText = parts.join(', ')
   }
 
-  const embed = new EmbedBuilder()
-    .setColor(color)
-    .setTitle(targetMember.displayName)
-    .setThumbnail(targetMember.user.displayAvatarURL())
-    .setDescription(`<@${targetMember.id}>`)
-    .addFields(
-      { name: 'User ID', value: targetMember.id, inline: true },
-      { name: 'Account Created', value: `<t:${createdAt}:D>`, inline: true },
-      { name: 'Server Joined', value: joinedAt ? `<t:${joinedAt}:D>` : 'Unknown', inline: true },
-      {
-        name: 'Currently Employed At',
-        value: employmentSummary.length > 0 ? employmentSummary.join('\n') : 'No businesses',
-      },
-      { name: 'Editing Business', value: `**${config.name}**`, inline: true },
-      { name: 'Status in Business', value: businessStatusText, inline: true },
-    )
-    .setFooter({
-      text: `Managing: ${config.name}${isSudo ? ' · Sudo mode' : ''}`,
-    })
-    .setTimestamp()
+  // ---------------------------------------------------------------------------
+  // Container layout
+  // ---------------------------------------------------------------------------
+  const container = new ContainerBuilder().setAccentColor(color)
+
+  // Header: name + mention with avatar thumbnail
+  container.addSectionComponents(
+    new SectionBuilder()
+      .addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(`## ${targetMember.displayName}\n<@${targetMember.id}>`),
+      )
+      .setThumbnailAccessory(
+        new ThumbnailBuilder().setURL(targetMember.user.displayAvatarURL()),
+      ),
+  )
+
+  container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
+
+  // Account info row
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(
+      `-# USER ID · ACCOUNT CREATED · SERVER JOINED\n${targetMember.id} · <t:${createdAt}:D> · ${joinedAt ? `<t:${joinedAt}:D>` : 'Unknown'}`,
+    ),
+  )
+
+  container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
+
+  // Employment summary
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(
+      `**Currently Employed At**\n${employmentSummary.length > 0 ? employmentSummary.join('\n') : '*No businesses*'}`,
+    ),
+  )
+
+  container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
+
+  // Current business + status
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(
+      `**Editing Business** · ${config.name}\n**Status** · ${businessStatusText}`,
+    ),
+  )
+
+  // Footer
+  container.addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(
+      `-# Managing: ${config.name}${isSudo ? ' · Sudo mode' : ''} · <t:${Math.floor(Date.now() / 1000)}:t>`,
+    ),
+  )
 
   // ---------------------------------------------------------------------------
   // Action buttons
@@ -203,7 +228,7 @@ export function buildEmployeeManageEmbed(
     }
   }
 
-  // Sudo-only DB ownership buttons — always visible to sudo regardless of employment status
+  // Sudo-only DB ownership buttons
   if (isSudo) {
     if (!status.isDbOwner) {
       buttons.push(
@@ -222,14 +247,15 @@ export function buildEmployeeManageEmbed(
     }
   }
 
-  const components: ActionRowBuilder<MessageActionRowComponentBuilder>[] = []
+  const allComponents: (ContainerBuilder | ActionRowBuilder<MessageActionRowComponentBuilder>)[] = [container]
+
   if (buttons.length > 0) {
-    components.push(
+    allComponents.push(
       new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(buttons.slice(0, 5)),
     )
   }
   if (buttons.length > 5) {
-    components.push(
+    allComponents.push(
       new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(buttons.slice(5, 10)),
     )
   }
@@ -247,7 +273,7 @@ export function buildEmployeeManageEmbed(
           .setValue(`${held ? 'remove' : 'assign'}:${cr.roleId}`)
           .setDescription(held ? `Remove the ${cr.label} role` : `Assign the ${cr.label} role`)
       })
-      components.push(
+      allComponents.push(
         new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
           new StringSelectMenuBuilder()
             .setCustomId(`emp_custom_role:${sessionKey}`)
@@ -258,5 +284,5 @@ export function buildEmployeeManageEmbed(
     }
   }
 
-  return { embeds: [embed], components }
+  return { flags: MessageFlags.IsComponentsV2, components: allComponents }
 }
