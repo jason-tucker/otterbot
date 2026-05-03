@@ -8,12 +8,8 @@ import {
   type GuildMember,
   type MessageActionRowComponentBuilder,
 } from 'discord.js'
+import type { DbEmployeeBusinessConfig, DbCustomRole, TargetEmploymentStatus } from '../services/employeeService'
 import {
-  EMPLOYEE_BUSINESSES,
-  type EmployeeBusinessConfig,
-} from '../config/employee-businesses.config'
-import {
-  getTargetStatus,
   canHire,
   canFire,
   canPromoteToManager,
@@ -24,45 +20,49 @@ import {
 import type { StaffRank } from '../types/domain'
 
 const RANK_COLORS: Record<string, number> = {
-  owner: 0x9b59b6,   // Purple
-  manager: 0xf1c40f, // Gold
-  employee: 0x2ecc71, // Green
-  none: 0x5865f2,    // Discord blue (not employed)
-}
-
-function rankLabel(rank: StaffRank | null): string {
-  if (!rank) return 'Not Employed'
-  return rank.charAt(0).toUpperCase() + rank.slice(1)
+  owner: 0x9b59b6,
+  manager: 0xf1c40f,
+  employee: 0x2ecc71,
+  none: 0x5865f2,
 }
 
 /**
- * Build the employee management embed and action components.
- * Components are dynamic based on the target's current status and the command
- * user's rank — re-evaluated on every render to stay accurate after role changes.
+ * Build the employee management embed and dynamic action components.
+ * Status and permissions are recomputed fresh on every render.
+ *
+ * @param isSudo - if true, all action buttons are shown regardless of rank
  */
 export function buildEmployeeManageEmbed(
   targetMember: GuildMember,
-  config: EmployeeBusinessConfig,
+  config: DbEmployeeBusinessConfig,
+  status: TargetEmploymentStatus,
   commandUserRank: StaffRank,
   sessionKey: string,
+  isSudo: boolean,
+  allConfigs: { name: string; config: DbEmployeeBusinessConfig; isOwner: boolean }[],
 ): {
   embeds: EmbedBuilder[]
   components: ActionRowBuilder<MessageActionRowComponentBuilder>[]
 } {
-  const status = getTargetStatus(targetMember, config)
   const color = RANK_COLORS[status.highestRank ?? 'none'] ?? RANK_COLORS.none
 
-  // Collect employment info across all configured businesses for the summary field
+  // Build cross-business employment summary from pre-fetched configs
   const employmentSummary: string[] = []
-  for (const biz of EMPLOYEE_BUSINESSES) {
-    const s = getTargetStatus(targetMember, biz)
-    if (!s.inBusiness) continue
+  for (const { name, config: bConfig, isOwner: dbOwner } of allConfigs) {
+    const hasEmp = !!bConfig.roles.employee && targetMember.roles.cache.has(bConfig.roles.employee.roleId)
+    const hasMgr = !!bConfig.roles.manager && targetMember.roles.cache.has(bConfig.roles.manager.roleId)
+    const hasOwnRole = !!bConfig.roles.owner && targetMember.roles.cache.has(bConfig.roles.owner.roleId)
+    const effectiveOwner = dbOwner || (bConfig.permissions.allowOwnerRoleFallback && hasOwnRole)
+    const customHeld = bConfig.roles.custom.filter(
+      (cr) => targetMember.roles.cache.has(cr.roleId),
+    )
+    if (!hasEmp && !hasMgr && !effectiveOwner && customHeld.length === 0) continue
     const parts: string[] = []
-    if (s.hasOwnerRole) parts.push('Owner')
-    if (s.hasManagerRole) parts.push('Manager')
-    if (s.hasEmployeeRole) parts.push('Employee')
-    for (const cr of s.customRolesHeld) parts.push(cr.label)
-    employmentSummary.push(`**${biz.name}** — ${parts.join(', ')}`)
+    if (effectiveOwner) parts.push('Owner')
+    if (hasMgr) parts.push('Manager')
+    if (hasEmp) parts.push('Employee')
+    for (const cr of customHeld) parts.push(cr.label)
+    employmentSummary.push(`**${name}** — ${parts.join(', ')}`)
   }
 
   const createdAt = Math.floor(targetMember.user.createdTimestamp / 1000)
@@ -70,13 +70,13 @@ export function buildEmployeeManageEmbed(
     ? Math.floor(targetMember.joinedTimestamp / 1000)
     : null
 
-  // Status line for the selected business
+  // Current status in selected business
   let businessStatusText: string
   if (!status.inBusiness) {
     businessStatusText = 'Not employed'
   } else {
     const parts: string[] = []
-    if (status.hasOwnerRole) parts.push('Owner')
+    if (status.isOwner) parts.push('Owner')
     if (status.hasManagerRole) parts.push('Manager')
     if (status.hasEmployeeRole) parts.push('Employee')
     for (const cr of status.customRolesHeld) parts.push(cr.label)
@@ -97,22 +97,20 @@ export function buildEmployeeManageEmbed(
         value: employmentSummary.length > 0 ? employmentSummary.join('\n') : 'No businesses',
       },
       { name: 'Editing Business', value: `**${config.name}**`, inline: true },
-      {
-        name: 'Status in Business',
-        value: businessStatusText,
-        inline: true,
-      },
+      { name: 'Status in Business', value: businessStatusText, inline: true },
     )
-    .setFooter({ text: `Managing: ${config.name} · Rank shown: ${rankLabel(status.highestRank)}` })
+    .setFooter({
+      text: `Managing: ${config.name}${isSudo ? ' · Sudo mode' : ''}`,
+    })
     .setTimestamp()
 
   // ---------------------------------------------------------------------------
-  // Action buttons — determined by target status and command user rank
+  // Action buttons
   // ---------------------------------------------------------------------------
   const buttons: ButtonBuilder[] = []
 
   if (!status.inBusiness) {
-    if (canHire(commandUserRank).allowed) {
+    if (canHire(commandUserRank, isSudo).allowed) {
       buttons.push(
         new ButtonBuilder()
           .setCustomId(`emp_hire:${sessionKey}`)
@@ -120,7 +118,7 @@ export function buildEmployeeManageEmbed(
           .setStyle(ButtonStyle.Success),
       )
     }
-    if (canPromoteToManager(commandUserRank, config).allowed) {
+    if (canPromoteToManager(commandUserRank, config, isSudo).allowed) {
       buttons.push(
         new ButtonBuilder()
           .setCustomId(`emp_to_manager:${sessionKey}`)
@@ -128,7 +126,7 @@ export function buildEmployeeManageEmbed(
           .setStyle(ButtonStyle.Primary),
       )
     }
-    if (canManageOwner(commandUserRank, config).allowed) {
+    if (canManageOwner(commandUserRank, config, isSudo).allowed) {
       buttons.push(
         new ButtonBuilder()
           .setCustomId(`emp_to_owner:${sessionKey}`)
@@ -137,7 +135,7 @@ export function buildEmployeeManageEmbed(
       )
     }
   } else if (status.highestRank === 'employee') {
-    if (canFire(commandUserRank, 'employee', config).allowed) {
+    if (canFire(commandUserRank, 'employee', config, isSudo).allowed) {
       buttons.push(
         new ButtonBuilder()
           .setCustomId(`emp_fire:${sessionKey}`)
@@ -145,7 +143,7 @@ export function buildEmployeeManageEmbed(
           .setStyle(ButtonStyle.Danger),
       )
     }
-    if (canPromoteToManager(commandUserRank, config).allowed) {
+    if (canPromoteToManager(commandUserRank, config, isSudo).allowed) {
       buttons.push(
         new ButtonBuilder()
           .setCustomId(`emp_to_manager:${sessionKey}`)
@@ -153,7 +151,7 @@ export function buildEmployeeManageEmbed(
           .setStyle(ButtonStyle.Primary),
       )
     }
-    if (canManageOwner(commandUserRank, config).allowed) {
+    if (canManageOwner(commandUserRank, config, isSudo).allowed) {
       buttons.push(
         new ButtonBuilder()
           .setCustomId(`emp_to_owner:${sessionKey}`)
@@ -162,7 +160,7 @@ export function buildEmployeeManageEmbed(
       )
     }
   } else if (status.highestRank === 'manager') {
-    if (canFire(commandUserRank, 'manager', config).allowed) {
+    if (canFire(commandUserRank, 'manager', config, isSudo).allowed) {
       buttons.push(
         new ButtonBuilder()
           .setCustomId(`emp_fire:${sessionKey}`)
@@ -170,7 +168,7 @@ export function buildEmployeeManageEmbed(
           .setStyle(ButtonStyle.Danger),
       )
     }
-    if (canDemoteManager(commandUserRank, config).allowed) {
+    if (canDemoteManager(commandUserRank, config, isSudo).allowed) {
       buttons.push(
         new ButtonBuilder()
           .setCustomId(`emp_to_employee:${sessionKey}`)
@@ -178,7 +176,7 @@ export function buildEmployeeManageEmbed(
           .setStyle(ButtonStyle.Secondary),
       )
     }
-    if (canManageOwner(commandUserRank, config).allowed) {
+    if (canManageOwner(commandUserRank, config, isSudo).allowed) {
       buttons.push(
         new ButtonBuilder()
           .setCustomId(`emp_to_owner:${sessionKey}`)
@@ -187,7 +185,7 @@ export function buildEmployeeManageEmbed(
       )
     }
   } else if (status.highestRank === 'owner') {
-    if (canManageOwner(commandUserRank, config).allowed) {
+    if (canManageOwner(commandUserRank, config, isSudo).allowed) {
       buttons.push(
         new ButtonBuilder()
           .setCustomId(`emp_fire:${sessionKey}`)
@@ -206,7 +204,6 @@ export function buildEmployeeManageEmbed(
   }
 
   const components: ActionRowBuilder<MessageActionRowComponentBuilder>[] = []
-
   if (buttons.length > 0) {
     components.push(
       new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(buttons.slice(0, 5)),
@@ -218,23 +215,19 @@ export function buildEmployeeManageEmbed(
     )
   }
 
-  // ---------------------------------------------------------------------------
-  // Custom roles select menu (if the business has custom roles the user can manage)
-  // ---------------------------------------------------------------------------
+  // Custom roles select menu
   if (config.roles.custom.length > 0) {
     const manageable = config.roles.custom.filter(
-      (cr) => canManageCustomRole(commandUserRank, cr, config).allowed,
+      (cr) => canManageCustomRole(commandUserRank, cr, config, isSudo).allowed,
     )
-
     if (manageable.length > 0) {
-      const options = manageable.map((cr) => {
-        const held = status.customRolesHeld.some((h) => h.name === cr.name)
+      const options = manageable.map((cr: DbCustomRole) => {
+        const held = status.customRolesHeld.some((h) => h.roleId === cr.roleId)
         return new StringSelectMenuOptionBuilder()
           .setLabel(`${held ? '✅ Remove' : '➕ Assign'}: ${cr.label}`)
-          .setValue(`${held ? 'remove' : 'assign'}:${cr.name}`)
+          .setValue(`${held ? 'remove' : 'assign'}:${cr.roleId}`)
           .setDescription(held ? `Remove the ${cr.label} role` : `Assign the ${cr.label} role`)
       })
-
       components.push(
         new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
           new StringSelectMenuBuilder()

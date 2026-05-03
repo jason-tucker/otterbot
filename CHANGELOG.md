@@ -8,16 +8,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- `/portal` slash command — sudo-only business management panel (create, edit, deactivate/reactivate businesses)
+- Business role mapping management via `/portal` — add/remove Discord role → rank mappings per business
+- Business owner management via `/portal` — add/remove designated owners stored in DB (`business_owners` table)
+- Permission flags UI in `/portal` — toggle all six per-business flags with live buttons; set McKenzie API name
 - `/employee` slash command — full employee management (hire, fire, promote, demote) with ephemeral UI
 - Right-click → Apps → "Manage Employee" context menu command
-- `src/config/employee-businesses.config.ts` — standalone config for employee management (roles, custom roles, permissions per business)
-- `src/services/employeeService.ts` — role add/remove logic with typed `RoleMissingError` and `RoleHierarchyError`
-- `src/embeds/employeeManageEmbed.ts` — dynamic embed + buttons/selects built from live role state on every render
+- `src/services/employeeService.ts` — DB-backed config (`getEmployeeBusinessConfig`), role ID-first matching, typed `RoleMissingError` and `RoleHierarchyError`
+- `src/embeds/employeeManageEmbed.ts` — dynamic embed + buttons/selects built from live role state on every render; cross-business employment summary
+- `src/services/portalService.ts` — full CRUD for businesses, role mappings, and owners
+- `src/services/sudoService.ts` — multi-role sudo support via `SUDO_ROLE_IDS` env var
 - Business selector dropdown when manager belongs to multiple businesses
-- Custom role select menu (MKE Assistant, Printing Press Operator, OC Supervisor, OC Admin Assistant)
+- Custom role select menu using role IDs as values (not names)
 - Permission re-validation on every button/select click — stale sessions cannot execute actions
-- All employee actions audit-logged to database
+- All employee and portal actions audit-logged to database
 - `pnpm scan:roles` script — scans the Discord server and reports found/missing roles for every configured business
+
+### Changed
+- Businesses are now DB-authoritative — all config (roles, owners, permissions) lives in PostgreSQL, not TypeScript files
+- `DISCORD_PORTAL_ADMIN_ROLE_ID` superseded by `SUDO_ROLE_IDS` (comma-separated, multi-role support); old var still works as fallback
+- `permissionService.resolveBusinesses()` now checks both Discord role mappings and `business_owners` table, keeping the highest rank per business
+- `businesses` table gains: `createdBy`, `updatedAt`, `updatedBy`, `deactivatedAt`, `deactivatedBy`; soft-delete only
+- `business_role_mappings` table gains: `roleName`, `label`, `isBase`, `autoGrantEmployee`, `minRankToAssign`
+- New `business_owners` table for DB-authoritative ownership records
 
 ---
 

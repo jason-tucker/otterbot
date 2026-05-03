@@ -5,15 +5,15 @@ import {
   ActionRowBuilder,
 } from 'discord.js'
 import { getLookupSession } from '../../services/interactionCache'
-import { resolveBusinesses } from '../../services/permissionService'
-import { hasMinRank } from '../../services/permissionService'
+import { resolveBusinesses, hasMinRank } from '../../services/permissionService'
+import { cmd } from '../../utils/cmdMention'
 
 export async function handleStandingChangeButton(interaction: ButtonInteraction): Promise<void> {
   const sessionKey = interaction.customId.split(':')[1]
   const session = getLookupSession(sessionKey)
 
   if (!session) {
-    await interaction.reply({ content: 'This lookup has expired. Run `/lookup` again.', ephemeral: true })
+    await interaction.reply({ content: `This lookup has expired. Run ${cmd('lookup', interaction.guildId!)} again.`, ephemeral: true })
     return
   }
 

@@ -6,7 +6,8 @@ import {
   GuildChannel,
   PermissionFlagsBits,
 } from 'discord.js'
-import { resolveBusinesses, isPortalAdmin } from '../services/permissionService'
+import { resolveBusinesses } from '../services/permissionService'
+import { isSudoUser } from '../services/sudoService'
 
 export const data = new SlashCommandBuilder()
   .setName('movechannel')
@@ -51,7 +52,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const member = await interaction.guild.members.fetch(interaction.user.id)
   const resolved = await resolveBusinesses(member)
 
-  if (resolved.length === 0 && !isPortalAdmin(member)) {
+  if (resolved.length === 0 && !isSudoUser(member)) {
     await interaction.editReply('You do not have permission to use this command.')
     return
   }

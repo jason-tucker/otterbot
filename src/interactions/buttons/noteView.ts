@@ -1,5 +1,6 @@
 import { ButtonInteraction, EmbedBuilder } from 'discord.js'
 import { getLookupSession } from '../../services/interactionCache'
+import { cmd } from '../../utils/cmdMention'
 import { db } from '../../db/client'
 import { notes } from '../../db/schema'
 import { and, eq, desc } from 'drizzle-orm'
@@ -10,7 +11,7 @@ export async function handleNoteViewButton(interaction: ButtonInteraction): Prom
   const session = getLookupSession(sessionKey)
 
   if (!session) {
-    await interaction.reply({ content: 'This lookup has expired. Run `/lookup` again.', ephemeral: true })
+    await interaction.reply({ content: `This lookup has expired. Run ${cmd('lookup', interaction.guildId!)} again.`, ephemeral: true })
     return
   }
 

@@ -12,6 +12,7 @@ import { data as userLookupData } from '../commands/userLookup'
 import { data as helpData } from '../commands/help'
 import { data as employeeData } from '../commands/employee'
 import { data as employeeContextMenuData } from '../commands/employeeContextMenu'
+import { data as portalData } from '../commands/portal'
 
 const commands = [
   lookupData.toJSON(),
@@ -25,6 +26,7 @@ const commands = [
   helpData.toJSON(),
   employeeData.toJSON(),
   employeeContextMenuData.toJSON(),
+  portalData.toJSON(),
 ]
 const rest = new REST().setToken(env.DISCORD_BOT_TOKEN)
 

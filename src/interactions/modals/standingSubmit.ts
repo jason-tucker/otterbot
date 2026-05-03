@@ -1,5 +1,6 @@
 import { ModalSubmitInteraction, EmbedBuilder } from 'discord.js'
 import { getLookupSession } from '../../services/interactionCache'
+import { cmd } from '../../utils/cmdMention'
 import { resolveBusinesses, hasMinRank } from '../../services/permissionService'
 import { db } from '../../db/client'
 import { standings } from '../../db/schema'
@@ -17,7 +18,7 @@ export async function handleStandingSubmit(interaction: ModalSubmitInteraction):
   const session = getLookupSession(sessionKey)
 
   if (!session || !VALID_STANDINGS.includes(newStanding)) {
-    await interaction.reply({ content: 'This lookup has expired. Run `/lookup` again.', ephemeral: true })
+    await interaction.reply({ content: `This lookup has expired. Run ${cmd('lookup', interaction.guildId!)} again.`, ephemeral: true })
     return
   }
 

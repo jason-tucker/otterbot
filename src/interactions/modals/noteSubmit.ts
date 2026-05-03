@@ -1,5 +1,6 @@
 import { ModalSubmitInteraction, EmbedBuilder } from 'discord.js'
 import { getLookupSession } from '../../services/interactionCache'
+import { cmd } from '../../utils/cmdMention'
 import { resolveBusinesses } from '../../services/permissionService'
 import { db } from '../../db/client'
 import { notes } from '../../db/schema'
@@ -10,7 +11,7 @@ export async function handleNoteSubmit(interaction: ModalSubmitInteraction): Pro
   const session = getLookupSession(sessionKey)
 
   if (!session) {
-    await interaction.reply({ content: 'This lookup has expired. Run `/lookup` again.', ephemeral: true })
+    await interaction.reply({ content: `This lookup has expired. Run ${cmd('lookup', interaction.guildId!)} again.`, ephemeral: true })
     return
   }
 

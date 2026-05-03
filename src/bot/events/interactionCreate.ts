@@ -16,6 +16,7 @@ import { execute as executeTcSheet, data as tcSheetData } from '../../commands/t
 import { execute as executeCaked, data as cakedData } from '../../commands/caked'
 import { execute as executeHelp, data as helpData } from '../../commands/help'
 import { execute as executeEmployee, data as employeeData } from '../../commands/employee'
+import { execute as executePortal, data as portalData } from '../../commands/portal'
 import { execute as executeUserLookup } from '../../commands/userLookup'
 import { execute as executeEmployeeContextMenu } from '../../commands/employeeContextMenu'
 import { handlePrintInfoButton } from '../../interactions/buttons/printInfoButton'
@@ -34,6 +35,9 @@ import { handleBusinessEmployeeSelect } from '../../interactions/selects/busines
 import { handleEmployeeBusinessSelect } from '../../interactions/selects/employeeBusinessSelect'
 import { handleEmployeeCustomRoleSelect } from '../../interactions/selects/employeeCustomRoleSelect'
 import { handleEmployeeActionButton } from '../../interactions/buttons/employeeActionButton'
+import { handlePortalButton } from '../../interactions/buttons/portalButton'
+import { handlePortalSelect } from '../../interactions/selects/portalSelect'
+import { handlePortalModal } from '../../interactions/modals/portalModal'
 import { handleNoteSubmit } from '../../interactions/modals/noteSubmit'
 import { handleStandingSubmit } from '../../interactions/modals/standingSubmit'
 
@@ -47,6 +51,7 @@ const commandHandlers = new Map<string, (i: ChatInputCommandInteraction) => Prom
   [cakedData.name, executeCaked],
   [helpData.name, executeHelp],
   [employeeData.name, executeEmployee],
+  [portalData.name, executePortal],
 ])
 
 export function registerInteractionCreate(client: Client) {
@@ -82,6 +87,8 @@ export function registerInteractionCreate(client: Client) {
           await handleEmployeeBusinessSelect(interaction as StringSelectMenuInteraction)
         } else if (id.startsWith('emp_custom_role:')) {
           await handleEmployeeCustomRoleSelect(interaction as StringSelectMenuInteraction)
+        } else if (id.startsWith('portal_biz_select:') || id.startsWith('portal_rm_role:') || id.startsWith('portal_rm_owner:')) {
+          await handlePortalSelect(interaction as StringSelectMenuInteraction)
         }
         return
       }
@@ -104,6 +111,8 @@ export function registerInteractionCreate(client: Client) {
           await handleBusinessLookupButton(interaction as ButtonInteraction)
         } else if (id.startsWith('emp_')) {
           await handleEmployeeActionButton(interaction as ButtonInteraction)
+        } else if (id.startsWith('portal_')) {
+          await handlePortalButton(interaction as ButtonInteraction)
         }
         return
       }
@@ -118,6 +127,8 @@ export function registerInteractionCreate(client: Client) {
           await handleCakedContactSubmit(interaction as ModalSubmitInteraction)
         } else if (id === 'caked_event_submit') {
           await handleCakedEventSubmit(interaction as ModalSubmitInteraction)
+        } else if (id.startsWith('portal_') && id.includes('_modal:')) {
+          await handlePortalModal(interaction as ModalSubmitInteraction)
         }
         return
       }

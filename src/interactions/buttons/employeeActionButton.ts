@@ -1,10 +1,13 @@
 import { type ButtonInteraction } from 'discord.js'
 import { getEmployeeSession } from '../../services/interactionCache'
-import { resolveBusinesses } from '../../services/permissionService'
-import { getEmployeeConfig } from '../../config/employee-businesses.config'
+import { cmd } from '../../utils/cmdMention'
+import { resolveBusinesses, isBusinessOwner } from '../../services/permissionService'
+import { isSudoUser } from '../../services/sudoService'
 import { buildEmployeeManageEmbed } from '../../embeds/employeeManageEmbed'
 import { audit } from '../../services/auditService'
+import { getAllBusinesses } from '../../services/portalService'
 import {
+  getEmployeeBusinessConfig,
   getTargetStatus,
   hireEmployee,
   fireFromBusiness,
@@ -32,47 +35,36 @@ type EmployeeButtonAction =
   | 'emp_owner_to_employee'
 
 export async function handleEmployeeActionButton(interaction: ButtonInteraction): Promise<void> {
-  // customId format: {action}:{sessionKey}
   const colonIdx = interaction.customId.indexOf(':')
   const action = interaction.customId.slice(0, colonIdx) as EmployeeButtonAction
   const sessionKey = interaction.customId.slice(colonIdx + 1)
 
   const session = getEmployeeSession(sessionKey)
   if (!session) {
-    await interaction.reply({
-      content: 'This session has expired. Run `/employee` again.',
-      ephemeral: true,
-    })
+    await interaction.reply({ content: `This session has expired. Run ${cmd('employee', interaction.guildId!)} again.`, ephemeral: true })
     return
   }
 
   if (!interaction.guild) return
-
   await interaction.deferUpdate()
 
-  // Re-validate the command user's permissions on every click
   const commandMember = await interaction.guild.members.fetch(interaction.user.id)
+  const sudo = isSudoUser(commandMember)
   const resolved = await resolveBusinesses(commandMember)
-  const managedBusiness = resolved.find(
-    (r) => r.business.id === session.businessId && (r.rank === 'manager' || r.rank === 'owner'),
-  )
 
-  if (!managedBusiness) {
-    await interaction.editReply({
-      content: 'You no longer have management access to this business.',
-      components: [],
-      embeds: [],
-    })
+  const managedBusiness = sudo
+    ? resolved.find((r) => r.business.id === session.businessId) ??
+      { business: { id: session.businessId, name: '', slug: '', providerType: 'discord-only' as const, guildId: interaction.guild.id, active: true, settings: null, createdAt: new Date() }, rank: 'owner' as const }
+    : resolved.find((r) => r.business.id === session.businessId && (r.rank === 'manager' || r.rank === 'owner'))
+
+  if (!managedBusiness && !sudo) {
+    await interaction.editReply({ content: 'You no longer have management access to this business.', components: [], embeds: [] })
     return
   }
 
-  const config = getEmployeeConfig(managedBusiness.business.slug)
+  const config = await getEmployeeBusinessConfig(session.businessId, interaction.guild.id)
   if (!config) {
-    await interaction.editReply({
-      content: 'Employee management is not configured for this business.',
-      components: [],
-      embeds: [],
-    })
+    await interaction.editReply({ content: 'Employee management is not configured for this business.', components: [], embeds: [] })
     return
   }
 
@@ -80,43 +72,28 @@ export async function handleEmployeeActionButton(interaction: ButtonInteraction)
   try {
     targetMember = await interaction.guild.members.fetch(session.targetDiscordId)
   } catch {
-    await interaction.editReply({
-      content: 'The target user is no longer in this server.',
-      components: [],
-      embeds: [],
-    })
+    await interaction.editReply({ content: 'The target user is no longer in this server.', components: [], embeds: [] })
     return
   }
 
-  const commandRank = managedBusiness.rank
-  const currentStatus = getTargetStatus(targetMember, config)
+  const commandRank = managedBusiness?.rank ?? 'owner'
+  const isDbOwner = await isBusinessOwner(targetMember.id, session.businessId)
+  const currentStatus = getTargetStatus(targetMember, config, isDbOwner)
 
-  // Re-check permissions for the specific action
   const permCheck = (() => {
     switch (action) {
-      case 'emp_hire':
-        return canHire(commandRank)
-      case 'emp_fire':
-        return canFire(commandRank, currentStatus.highestRank, config)
-      case 'emp_to_manager':
-        return canPromoteToManager(commandRank, config)
-      case 'emp_to_employee':
-        return canDemoteManager(commandRank, config)
-      case 'emp_to_owner':
-        return canManageOwner(commandRank, config)
-      case 'emp_owner_to_manager':
-        return canManageOwner(commandRank, config)
-      case 'emp_owner_to_employee':
-        return canManageOwner(commandRank, config)
+      case 'emp_hire':          return canHire(commandRank, sudo)
+      case 'emp_fire':          return canFire(commandRank, currentStatus.highestRank, config, sudo)
+      case 'emp_to_manager':    return canPromoteToManager(commandRank, config, sudo)
+      case 'emp_to_employee':   return canDemoteManager(commandRank, config, sudo)
+      case 'emp_to_owner':      return canManageOwner(commandRank, config, sudo)
+      case 'emp_owner_to_manager':   return canManageOwner(commandRank, config, sudo)
+      case 'emp_owner_to_employee':  return canManageOwner(commandRank, config, sudo)
     }
   })()
 
   if (!permCheck.allowed) {
-    await interaction.editReply({
-      content: `Permission denied: ${permCheck.reason}`,
-      components: [],
-      embeds: [],
-    })
+    await interaction.editReply({ content: `Permission denied: ${permCheck.reason}`, components: [], embeds: [] })
     return
   }
 
@@ -125,51 +102,22 @@ export async function handleEmployeeActionButton(interaction: ButtonInteraction)
 
   try {
     switch (action) {
-      case 'emp_hire':
-        await hireEmployee(interaction.guild, targetMember, config)
-        auditAction = 'hire_employee'
-        break
-      case 'emp_fire':
-        await fireFromBusiness(interaction.guild, targetMember, config)
-        auditAction = 'fire_from_business'
-        break
-      case 'emp_to_manager':
-        await promoteToManager(interaction.guild, targetMember, config)
-        auditAction = 'promote_to_manager'
-        break
-      case 'emp_to_employee':
-        await demoteToEmployee(interaction.guild, targetMember, config)
-        auditAction = 'demote_to_employee'
-        break
-      case 'emp_to_owner':
-        await promoteToOwner(interaction.guild, targetMember, config)
-        auditAction = 'promote_to_owner'
-        break
-      case 'emp_owner_to_manager':
-        await demoteOwnerToManager(interaction.guild, targetMember, config)
-        auditAction = 'demote_owner_to_manager'
-        break
-      case 'emp_owner_to_employee':
-        await demoteOwnerToEmployee(interaction.guild, targetMember, config)
-        auditAction = 'demote_owner_to_employee'
-        break
+      case 'emp_hire':               await hireEmployee(interaction.guild, targetMember, config);           auditAction = 'hire_employee'; break
+      case 'emp_fire':               await fireFromBusiness(interaction.guild, targetMember, config);       auditAction = 'fire_from_business'; break
+      case 'emp_to_manager':         await promoteToManager(interaction.guild, targetMember, config);       auditAction = 'promote_to_manager'; break
+      case 'emp_to_employee':        await demoteToEmployee(interaction.guild, targetMember, config);       auditAction = 'demote_to_employee'; break
+      case 'emp_to_owner':           await promoteToOwner(interaction.guild, targetMember, config);         auditAction = 'promote_to_owner'; break
+      case 'emp_owner_to_manager':   await demoteOwnerToManager(interaction.guild, targetMember, config);  auditAction = 'demote_owner_to_manager'; break
+      case 'emp_owner_to_employee':  await demoteOwnerToEmployee(interaction.guild, targetMember, config); auditAction = 'demote_owner_to_employee'; break
     }
     success = true
   } catch (err) {
     if (err instanceof RoleMissingError) {
-      await interaction.editReply({
-        content: `**Role not found:** \`${err.roleName}\`\nCheck the employee config and run \`pnpm scan:roles\` to verify all role names are correct.`,
-        components: [],
-        embeds: [],
-      })
+      await interaction.editReply({ content: `**Role not found:** \`${err.roleName}\`\nCheck the business role config in ${cmd('portal', interaction.guildId!)}.`, components: [], embeds: [] })
       return
     }
     if (err instanceof RoleHierarchyError) {
-      await interaction.editReply({
-        content: `**Role hierarchy error:** Cannot manage \`${err.roleName}\`.\nThe bot's highest role must be above all business roles in server settings.`,
-        components: [],
-        embeds: [],
-      })
+      await interaction.editReply({ content: `**Role hierarchy error:** Cannot manage \`${err.roleName}\`. The bot's role must be above all business roles.`, components: [], embeds: [] })
       return
     }
     throw err
@@ -186,12 +134,19 @@ export async function handleEmployeeActionButton(interaction: ButtonInteraction)
     })
   }
 
-  // Re-fetch target with fresh role data and rebuild the embed in-place
-  const updatedTarget = await interaction.guild.members.fetch({
-    user: session.targetDiscordId,
-    force: true,
-  })
+  const updatedTarget = await interaction.guild.members.fetch({ user: session.targetDiscordId, force: true })
+  const updatedDbOwner = await isBusinessOwner(updatedTarget.id, session.businessId)
+  const updatedStatus = getTargetStatus(updatedTarget, config, updatedDbOwner)
 
-  const response = buildEmployeeManageEmbed(updatedTarget, config, commandRank, sessionKey)
+  const allBizRecords = await getAllBusinesses(interaction.guild.id)
+  const allConfigs = await Promise.all(
+    allBizRecords.map(async (b) => {
+      const cfg = await getEmployeeBusinessConfig(b.id, interaction.guild!.id)
+      const ownerCheck = cfg ? await isBusinessOwner(updatedTarget.id, b.id) : false
+      return { name: b.name, config: cfg!, isOwner: ownerCheck }
+    }),
+  ).then((results) => results.filter((r) => r.config !== null))
+
+  const response = buildEmployeeManageEmbed(updatedTarget, config, updatedStatus, commandRank, sessionKey, sudo, allConfigs)
   await interaction.editReply(response)
 }

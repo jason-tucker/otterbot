@@ -8,10 +8,14 @@ import {
   type UserContextMenuCommandInteraction,
   type GuildMember,
 } from 'discord.js'
-import { resolveBusinesses } from '../services/permissionService'
-import { getEmployeeConfig } from '../config/employee-businesses.config'
+import { resolveBusinesses, isBusinessOwner } from '../services/permissionService'
+import { isSudoUser } from '../services/sudoService'
+import { cmd } from '../utils/cmdMention'
+import { getEmployeeBusinessConfig } from '../services/employeeService'
 import { buildEmployeeManageEmbed } from '../embeds/employeeManageEmbed'
 import { storeEmployeeSession } from '../services/interactionCache'
+import { getTargetStatus } from '../services/employeeService'
+import { getAllBusinesses } from '../services/portalService'
 import type { ResolvedBusiness } from '../types/domain'
 
 export type EmployeeManageInteraction =
@@ -32,18 +36,11 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     await interaction.reply({ content: 'This command can only be used in a server.', ephemeral: true })
     return
   }
-
   await interaction.deferReply({ ephemeral: true })
-
   const targetUser = interaction.options.getUser('user', true)
   await runEmployeeManage(interaction, targetUser.id)
 }
 
-/**
- * Entry point shared by the slash command and the context menu.
- * Resolves the command user's manageable businesses and either shows
- * a business selector (if multiple) or jumps straight to the management embed.
- */
 export async function runEmployeeManage(
   interaction: EmployeeManageInteraction,
   targetDiscordId: string,
@@ -51,8 +48,29 @@ export async function runEmployeeManage(
   if (!interaction.guild) return
 
   const commandMember = await interaction.guild.members.fetch(interaction.user.id)
+  const sudo = isSudoUser(commandMember)
   const resolved = await resolveBusinesses(commandMember)
-  const manageable = resolved.filter((r) => r.rank === 'manager' || r.rank === 'owner')
+
+  // Sudo users see all businesses; normal users only see ones they manage
+  let manageable: ResolvedBusiness[]
+  if (sudo) {
+    const allBizRecords = await getAllBusinesses(interaction.guild.id)
+    manageable = allBizRecords.map((b) => ({
+      business: {
+        id: b.id,
+        name: b.name,
+        slug: b.slug,
+        providerType: b.providerType,
+        guildId: b.guildId,
+        active: b.active,
+        settings: b.settings,
+        createdAt: b.createdAt,
+      },
+      rank: 'owner' as const, // sudo users operate as owner
+    }))
+  } else {
+    manageable = resolved.filter((r) => r.rank === 'manager' || r.rank === 'owner')
+  }
 
   if (manageable.length === 0) {
     await interaction.editReply(
@@ -61,7 +79,7 @@ export async function runEmployeeManage(
     return
   }
 
-  if (targetDiscordId === commandMember.id) {
+  if (targetDiscordId === commandMember.id && !sudo) {
     await interaction.editReply('You cannot manage your own roles through this command.')
     return
   }
@@ -75,11 +93,10 @@ export async function runEmployeeManage(
   }
 
   if (manageable.length === 1) {
-    await showEmployeeManageEmbed(interaction, manageable[0], targetMember)
+    await showEmployeeManageEmbed(interaction, manageable[0], targetMember, sudo)
     return
   }
 
-  // Multiple businesses — show a selector
   const select = new StringSelectMenuBuilder()
     .setCustomId(`emp_business_select:${targetDiscordId}`)
     .setPlaceholder('Which business are you acting as?')
@@ -87,36 +104,49 @@ export async function runEmployeeManage(
       manageable.map((r) =>
         new StringSelectMenuOptionBuilder()
           .setLabel(r.business.name)
-          .setDescription(`Acting as ${r.rank}`)
+          .setDescription(sudo ? 'Sudo access' : `Acting as ${r.rank}`)
           .setValue(r.business.id),
       ),
     )
 
   await interaction.editReply({
-    content: 'You manage multiple businesses. Which are you acting as?',
+    content: sudo
+      ? 'Sudo mode — select a business to manage:'
+      : 'You manage multiple businesses. Which are you acting as?',
     components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)],
   })
 }
 
-/**
- * Build and display (or update) the employee management embed for the selected business.
- * Called after a business is chosen (or immediately if only one business).
- */
 export async function showEmployeeManageEmbed(
   interaction: EmployeeManageInteraction,
   resolved: ResolvedBusiness,
   targetMember: GuildMember,
+  isSudo: boolean,
 ): Promise<void> {
-  const config = getEmployeeConfig(resolved.business.slug)
+  if (!interaction.guild) return
 
+  const config = await getEmployeeBusinessConfig(resolved.business.id, interaction.guild.id)
   if (!config) {
     await interaction.editReply({
-      content: `Employee management is not configured for **${resolved.business.name}** yet. Contact a bot administrator.`,
+      content: `Employee management is not configured for **${resolved.business.name}** yet. Use ${cmd('portal', interaction.guild!.id)} to add role mappings.`,
       components: [],
       embeds: [],
     })
     return
   }
+
+  const isDbOwner = await isBusinessOwner(targetMember.id, resolved.business.id)
+  const status = getTargetStatus(targetMember, config, isDbOwner)
+
+  // Fetch all business configs for the cross-business employment summary
+  const allBizRecords = await getAllBusinesses(interaction.guild.id)
+  const allConfigs = await Promise.all(
+    allBizRecords.map(async (b) => {
+      const cfg = await getEmployeeBusinessConfig(b.id, interaction.guild!.id)
+      const ownerCheck = cfg ? await isBusinessOwner(targetMember.id, b.id) : false
+      return { name: b.name, config: cfg!, isOwner: ownerCheck }
+    }),
+  ).then((results) => results.filter((r) => r.config !== null))
 
   const sessionKey = storeEmployeeSession({
     commandUserDiscordId: interaction.user.id,
@@ -126,6 +156,14 @@ export async function showEmployeeManageEmbed(
     businessSlug: resolved.business.slug,
   })
 
-  const response = buildEmployeeManageEmbed(targetMember, config, resolved.rank, sessionKey)
+  const response = buildEmployeeManageEmbed(
+    targetMember,
+    config,
+    status,
+    resolved.rank,
+    sessionKey,
+    isSudo,
+    allConfigs,
+  )
   await interaction.editReply({ ...response, content: null })
 }

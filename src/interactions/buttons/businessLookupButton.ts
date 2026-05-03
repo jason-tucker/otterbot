@@ -1,6 +1,7 @@
 import type { ButtonInteraction } from 'discord.js'
 import { ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } from 'discord.js'
 import { getBusinessRosterSession } from '../../services/interactionCache'
+import { cmd } from '../../utils/cmdMention'
 
 export async function handleBusinessLookupButton(interaction: ButtonInteraction): Promise<void> {
   await interaction.deferUpdate()
@@ -9,7 +10,7 @@ export async function handleBusinessLookupButton(interaction: ButtonInteraction)
   const session = getBusinessRosterSession(sessionKey)
 
   if (!session) {
-    await interaction.editReply({ content: 'This session has expired. Run `/business` again.', embeds: [], components: [] })
+    await interaction.editReply({ content: `This session has expired. Run ${cmd('business', interaction.guildId!)} again.`, embeds: [], components: [] })
     return
   }
 

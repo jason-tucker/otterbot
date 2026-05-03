@@ -1,10 +1,13 @@
 import { type StringSelectMenuInteraction } from 'discord.js'
 import { getEmployeeSession } from '../../services/interactionCache'
-import { resolveBusinesses } from '../../services/permissionService'
-import { getEmployeeConfig } from '../../config/employee-businesses.config'
+import { cmd } from '../../utils/cmdMention'
+import { resolveBusinesses, isBusinessOwner } from '../../services/permissionService'
+import { isSudoUser } from '../../services/sudoService'
 import { buildEmployeeManageEmbed } from '../../embeds/employeeManageEmbed'
 import { audit } from '../../services/auditService'
+import { getAllBusinesses, getBusinessById } from '../../services/portalService'
 import {
+  getEmployeeBusinessConfig,
   getTargetStatus,
   assignCustomRole,
   removeCustomRole,
@@ -18,70 +21,51 @@ export async function handleEmployeeCustomRoleSelect(
 ): Promise<void> {
   if (!interaction.guild) return
 
-  // customId format: emp_custom_role:{sessionKey}
   const sessionKey = interaction.customId.split(':')[1]
   const session = getEmployeeSession(sessionKey)
-
   if (!session) {
-    await interaction.reply({
-      content: 'This session has expired. Run `/employee` again.',
-      ephemeral: true,
-    })
+    await interaction.reply({ content: `This session has expired. Run ${cmd('employee', interaction.guildId!)} again.`, ephemeral: true })
     return
   }
 
   await interaction.deferUpdate()
 
-  // value format: "{assign|remove}:{roleName}"
-  // Role names may not contain ':' but we use split limit to be safe
-  const valueStr = interaction.values[0]
-  const firstColon = valueStr.indexOf(':')
-  const actionPart = valueStr.slice(0, firstColon) as 'assign' | 'remove'
-  const roleName = valueStr.slice(firstColon + 1)
+  // value: "{assign|remove}:{roleId}"
+  const firstColon = interaction.values[0].indexOf(':')
+  const actionPart = interaction.values[0].slice(0, firstColon) as 'assign' | 'remove'
+  const roleId = interaction.values[0].slice(firstColon + 1)
 
-  // Re-validate command user permissions
   const commandMember = await interaction.guild.members.fetch(interaction.user.id)
+  const sudo = isSudoUser(commandMember)
   const resolved = await resolveBusinesses(commandMember)
-  const managedBusiness = resolved.find(
+
+  let managedBusiness = resolved.find(
     (r) => r.business.id === session.businessId && (r.rank === 'manager' || r.rank === 'owner'),
   )
-
+  if (!managedBusiness && sudo) {
+    const biz = await getBusinessById(session.businessId)
+    if (biz) managedBusiness = { business: { id: biz.id, name: biz.name, slug: biz.slug, providerType: biz.providerType, guildId: biz.guildId, active: biz.active, settings: biz.settings, createdAt: biz.createdAt }, rank: 'owner' }
+  }
   if (!managedBusiness) {
-    await interaction.editReply({
-      content: 'You no longer have management access to this business.',
-      components: [],
-      embeds: [],
-    })
+    await interaction.editReply({ content: 'You no longer have management access to this business.', components: [], embeds: [] })
     return
   }
 
-  const config = getEmployeeConfig(managedBusiness.business.slug)
+  const config = await getEmployeeBusinessConfig(session.businessId, interaction.guild.id)
   if (!config) {
-    await interaction.editReply({
-      content: 'Employee management is not configured for this business.',
-      components: [],
-      embeds: [],
-    })
+    await interaction.editReply({ content: 'Employee management is not configured for this business.', components: [], embeds: [] })
     return
   }
 
-  const customRole = config.roles.custom.find((cr) => cr.name === roleName)
+  const customRole = config.roles.custom.find((cr) => cr.roleId === roleId)
   if (!customRole) {
-    await interaction.editReply({
-      content: `That role (\`${roleName}\`) is not configured for this business.`,
-      components: [],
-      embeds: [],
-    })
+    await interaction.editReply({ content: 'That role is not configured for this business.', components: [], embeds: [] })
     return
   }
 
-  const permCheck = canManageCustomRole(managedBusiness.rank, customRole, config)
+  const permCheck = canManageCustomRole(managedBusiness.rank, customRole, config, sudo)
   if (!permCheck.allowed) {
-    await interaction.editReply({
-      content: `Permission denied: ${permCheck.reason}`,
-      components: [],
-      embeds: [],
-    })
+    await interaction.editReply({ content: `Permission denied: ${permCheck.reason}`, components: [], embeds: [] })
     return
   }
 
@@ -89,11 +73,7 @@ export async function handleEmployeeCustomRoleSelect(
   try {
     targetMember = await interaction.guild.members.fetch(session.targetDiscordId)
   } catch {
-    await interaction.editReply({
-      content: 'The target user is no longer in this server.',
-      components: [],
-      embeds: [],
-    })
+    await interaction.editReply({ content: 'The target user is no longer in this server.', components: [], embeds: [] })
     return
   }
 
@@ -104,24 +84,16 @@ export async function handleEmployeeCustomRoleSelect(
     if (actionPart === 'assign') {
       await assignCustomRole(interaction.guild, targetMember, config, customRole)
     } else {
-      await removeCustomRole(interaction.guild, targetMember, config, customRole)
+      await removeCustomRole(interaction.guild, targetMember, customRole)
     }
     success = true
   } catch (err) {
     if (err instanceof RoleMissingError) {
-      await interaction.editReply({
-        content: `**Role not found:** \`${err.roleName}\`\nCheck the employee config and run \`pnpm scan:roles\` to verify all role names are correct.`,
-        components: [],
-        embeds: [],
-      })
+      await interaction.editReply({ content: `**Role not found:** \`${err.roleName}\`\nCheck role config in ${cmd('portal', interaction.guildId!)}.`, components: [], embeds: [] })
       return
     }
     if (err instanceof RoleHierarchyError) {
-      await interaction.editReply({
-        content: `**Role hierarchy error:** Cannot manage \`${err.roleName}\`.\nThe bot's highest role must be above all business roles in server settings.`,
-        components: [],
-        embeds: [],
-      })
+      await interaction.editReply({ content: `**Role hierarchy error:** Cannot manage \`${err.roleName}\`.`, components: [], embeds: [] })
       return
     }
     throw err
@@ -138,19 +110,19 @@ export async function handleEmployeeCustomRoleSelect(
     })
   }
 
-  const updatedTarget = await interaction.guild.members.fetch({
-    user: session.targetDiscordId,
-    force: true,
-  })
+  const updatedTarget = await interaction.guild.members.fetch({ user: session.targetDiscordId, force: true })
+  const updatedDbOwner = await isBusinessOwner(updatedTarget.id, session.businessId)
+  const updatedStatus = getTargetStatus(updatedTarget, config, updatedDbOwner)
 
-  const currentStatus = getTargetStatus(updatedTarget, config)
-  void currentStatus // getTargetStatus is called inside buildEmployeeManageEmbed — but we verify the fetch succeeded
+  const allBizRecords = await getAllBusinesses(interaction.guild.id)
+  const allConfigs = await Promise.all(
+    allBizRecords.map(async (b) => {
+      const cfg = await getEmployeeBusinessConfig(b.id, interaction.guild!.id)
+      const ownerCheck = cfg ? await isBusinessOwner(updatedTarget.id, b.id) : false
+      return { name: b.name, config: cfg!, isOwner: ownerCheck }
+    }),
+  ).then((r) => r.filter((x) => x.config !== null))
 
-  const response = buildEmployeeManageEmbed(
-    updatedTarget,
-    config,
-    managedBusiness.rank,
-    sessionKey,
-  )
+  const response = buildEmployeeManageEmbed(updatedTarget, config, updatedStatus, managedBusiness.rank, sessionKey, sudo, allConfigs)
   await interaction.editReply(response)
 }

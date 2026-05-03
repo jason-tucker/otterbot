@@ -1,5 +1,6 @@
 import type { StringSelectMenuInteraction } from 'discord.js'
 import { getBusinessRosterSession } from '../../services/interactionCache'
+import { cmd } from '../../utils/cmdMention'
 import { resolveBusinesses } from '../../services/permissionService'
 import { showCharacterEmbed } from '../../commands/lookup'
 import type { LookupInteraction } from '../../commands/lookup'
@@ -13,7 +14,7 @@ export async function handleBusinessEmployeeSelect(interaction: StringSelectMenu
   const session = getBusinessRosterSession(sessionKey)
 
   if (!session) {
-    await interaction.editReply({ content: 'This session has expired. Run `/business` again.', embeds: [], components: [] })
+    await interaction.editReply({ content: `This session has expired. Run ${cmd('business', interaction.guildId!)} again.`, embeds: [], components: [] })
     return
   }
 

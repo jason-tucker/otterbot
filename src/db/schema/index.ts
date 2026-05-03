@@ -1,4 +1,5 @@
 export * from './businesses'
+export * from './businessOwners'
 export * from './notes'
 export * from './standings'
 export * from './auditLogs'

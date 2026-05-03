@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, ChatInputCommandInteraction, EmbedBuilder } from 'discord.js'
 import { resolveBusinesses } from '../services/permissionService'
-import { isPortalAdmin } from '../services/permissionService'
+import { isSudoUser } from '../services/sudoService'
+import { cmd } from '../utils/cmdMention'
 import type { ResolvedBusiness } from '../types/domain'
 
 export const data = new SlashCommandBuilder()
@@ -18,7 +19,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   const member = await interaction.guild.members.fetch(interaction.user.id)
   const resolved = await resolveBusinesses(member)
-  const admin = isPortalAdmin(member)
+  const admin = isSudoUser(member)
 
   const embed = new EmbedBuilder()
     .setColor(0x5865f2)
@@ -34,20 +35,22 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   const lines: string[] = []
 
+  const guildId = interaction.guildId!
+
   // Commands available to all staff regardless of rank
   if (resolved.length > 0) {
     lines.push('**Customer Lookup**')
-    lines.push('`/lookup user:<@user>` — Look up a Discord user\'s RP characters, standing, and notes')
-    lines.push('Right-click a user → **Look Up** — Shortcut for /lookup')
+    lines.push(`${cmd('lookup', guildId)} — Look up a Discord user's RP characters, standing, and notes`)
+    lines.push('Right-click a user → Apps → **Lookup** — Shortcut')
     lines.push('')
     lines.push('**Business**')
-    lines.push('`/business name:<name>` — View a business roster; staff of that business can look up any employee directly')
+    lines.push(`${cmd('business', guildId)} — View a business roster; staff of that business can look up any employee directly`)
     lines.push('')
     lines.push('**Reference**')
-    lines.push('`/artsize` — Art commission size reference')
-    lines.push('`/tcsheet` — TC sheet reference')
-    lines.push('`/printinfo` — McKenzie printing information')
-    lines.push('`/caked` — Caked Up order and event information')
+    lines.push(`${cmd('artsize', guildId)} — Art commission size reference`)
+    lines.push(`${cmd('tcsheet', guildId)} — TC sheet reference`)
+    lines.push(`${cmd('printinfo', guildId)} — McKenzie printing information`)
+    lines.push(`${cmd('caked', guildId)} — Caked Up order and event information`)
   }
 
   // Manager+ commands
@@ -56,7 +59,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     lines.push('')
     lines.push('**Manager Actions** *(on customer embed)*')
     lines.push('⚖️ Change Standing — Set a customer\'s standing (good / neutral / bad / blacklisted)')
-    lines.push('`/movechannel` — Move the current ticket channel to a different category')
+    lines.push(`${cmd('movechannel', guildId)} — Move the current ticket channel to a different category`)
   }
 
   // Per-business breakdown
@@ -70,8 +73,9 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   if (admin) {
     lines.push('')
-    lines.push('**Portal Admin**')
-    lines.push('You have portal admin access across all businesses.')
+    lines.push('**Sudo Admin**')
+    lines.push(`${cmd('portal', guildId)} — Manage businesses, role mappings, and owners`)
+    lines.push(`${cmd('employee', guildId)} — Manage employee roles for any business`)
   }
 
   embed.setDescription(lines.join('\n'))
