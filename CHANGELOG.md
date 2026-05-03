@@ -7,21 +7,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+---
+
+## [0.7.0] — 2026-05-03
+
+### Added
+- `/portal`, `/employee`, "Manage Employee" context menu, and `/movechannel` now set `defaultMemberPermissions(0)` — hidden from @everyone; roles granted once in Server Settings → Integrations
+
 ### Changed
-- `/printinfo` and `/caked` initial replies are now ephemeral — only visible to the sender until "Send to Channel" is pressed (matching `/artsize` and `/tcsheet`)
+- `/employee` UI rebuilt with Discord Components V2 — container with accent color, section + avatar thumbnail, text displays, and separators
+- `/printinfo` and `/caked` initial replies are now ephemeral with a "Send to Channel" button, matching `/artsize` and `/tcsheet`
+- McKenzie Enterprises is read-only in `/employee` — roles are managed externally by the MKE website
 
 ### Fixed
-- Business managers/owners no longer incorrectly show as having no staff access — `resolveBusinesses` was filtering by `businesses.guildId` instead of `businessRoleMappings.guildId`, causing cross-guild seeded businesses to be invisible
-
-### Changed
-- `/portal`, `/employee`, "Manage Employee" context menu, and `/movechannel` now set `defaultMemberPermissions(0)` — hidden from @everyone by default; roles are configured once in Server Settings → Integrations
-- McKenzie Enterprises is now read-only in `/employee` — roles are managed by the MKE website; no hire/fire/promote/demote buttons are shown
-
-### Fixed
-- "Manage Employee" right-click context menu now respects sudo — sudo users are no longer blocked with "no management permissions"
-
-### Changed
-- `/employee` UI rebuilt with Discord Components V2 — container layout with accent color, section with avatar thumbnail, text displays, and separators replacing the legacy embed
+- Business managers/owners no longer shown as having no staff access — `resolveBusinesses` was filtering on `businesses.guildId` instead of `businessRoleMappings.guildId`
+- "Manage Employee" right-click context menu now respects sudo — sudo users were incorrectly blocked
+- `/employee` no longer shows duplicate owner buttons for sudo users ("Add as Owner" + "Make Owner")
 
 ---
 
