@@ -5,6 +5,7 @@ import {
   StringSelectMenuInteraction,
   ButtonInteraction,
   ModalSubmitInteraction,
+  UserContextMenuCommandInteraction,
 } from 'discord.js'
 import { execute as executeLookup, data as lookupData } from '../../commands/lookup'
 import { execute as executeBusiness, data as businessData } from '../../commands/business'
@@ -13,6 +14,7 @@ import { execute as executePrintInfo, data as printInfoData } from '../../comman
 import { execute as executeArtSize, data as artSizeData } from '../../commands/artSize'
 import { execute as executeTcSheet, data as tcSheetData } from '../../commands/tcSheet'
 import { execute as executeCaked, data as cakedData } from '../../commands/caked'
+import { execute as executeUserLookup } from '../../commands/userLookup'
 import { handlePrintInfoButton } from '../../interactions/buttons/printInfoButton'
 import { handleCakedButton } from '../../interactions/buttons/cakedButton'
 import { handleCakedContactSubmit } from '../../interactions/modals/cakedContactSubmit'
@@ -44,6 +46,11 @@ export function registerInteractionCreate(client: Client) {
       if (interaction.isChatInputCommand()) {
         const handler = commandHandlers.get(interaction.commandName)
         if (handler) await handler(interaction)
+        return
+      }
+
+      if (interaction.isUserContextMenuCommand()) {
+        await executeUserLookup(interaction as UserContextMenuCommandInteraction)
         return
       }
 

@@ -8,6 +8,7 @@ import { data as printInfoData } from '../commands/printInfo'
 import { data as artSizeData } from '../commands/artSize'
 import { data as tcSheetData } from '../commands/tcSheet'
 import { data as cakedData } from '../commands/caked'
+import { data as userLookupData } from '../commands/userLookup'
 
 const commands = [
   lookupData.toJSON(),
@@ -17,6 +18,7 @@ const commands = [
   artSizeData.toJSON(),
   tcSheetData.toJSON(),
   cakedData.toJSON(),
+  userLookupData.toJSON(),
 ]
 const rest = new REST().setToken(env.DISCORD_BOT_TOKEN)
 

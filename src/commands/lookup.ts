@@ -6,6 +6,7 @@ import {
   ActionRowBuilder,
   EmbedBuilder,
   StringSelectMenuInteraction,
+  UserContextMenuCommandInteraction,
 } from 'discord.js'
 import { resolveBusinesses } from '../services/permissionService'
 import { getProvider } from '../services/businessService'
@@ -17,8 +18,11 @@ import { and, eq, count } from 'drizzle-orm'
 import type { ResolvedBusiness, Character } from '../types/domain'
 import { storeLookupSession } from '../services/interactionCache'
 
-// Both slash command and select menu interactions support editReply after deferring
-export type LookupInteraction = ChatInputCommandInteraction | StringSelectMenuInteraction
+// All three interaction types support deferReply / editReply after deferring
+export type LookupInteraction =
+  | ChatInputCommandInteraction
+  | StringSelectMenuInteraction
+  | UserContextMenuCommandInteraction
 
 export const data = new SlashCommandBuilder()
   .setName('lookup')
