@@ -13,6 +13,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 - All embeds migrated to Discord Components V2 (ContainerBuilder, TextDisplayBuilder, SeparatorBuilder) — richer layout, better visual hierarchy across `/lookup`, `/business`, `/portal`, and `/employee`
 - `/lookup` customer embed now shows bank number alongside CSN, DOB, and phone
+- `/lookup` no longer asks which business to act as — it always uses McKenzie Enterprises directly
 
 ### Fixed
 - `/help` now shows public commands (artsize, tcsheet, printinfo, caked) to all users — previously blocked anyone without a staff role entirely

@@ -45,41 +45,15 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   const member = await interaction.guild.members.fetch(interaction.user.id)
   const resolved = await resolveBusinesses(member)
+  const mckenzie = resolved.find((r) => r.business.providerType === 'mckenzie')
 
-  if (resolved.length === 0) {
-    await interaction.editReply('You are not registered as staff for any business.')
+  if (!mckenzie) {
+    await interaction.editReply('You are not registered as McKenzie Enterprises staff.')
     return
   }
 
   const targetUser = interaction.options.getUser('user', true)
-
-  if (resolved.length === 1) {
-    await runLookup(interaction, resolved[0], targetUser.id, targetUser.username)
-    return
-  }
-
-  // Multiple businesses — show selector
-  const select = new StringSelectMenuBuilder()
-    .setCustomId(`lookup_business_select:${targetUser.id}`)
-    .setPlaceholder('Which business are you acting as?')
-    .addOptions(
-      resolved.map((r) =>
-        new StringSelectMenuOptionBuilder()
-          .setLabel(r.business.name)
-          .setDescription(`Acting as ${r.rank}`)
-          .setValue(r.business.id)
-      )
-    )
-
-  await interaction.editReply({
-    flags: MessageFlags.IsComponentsV2,
-    components: [
-      new ContainerBuilder().addTextDisplayComponents(
-        new TextDisplayBuilder().setContent('You belong to multiple businesses. Which are you acting as?')
-      ),
-      new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(select),
-    ],
-  })
+  await runLookup(interaction, mckenzie, targetUser.id, targetUser.username)
 }
 
 export async function runLookup(
