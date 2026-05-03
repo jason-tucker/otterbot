@@ -1,5 +1,7 @@
-import { EmbedBuilder } from 'discord.js'
+import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js'
+import { randomUUID } from 'crypto'
 import type { BusinessRoster } from '../services/providers/IBusinessProvider'
+import { registerSendable } from '../utils/sendable'
 
 interface BusinessInfo {
   name: string
@@ -17,6 +19,8 @@ export function buildBusinessEmbed(info: BusinessInfo, roster: BusinessRoster | 
     embed.setDescription('Could not reach the API. Try again in a moment.')
     return { embeds: [embed], components: [] }
   }
+
+  const sendKey = `business:${randomUUID()}`
 
   const employees = roster.members.filter((m) => m.role === 'employee')
   const owner = roster.members.find((m) => m.role === 'owner')
@@ -52,5 +56,15 @@ export function buildBusinessEmbed(info: BusinessInfo, roster: BusinessRoster | 
     })
   }
 
-  return { embeds: [embed], components: [] }
+  registerSendable(sendKey, () => ({ embeds: [embed] }))
+
+  const sendRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`send_to_channel:${sendKey}`)
+      .setLabel('Send to Channel')
+      .setEmoji('📢')
+      .setStyle(ButtonStyle.Secondary)
+  )
+
+  return { embeds: [embed], components: [sendRow] }
 }

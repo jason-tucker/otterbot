@@ -1,6 +1,7 @@
 import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js'
 import type { Character, Business, StaffRank, CustomerStanding } from '../types/domain'
 import { STANDING_COLORS } from '../types/domain'
+import { registerSendable } from '../utils/sendable'
 
 export function buildCustomerEmbed(
   character: Character,
@@ -72,7 +73,18 @@ export function buildCustomerEmbed(
     )
   }
 
-  return { embeds: [embed], components: [buttons] }
+  const sendKey = `lookup:${sessionKey}`
+  registerSendable(sendKey, () => ({ embeds: [embed] }))
+
+  const sendRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`send_to_channel:${sendKey}`)
+      .setLabel('Send to Channel')
+      .setEmoji('📢')
+      .setStyle(ButtonStyle.Secondary)
+  )
+
+  return { embeds: [embed], components: [buttons, sendRow] }
 }
 
 function standingEmoji(standing: string): string {
