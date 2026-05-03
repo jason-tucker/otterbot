@@ -7,6 +7,7 @@ import { data as moveChannelData } from '../commands/moveChannel'
 import { data as printInfoData } from '../commands/printInfo'
 import { data as artSizeData } from '../commands/artSize'
 import { data as tcSheetData } from '../commands/tcSheet'
+import { data as cakedData } from '../commands/caked'
 
 const commands = [
   lookupData.toJSON(),
@@ -15,6 +16,7 @@ const commands = [
   printInfoData.toJSON(),
   artSizeData.toJSON(),
   tcSheetData.toJSON(),
+  cakedData.toJSON(),
 ]
 const rest = new REST().setToken(env.DISCORD_BOT_TOKEN)
 

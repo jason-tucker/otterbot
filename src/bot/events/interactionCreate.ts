@@ -12,7 +12,11 @@ import { execute as executeMoveChannel, data as moveChannelData } from '../../co
 import { execute as executePrintInfo, data as printInfoData } from '../../commands/printInfo'
 import { execute as executeArtSize, data as artSizeData } from '../../commands/artSize'
 import { execute as executeTcSheet, data as tcSheetData } from '../../commands/tcSheet'
+import { execute as executeCaked, data as cakedData } from '../../commands/caked'
 import { handlePrintInfoButton } from '../../interactions/buttons/printInfoButton'
+import { handleCakedButton } from '../../interactions/buttons/cakedButton'
+import { handleCakedContactSubmit } from '../../interactions/modals/cakedContactSubmit'
+import { handleCakedEventSubmit } from '../../interactions/modals/cakedEventSubmit'
 import { handleSendToChannel } from '../../utils/sendable'
 import { handleBusinessSelect } from '../../interactions/selects/businessSelect'
 import { handleBusinessInfoSelect } from '../../interactions/selects/businessInfoSelect'
@@ -31,6 +35,7 @@ const commandHandlers = new Map<string, (i: ChatInputCommandInteraction) => Prom
   [printInfoData.name, executePrintInfo],
   [artSizeData.name, executeArtSize],
   [tcSheetData.name, executeTcSheet],
+  [cakedData.name, executeCaked],
 ])
 
 export function registerInteractionCreate(client: Client) {
@@ -68,6 +73,8 @@ export function registerInteractionCreate(client: Client) {
           await handlePrintInfoButton(interaction as ButtonInteraction)
         } else if (id.startsWith('send_to_channel:')) {
           await handleSendToChannel(interaction as ButtonInteraction)
+        } else if (id.startsWith('caked:')) {
+          await handleCakedButton(interaction as ButtonInteraction)
         }
         return
       }
@@ -78,6 +85,10 @@ export function registerInteractionCreate(client: Client) {
           await handleNoteSubmit(interaction as ModalSubmitInteraction)
         } else if (id.startsWith('standing_submit:')) {
           await handleStandingSubmit(interaction as ModalSubmitInteraction)
+        } else if (id === 'caked_contact_submit') {
+          await handleCakedContactSubmit(interaction as ModalSubmitInteraction)
+        } else if (id === 'caked_event_submit') {
+          await handleCakedEventSubmit(interaction as ModalSubmitInteraction)
         }
         return
       }
