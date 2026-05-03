@@ -5,8 +5,17 @@ import { data as lookupData } from '../commands/lookup'
 import { data as businessData } from '../commands/business'
 import { data as moveChannelData } from '../commands/moveChannel'
 import { data as printInfoData } from '../commands/printInfo'
+import { data as artSizeData } from '../commands/artSize'
+import { data as tcSheetData } from '../commands/tcSheet'
 
-const commands = [lookupData.toJSON(), businessData.toJSON(), moveChannelData.toJSON(), printInfoData.toJSON()]
+const commands = [
+  lookupData.toJSON(),
+  businessData.toJSON(),
+  moveChannelData.toJSON(),
+  printInfoData.toJSON(),
+  artSizeData.toJSON(),
+  tcSheetData.toJSON(),
+]
 const rest = new REST().setToken(env.DISCORD_BOT_TOKEN)
 
 async function deploy() {

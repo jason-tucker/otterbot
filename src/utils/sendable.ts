@@ -1,21 +1,17 @@
 /**
- * Reusable "Send to Channel" utility.
+ * Reusable "Send to Channel" utility — supports both v1 (embeds) and v2 (components) messages.
  *
- * USAGE — two steps for any command that wants a send button:
+ * USAGE:
  *
- *   1. Register the content builder with a unique key (do this at module load time):
- *        registerSendable('my_feature:section_name', () => ({ embeds: [myEmbed()] }))
+ *   V1 (embeds):
+ *     registerSendable('my_feature:key', () => ({ embeds: [myEmbed()] }))
+ *     await interaction.reply(withSendButton('my_feature:key', { embeds: [myEmbed()] }))
  *
- *   2. Reply with the content + the send button attached:
- *        await interaction.reply(withSendButton('my_feature:section_name', { embeds: [myEmbed()] }))
+ *   V2 (components — Container, Section, Separator, etc.):
+ *     registerSendable('my_feature:key', () => ({ components: [myContainer()], flags: MessageFlags.IsComponentsV2 }))
+ *     await interaction.reply(withSendButtonV2('my_feature:key', myContainer()))
  *
- *   3. Route 'send_to_channel:' buttons to handleSendToChannel in interactionCreate.ts.
- *      (Already done — no extra wiring needed for new features, just steps 1 & 2.)
- *
- * HOW IT WORKS:
- *   withSendButton wraps any message payload as ephemeral and appends a "📢 Send to Channel" button.
- *   When clicked, handleSendToChannel re-builds the content from the registry and posts it publicly,
- *   then strips the button from the ephemeral reply so the user can't re-post it.
+ *   No extra wiring needed in interactionCreate.ts for new features — send_to_channel: is already routed.
  */
 
 import {
@@ -23,33 +19,37 @@ import {
   ButtonBuilder,
   ButtonStyle,
   ActionRowBuilder,
+  ContainerBuilder,
+  MessageFlags,
   type ButtonInteraction,
 } from 'discord.js'
 
-// Anything a builder can produce — embeds and/or a text string
 export interface SendablePayload {
   embeds?: EmbedBuilder[]
   content?: string
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  components?: any[]
+  flags?: number
 }
 
-// Registry: key → function that builds the public message content
 const registry = new Map<string, () => SendablePayload>()
 
-/** Register a key → content builder. Call at module load time (top-level). */
 export function registerSendable(key: string, builder: () => SendablePayload): void {
   registry.set(key, builder)
 }
 
-/**
- * Wrap a payload as ephemeral and attach a "📢 Send to Channel" button.
- * Pass the result directly to interaction.reply() or interaction.editReply().
- */
-export function withSendButton(key: string, payload: SendablePayload) {
+// ── V1: embed-based messages ───────────────────────────────────────────────
+export function withSendButton(
+  key: string,
+  payload: Pick<SendablePayload, 'embeds' | 'content'>,
+  extraButtons: ButtonBuilder[] = []
+) {
   return {
     ...payload,
     ephemeral: true,
     components: [
       new ActionRowBuilder<ButtonBuilder>().addComponents(
+        ...extraButtons,
         new ButtonBuilder()
           .setCustomId(`send_to_channel:${key}`)
           .setLabel('Send to Channel')
@@ -60,10 +60,30 @@ export function withSendButton(key: string, payload: SendablePayload) {
   } as const
 }
 
-/**
- * Button handler for all 'send_to_channel:<key>' interactions.
- * Strips the button from the ephemeral reply, then posts the content publicly.
- */
+// ── V2: component-based messages (Container, Section, Separator, etc.) ─────
+export function withSendButtonV2(
+  key: string,
+  container: ContainerBuilder,
+  extraButtons: ButtonBuilder[] = []
+) {
+  return {
+    // ContainerBuilder needs to go through toJSON — cast so discord.js serialises it
+    components: [
+      container,
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        ...extraButtons,
+        new ButtonBuilder()
+          .setCustomId(`send_to_channel:${key}`)
+          .setLabel('Send to Channel')
+          .setEmoji('📢')
+          .setStyle(ButtonStyle.Secondary)
+      ),
+    ] as unknown as ActionRowBuilder<ButtonBuilder>[],
+    flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+  }
+}
+
+// ── Handler ────────────────────────────────────────────────────────────────
 export async function handleSendToChannel(interaction: ButtonInteraction): Promise<void> {
   const key = interaction.customId.slice('send_to_channel:'.length)
   const builder = registry.get(key)
@@ -73,10 +93,27 @@ export async function handleSendToChannel(interaction: ButtonInteraction): Promi
     return
   }
 
-  // Remove the button so the user can't post the same thing twice
-  await interaction.update({ components: [] })
+  const payload = builder()
+  const isV2 = !!(payload.flags && payload.flags & MessageFlags.IsComponentsV2)
 
-  // Build fresh content and post publicly in the channel
-  const { embeds, content } = builder()
-  await interaction.followUp({ embeds, content, ephemeral: false })
+  if (isV2) {
+    // Can't easily strip the ActionRow from a v2 ephemeral without re-sending the full container;
+    // just acknowledge silently so the public post goes through cleanly.
+    await interaction.deferUpdate()
+  } else {
+    // Remove the Send button from the ephemeral reply
+    await interaction.update({ components: [] })
+  }
+
+  // Strip the Ephemeral flag so the follow-up posts publicly
+  const publicFlags =
+    payload.flags !== undefined ? payload.flags & ~MessageFlags.Ephemeral : undefined
+
+  await interaction.followUp({
+    embeds: payload.embeds,
+    content: payload.content,
+    components: payload.components,
+    flags: publicFlags,
+    ephemeral: false,
+  })
 }

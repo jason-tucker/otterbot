@@ -10,6 +10,8 @@ import { execute as executeLookup, data as lookupData } from '../../commands/loo
 import { execute as executeBusiness, data as businessData } from '../../commands/business'
 import { execute as executeMoveChannel, data as moveChannelData } from '../../commands/moveChannel'
 import { execute as executePrintInfo, data as printInfoData } from '../../commands/printInfo'
+import { execute as executeArtSize, data as artSizeData } from '../../commands/artSize'
+import { execute as executeTcSheet, data as tcSheetData } from '../../commands/tcSheet'
 import { handlePrintInfoButton } from '../../interactions/buttons/printInfoButton'
 import { handleSendToChannel } from '../../utils/sendable'
 import { handleBusinessSelect } from '../../interactions/selects/businessSelect'
@@ -27,6 +29,8 @@ const commandHandlers = new Map<string, (i: ChatInputCommandInteraction) => Prom
   [businessData.name, executeBusiness],
   [moveChannelData.name, executeMoveChannel],
   [printInfoData.name, executePrintInfo],
+  [artSizeData.name, executeArtSize],
+  [tcSheetData.name, executeTcSheet],
 ])
 
 export function registerInteractionCreate(client: Client) {
