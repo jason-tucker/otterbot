@@ -1,0 +1,18 @@
+[Unit]
+Description=Otterbot Discord Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=botuser
+WorkingDirectory=/home/botuser/projects/otterbot
+ExecStart=/home/botuser/projects/otterbot/node_modules/.bin/tsx src/index.ts
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=otterbot
+
+[Install]
+WantedBy=multi-user.target

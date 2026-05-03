@@ -1,0 +1,100 @@
+#!/bin/bash
+# otterbot — management CLI for the Otterbot Discord bot
+# Install: sudo cp scripts/otterbot /usr/local/bin/otterbot && sudo chmod +x /usr/local/bin/otterbot
+
+BOTDIR="/home/botuser/projects/otterbot"
+SERVICE="otterbot"
+
+_installed() {
+  systemctl list-unit-files "${SERVICE}.service" &>/dev/null && \
+    systemctl list-unit-files "${SERVICE}.service" | grep -q "${SERVICE}"
+}
+
+_install_service() {
+  echo "Installing systemd service..."
+  sudo cp "${BOTDIR}/deploy/systemd/otterbot.service" /etc/systemd/system/
+  sudo cp "${BOTDIR}/deploy/systemd/otterbot-restart.service" /etc/systemd/system/
+  sudo cp "${BOTDIR}/deploy/systemd/otterbot-restart.timer" /etc/systemd/system/
+  sudo systemctl daemon-reload
+  sudo systemctl enable "${SERVICE}.service"
+  sudo systemctl enable otterbot-restart.timer
+  sudo systemctl start otterbot-restart.timer
+  echo "Service installed and weekly restart timer enabled."
+}
+
+cmd="${1:-start}"
+
+case "$cmd" in
+
+  start)
+    cd "$BOTDIR"
+    echo "→ Checking for database migrations..."
+    pnpm db:migrate --silent 2>/dev/null || pnpm db:migrate
+    if ! _installed; then
+      _install_service
+    fi
+    sudo systemctl start "$SERVICE"
+    echo "✓ Otterbot started."
+    sudo systemctl status "$SERVICE" --no-pager -l | tail -5
+    ;;
+
+  stop)
+    sudo systemctl stop "$SERVICE"
+    echo "✓ Otterbot stopped."
+    ;;
+
+  restart)
+    cd "$BOTDIR"
+    echo "→ Checking for database migrations..."
+    pnpm db:migrate --silent 2>/dev/null || pnpm db:migrate
+    sudo systemctl restart "$SERVICE"
+    echo "✓ Otterbot restarted."
+    ;;
+
+  status)
+    sudo systemctl status "$SERVICE" --no-pager -l
+    ;;
+
+  logs)
+    sudo journalctl -u "$SERVICE" -f --no-pager
+    ;;
+
+  update)
+    cd "$BOTDIR"
+    echo "→ Pulling latest code..."
+    git pull
+    echo "→ Installing dependencies..."
+    pnpm install
+    echo "→ Running migrations..."
+    pnpm db:migrate
+    echo "→ Re-seeding role mappings..."
+    pnpm db:seed
+    echo "→ Redeploying commands..."
+    pnpm commands:deploy
+    sudo systemctl restart "$SERVICE"
+    echo "✓ Otterbot updated and restarted."
+    ;;
+
+  install)
+    cd "$BOTDIR"
+    _install_service
+    echo "→ Running initial setup..."
+    pnpm db:migrate
+    pnpm db:seed
+    pnpm commands:deploy
+    sudo systemctl start "$SERVICE"
+    echo "✓ Otterbot installed and running."
+    ;;
+
+  *)
+    echo "Usage: otterbot [start|stop|restart|status|logs|update|install]"
+    echo ""
+    echo "  start    — start the bot (auto-installs service if needed)"
+    echo "  stop     — stop the bot"
+    echo "  restart  — restart the bot"
+    echo "  status   — show service status"
+    echo "  logs     — tail live logs (Ctrl+C to exit)"
+    echo "  update   — pull code, migrate DB, redeploy commands, restart"
+    echo "  install  — first-time full setup"
+    ;;
+esac

@@ -1,0 +1,6 @@
+[Unit]
+Description=Weekly Otterbot restart
+
+[Service]
+Type=oneshot
+ExecStart=/bin/systemctl restart otterbot.service
