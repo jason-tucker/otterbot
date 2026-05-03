@@ -7,7 +7,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+---
+
+## [0.6.0] — 2026-05-03
+
 ### Added
+- **Make Owner / Revoke Owner** buttons in `/employee` — sudo-only; designates or removes a user as a DB-authoritative business owner and syncs the Discord owner role
 - `/portal` slash command — sudo-only business management panel (create, edit, deactivate/reactivate businesses)
 - Business role mapping management via `/portal` — add/remove Discord role → rank mappings per business
 - Business owner management via `/portal` — add/remove designated owners stored in DB (`business_owners` table)

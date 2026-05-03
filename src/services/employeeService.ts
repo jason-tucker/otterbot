@@ -139,6 +139,8 @@ export interface TargetEmploymentStatus {
   hasManagerRole: boolean
   /** Effective owner status — true if DB owner OR (allowOwnerRoleFallback && has Discord owner role) */
   isOwner: boolean
+  /** True only when the user has an explicit record in the business_owners table */
+  isDbOwner: boolean
   /** Raw Discord role presence, regardless of DB ownership */
   hasOwnerDiscordRole: boolean
   customRolesHeld: DbCustomRole[]
@@ -176,6 +178,7 @@ export function getTargetStatus(
     hasEmployeeRole,
     hasManagerRole,
     isOwner,
+    isDbOwner,
     hasOwnerDiscordRole,
     customRolesHeld,
     highestRank,

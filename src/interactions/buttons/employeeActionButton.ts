@@ -5,7 +5,7 @@ import { resolveBusinesses, isBusinessOwner } from '../../services/permissionSer
 import { isSudoUser } from '../../services/sudoService'
 import { buildEmployeeManageEmbed } from '../../embeds/employeeManageEmbed'
 import { audit } from '../../services/auditService'
-import { getAllBusinesses } from '../../services/portalService'
+import { getAllBusinesses, addBusinessOwner, removeBusinessOwner } from '../../services/portalService'
 import {
   getEmployeeBusinessConfig,
   getTargetStatus,
@@ -33,6 +33,8 @@ type EmployeeButtonAction =
   | 'emp_to_owner'
   | 'emp_owner_to_manager'
   | 'emp_owner_to_employee'
+  | 'emp_make_db_owner'
+  | 'emp_revoke_db_owner'
 
 export async function handleEmployeeActionButton(interaction: ButtonInteraction): Promise<void> {
   const colonIdx = interaction.customId.indexOf(':')
@@ -86,9 +88,11 @@ export async function handleEmployeeActionButton(interaction: ButtonInteraction)
       case 'emp_fire':          return canFire(commandRank, currentStatus.highestRank, config, sudo)
       case 'emp_to_manager':    return canPromoteToManager(commandRank, config, sudo)
       case 'emp_to_employee':   return canDemoteManager(commandRank, config, sudo)
-      case 'emp_to_owner':      return canManageOwner(commandRank, config, sudo)
+      case 'emp_to_owner':           return canManageOwner(commandRank, config, sudo)
       case 'emp_owner_to_manager':   return canManageOwner(commandRank, config, sudo)
       case 'emp_owner_to_employee':  return canManageOwner(commandRank, config, sudo)
+      case 'emp_make_db_owner':      return sudo ? { allowed: true } : { allowed: false, reason: 'Only sudo users can designate business owners.' }
+      case 'emp_revoke_db_owner':    return sudo ? { allowed: true } : { allowed: false, reason: 'Only sudo users can revoke business ownership.' }
     }
   })()
 
@@ -109,6 +113,32 @@ export async function handleEmployeeActionButton(interaction: ButtonInteraction)
       case 'emp_to_owner':           await promoteToOwner(interaction.guild, targetMember, config);         auditAction = 'promote_to_owner'; break
       case 'emp_owner_to_manager':   await demoteOwnerToManager(interaction.guild, targetMember, config);  auditAction = 'demote_owner_to_manager'; break
       case 'emp_owner_to_employee':  await demoteOwnerToEmployee(interaction.guild, targetMember, config); auditAction = 'demote_owner_to_employee'; break
+      case 'emp_make_db_owner': {
+        await addBusinessOwner(session.businessId, session.targetDiscordId, interaction.user.id)
+        // Best-effort: also assign the Discord owner role if configured
+        if (config.roles.owner) {
+          try {
+            const ownerRole = interaction.guild.roles.cache.get(config.roles.owner.roleId)
+              ?? await interaction.guild.roles.fetch(config.roles.owner.roleId)
+            if (ownerRole) await targetMember.roles.add(ownerRole)
+          } catch { /* role assignment is best-effort; DB record is the authoritative change */ }
+        }
+        auditAction = 'make_db_owner'
+        break
+      }
+      case 'emp_revoke_db_owner': {
+        await removeBusinessOwner(session.businessId, session.targetDiscordId)
+        // Best-effort: also remove the Discord owner role if the member holds it
+        if (config.roles.owner && targetMember.roles.cache.has(config.roles.owner.roleId)) {
+          try {
+            const ownerRole = interaction.guild.roles.cache.get(config.roles.owner.roleId)
+              ?? await interaction.guild.roles.fetch(config.roles.owner.roleId)
+            if (ownerRole) await targetMember.roles.remove(ownerRole)
+          } catch { /* best-effort */ }
+        }
+        auditAction = 'revoke_db_owner'
+        break
+      }
     }
     success = true
   } catch (err) {

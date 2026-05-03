@@ -203,6 +203,25 @@ export function buildEmployeeManageEmbed(
     }
   }
 
+  // Sudo-only DB ownership buttons — always visible to sudo regardless of employment status
+  if (isSudo) {
+    if (!status.isDbOwner) {
+      buttons.push(
+        new ButtonBuilder()
+          .setCustomId(`emp_make_db_owner:${sessionKey}`)
+          .setLabel('Make Owner')
+          .setStyle(ButtonStyle.Primary),
+      )
+    } else {
+      buttons.push(
+        new ButtonBuilder()
+          .setCustomId(`emp_revoke_db_owner:${sessionKey}`)
+          .setLabel('Revoke Owner')
+          .setStyle(ButtonStyle.Danger),
+      )
+    }
+  }
+
   const components: ActionRowBuilder<MessageActionRowComponentBuilder>[] = []
   if (buttons.length > 0) {
     components.push(
