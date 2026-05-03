@@ -33,8 +33,8 @@ export async function resolveBusinesses(member: GuildMember): Promise<ResolvedBu
       .where(
         and(
           inArray(businessRoleMappings.roleId, roleIds),
+          eq(businessRoleMappings.guildId, guildId),
           eq(businesses.active, true),
-          eq(businesses.guildId, guildId),
         ),
       )
 
@@ -61,7 +61,6 @@ export async function resolveBusinesses(member: GuildMember): Promise<ResolvedBu
       and(
         eq(businessOwners.discordUserId, member.id),
         eq(businesses.active, true),
-        eq(businesses.guildId, guildId),
       ),
     )
 

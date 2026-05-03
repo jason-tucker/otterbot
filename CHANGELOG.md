@@ -7,6 +7,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+- Business managers/owners no longer incorrectly show as having no staff access — `resolveBusinesses` was filtering by `businesses.guildId` instead of `businessRoleMappings.guildId`, causing cross-guild seeded businesses to be invisible
+
 ### Changed
 - `/portal`, `/employee`, "Manage Employee" context menu, and `/movechannel` now set `defaultMemberPermissions(0)` — hidden from @everyone by default; roles are configured once in Server Settings → Integrations
 - McKenzie Enterprises is now read-only in `/employee` — roles are managed by the MKE website; no hire/fire/promote/demote buttons are shown
