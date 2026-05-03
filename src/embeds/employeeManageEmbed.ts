@@ -134,6 +134,16 @@ export function buildEmployeeManageEmbed(
   // ---------------------------------------------------------------------------
   const buttons: ButtonBuilder[] = []
 
+  // MKE roles are managed externally — show read-only view only
+  if (config.providerType === 'mckenzie') {
+    container.addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent('-# McKenzie Enterprises roles are managed by the MKE website. No changes can be made here.'),
+    )
+
+    return { flags: MessageFlags.IsComponentsV2, components: [container] }
+  }
+
   if (!status.inBusiness) {
     if (canHire(commandUserRank, isSudo).allowed) {
       buttons.push(

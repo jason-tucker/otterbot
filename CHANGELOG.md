@@ -7,6 +7,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+- McKenzie Enterprises is now read-only in `/employee` — roles are managed by the MKE website; no hire/fire/promote/demote buttons are shown
+
 ### Fixed
 - "Manage Employee" right-click context menu now respects sudo — sudo users are no longer blocked with "no management permissions"
 

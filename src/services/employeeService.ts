@@ -25,6 +25,7 @@ export interface DbEmployeeBusinessConfig {
   businessId: string
   slug: string
   name: string
+  providerType: 'mckenzie' | 'discord-only'
   roles: {
     employee: DbRoleEntry | null
     manager: DbRoleEntry | null
@@ -113,6 +114,7 @@ export async function getEmployeeBusinessConfig(
     businessId: biz.id,
     slug: biz.slug,
     name: biz.name,
+    providerType: biz.providerType,
     roles: {
       employee: baseEmp ? toRoleEntry(baseEmp) : null,
       manager: managerRow ? toRoleEntry(managerRow) : null,
