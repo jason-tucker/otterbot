@@ -27,30 +27,26 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     .setFooter({ text: 'via Otterbot' })
     .setTimestamp()
 
-  if (resolved.length === 0 && !admin) {
-    embed.setDescription('You do not have any business staff roles assigned.\nContact a manager or owner to get access.')
-    await interaction.editReply({ embeds: [embed] })
-    return
-  }
-
   const lines: string[] = []
 
   const guildId = interaction.guildId!
 
-  // Commands available to all staff regardless of rank
+  // Public commands — available to everyone
+  lines.push('**Reference**')
+  lines.push(`${cmd('artsize', guildId)} — Art commission size reference`)
+  lines.push(`${cmd('tcsheet', guildId)} — TC sheet reference`)
+  lines.push(`${cmd('printinfo', guildId)} — McKenzie printing information`)
+  lines.push(`${cmd('caked', guildId)} — Caked Up order and event information`)
+
+  // Staff-only commands
   if (resolved.length > 0) {
+    lines.push('')
     lines.push('**Customer Lookup**')
     lines.push(`${cmd('lookup', guildId)} — Look up a Discord user's RP characters, standing, and notes`)
     lines.push('Right-click a user → Apps → **Lookup** — Shortcut')
     lines.push('')
     lines.push('**Business**')
     lines.push(`${cmd('business', guildId)} — View a business roster; staff of that business can look up any employee directly`)
-    lines.push('')
-    lines.push('**Reference**')
-    lines.push(`${cmd('artsize', guildId)} — Art commission size reference`)
-    lines.push(`${cmd('tcsheet', guildId)} — TC sheet reference`)
-    lines.push(`${cmd('printinfo', guildId)} — McKenzie printing information`)
-    lines.push(`${cmd('caked', guildId)} — Caked Up order and event information`)
   }
 
   // Manager+ commands
