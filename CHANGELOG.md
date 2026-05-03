@@ -7,6 +7,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+- `/printinfo` and `/caked` initial replies are now ephemeral — only visible to the sender until "Send to Channel" is pressed (matching `/artsize` and `/tcsheet`)
+
 ### Fixed
 - Business managers/owners no longer incorrectly show as having no staff access — `resolveBusinesses` was filtering by `businesses.guildId` instead of `businessRoleMappings.guildId`, causing cross-guild seeded businesses to be invisible
 

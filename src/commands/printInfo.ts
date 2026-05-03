@@ -88,6 +88,7 @@ import {
   ButtonBuilder,
   ButtonStyle,
 } from 'discord.js'
+import { registerSendable, withSendButton } from '../utils/sendable'
 
 // Strip the # from a hex color — 0x prefix tells JS it's hexadecimal
 const BRAND_COLOR = 0x588c7e
@@ -97,58 +98,46 @@ export const data = new SlashCommandBuilder()
   .setDescription('McKenzie Enterprises printing information and pricing')
   .setDMPermission(false)
 
-export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  // ── MAIN EMBED ─────────────────────────────────────────────────────────────
-  const embed = new EmbedBuilder()
+function mainEmbed(): EmbedBuilder {
+  return new EmbedBuilder()
     .setColor(BRAND_COLOR)
     .setTitle('McKenzie Enterprises — Printing')
-    // Joining an array of lines with \n is cleaner than one giant string.
-    // Each element maps to a line in the final output.
     .setDescription(
       [
-        // [hyperlinks](url) work in embed descriptions and field values
         'All printables at McKenzie Enterprises need to be uploaded to your own [PostImages](https://postimages.org/) Account.',
         'This helps ensure prints do not get deleted by our staff, or by PostImages if posted anonymously.',
         '',
         'To help keep printing costs down, we offer bulk printing discounts:',
-        // > blockquote — indents the line; each line needs its own >
         '> **$200** for 1 Print',
         '> **$2,500** for 25 Prints',
         '> **$5,000** for 50 Prints',
         '> **$10,000** for 100 Prints',
-        // -# subtext — smaller muted line, good for footnotes and disclaimers
         '-# USB Sticks are no longer for sale.',
       ].join('\n')
     )
-    // setFooter adds small muted text at the bottom of the embed
     .setFooter({ text: 'Click a button below for category-specific details.' })
+}
 
-  // ── BUTTONS ────────────────────────────────────────────────────────────────
-  // ActionRowBuilder<T> needs a generic so TypeScript knows what goes in the row
-  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+registerSendable('print_info:main', () => ({ embeds: [mainEmbed()] }))
+
+export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+  const navButtons = [
     new ButtonBuilder()
-      .setCustomId('print_info:business_cards')  // routed in interactionCreate.ts
+      .setCustomId('print_info:business_cards')
       .setLabel('Business Cards')
-      .setEmoji('🖼️')                             // optional emoji left of label
-      .setStyle(ButtonStyle.Primary),             // blue — main action style
-
+      .setEmoji('🖼️')
+      .setStyle(ButtonStyle.Primary),
     new ButtonBuilder()
       .setCustomId('print_info:trading_cards')
       .setLabel('Trading Cards')
       .setEmoji('🃏')
       .setStyle(ButtonStyle.Primary),
-
     new ButtonBuilder()
       .setCustomId('print_info:other_printables')
       .setLabel('Other Printables')
       .setEmoji('📄')
       .setStyle(ButtonStyle.Primary),
-  )
+  ]
 
-  // No ephemeral — this message is meant to be visible in the channel.
-  // Anyone in the channel can then click the buttons.
-  await interaction.reply({
-    embeds: [embed],
-    components: [row],  // attach button row below the embed
-  })
+  await interaction.reply(withSendButton('print_info:main', { embeds: [mainEmbed()] }, navButtons))
 }
