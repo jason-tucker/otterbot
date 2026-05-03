@@ -10,6 +10,8 @@ import { data as tcSheetData } from '../commands/tcSheet'
 import { data as cakedData } from '../commands/caked'
 import { data as userLookupData } from '../commands/userLookup'
 import { data as helpData } from '../commands/help'
+import { data as employeeData } from '../commands/employee'
+import { data as employeeContextMenuData } from '../commands/employeeContextMenu'
 
 const commands = [
   lookupData.toJSON(),
@@ -21,6 +23,8 @@ const commands = [
   cakedData.toJSON(),
   userLookupData.toJSON(),
   helpData.toJSON(),
+  employeeData.toJSON(),
+  employeeContextMenuData.toJSON(),
 ]
 const rest = new REST().setToken(env.DISCORD_BOT_TOKEN)
 

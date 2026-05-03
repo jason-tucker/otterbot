@@ -3,6 +3,16 @@ import type { StaffRank } from '../types/domain'
 import type { ResolvedBusiness } from '../types/domain'
 import type { BusinessRoster } from './providers/IBusinessProvider'
 
+const TTL_MS = 60 * 60 * 1000 // 1 hour
+
+function makeKey(): string {
+  return randomBytes(4).toString('hex')
+}
+
+// ---------------------------------------------------------------------------
+// Lookup session — for /lookup character display flows
+// ---------------------------------------------------------------------------
+
 export interface LookupSession {
   characterId: string
   characterName: string
@@ -11,37 +21,40 @@ export interface LookupSession {
   rank: StaffRank
 }
 
-interface CacheEntry {
+interface LookupCacheEntry {
   data: LookupSession
   expiresAt: number
 }
 
-const TTL_MS = 60 * 60 * 1000 // 1 hour
-const cache = new Map<string, CacheEntry>()
+const lookupCache = new Map<string, LookupCacheEntry>()
 
 export function storeLookupSession(data: LookupSession): string {
-  const key = randomBytes(4).toString('hex')
-  cache.set(key, { data, expiresAt: Date.now() + TTL_MS })
-  evict()
+  const key = makeKey()
+  lookupCache.set(key, { data, expiresAt: Date.now() + TTL_MS })
+  evictLookup()
   return key
 }
 
 export function getLookupSession(key: string): LookupSession | null {
-  const entry = cache.get(key)
+  const entry = lookupCache.get(key)
   if (!entry) return null
   if (entry.expiresAt < Date.now()) {
-    cache.delete(key)
+    lookupCache.delete(key)
     return null
   }
   return entry.data
 }
 
-function evict() {
+function evictLookup() {
   const now = Date.now()
-  for (const [key, entry] of cache) {
-    if (entry.expiresAt < now) cache.delete(key)
+  for (const [key, entry] of lookupCache) {
+    if (entry.expiresAt < now) lookupCache.delete(key)
   }
 }
+
+// ---------------------------------------------------------------------------
+// Business roster session — for /business roster display flows
+// ---------------------------------------------------------------------------
 
 export interface BusinessRosterSession {
   resolved: ResolvedBusiness | null
@@ -56,7 +69,7 @@ interface RosterCacheEntry {
 const rosterCache = new Map<string, RosterCacheEntry>()
 
 export function storeBusinessRosterSession(data: BusinessRosterSession): string {
-  const key = randomBytes(4).toString('hex')
+  const key = makeKey()
   rosterCache.set(key, { data, expiresAt: Date.now() + TTL_MS })
   evictRoster()
   return key
@@ -76,5 +89,50 @@ function evictRoster() {
   const now = Date.now()
   for (const [key, entry] of rosterCache) {
     if (entry.expiresAt < now) rosterCache.delete(key)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Employee session — for /employee management flows
+// ---------------------------------------------------------------------------
+
+export interface EmployeeSession {
+  commandUserDiscordId: string
+  commandUserRank: StaffRank
+  targetDiscordId: string
+  /** DB business UUID — used for audit logs */
+  businessId: string
+  /** Config slug — used to look up EmployeeBusinessConfig at runtime */
+  businessSlug: string
+}
+
+interface EmployeeCacheEntry {
+  data: EmployeeSession
+  expiresAt: number
+}
+
+const employeeCache = new Map<string, EmployeeCacheEntry>()
+
+export function storeEmployeeSession(data: EmployeeSession): string {
+  const key = makeKey()
+  employeeCache.set(key, { data, expiresAt: Date.now() + TTL_MS })
+  evictEmployee()
+  return key
+}
+
+export function getEmployeeSession(key: string): EmployeeSession | null {
+  const entry = employeeCache.get(key)
+  if (!entry) return null
+  if (entry.expiresAt < Date.now()) {
+    employeeCache.delete(key)
+    return null
+  }
+  return entry.data
+}
+
+function evictEmployee() {
+  const now = Date.now()
+  for (const [key, entry] of employeeCache) {
+    if (entry.expiresAt < now) employeeCache.delete(key)
   }
 }

@@ -15,7 +15,9 @@ import { execute as executeArtSize, data as artSizeData } from '../../commands/a
 import { execute as executeTcSheet, data as tcSheetData } from '../../commands/tcSheet'
 import { execute as executeCaked, data as cakedData } from '../../commands/caked'
 import { execute as executeHelp, data as helpData } from '../../commands/help'
+import { execute as executeEmployee, data as employeeData } from '../../commands/employee'
 import { execute as executeUserLookup } from '../../commands/userLookup'
+import { execute as executeEmployeeContextMenu } from '../../commands/employeeContextMenu'
 import { handlePrintInfoButton } from '../../interactions/buttons/printInfoButton'
 import { handleCakedButton } from '../../interactions/buttons/cakedButton'
 import { handleCakedContactSubmit } from '../../interactions/modals/cakedContactSubmit'
@@ -29,6 +31,9 @@ import { handleNoteViewButton } from '../../interactions/buttons/noteView'
 import { handleStandingChangeButton } from '../../interactions/buttons/standingChange'
 import { handleBusinessLookupButton } from '../../interactions/buttons/businessLookupButton'
 import { handleBusinessEmployeeSelect } from '../../interactions/selects/businessEmployeeSelect'
+import { handleEmployeeBusinessSelect } from '../../interactions/selects/employeeBusinessSelect'
+import { handleEmployeeCustomRoleSelect } from '../../interactions/selects/employeeCustomRoleSelect'
+import { handleEmployeeActionButton } from '../../interactions/buttons/employeeActionButton'
 import { handleNoteSubmit } from '../../interactions/modals/noteSubmit'
 import { handleStandingSubmit } from '../../interactions/modals/standingSubmit'
 
@@ -41,6 +46,7 @@ const commandHandlers = new Map<string, (i: ChatInputCommandInteraction) => Prom
   [tcSheetData.name, executeTcSheet],
   [cakedData.name, executeCaked],
   [helpData.name, executeHelp],
+  [employeeData.name, executeEmployee],
 ])
 
 export function registerInteractionCreate(client: Client) {
@@ -53,7 +59,12 @@ export function registerInteractionCreate(client: Client) {
       }
 
       if (interaction.isUserContextMenuCommand()) {
-        await executeUserLookup(interaction as UserContextMenuCommandInteraction)
+        const cmd = interaction as UserContextMenuCommandInteraction
+        if (cmd.commandName === 'Lookup') {
+          await executeUserLookup(cmd)
+        } else if (cmd.commandName === 'Manage Employee') {
+          await executeEmployeeContextMenu(cmd)
+        }
         return
       }
 
@@ -67,6 +78,10 @@ export function registerInteractionCreate(client: Client) {
           await handleStandingSelect(interaction as StringSelectMenuInteraction)
         } else if (id.startsWith('business_employee_select:')) {
           await handleBusinessEmployeeSelect(interaction as StringSelectMenuInteraction)
+        } else if (id.startsWith('emp_business_select:')) {
+          await handleEmployeeBusinessSelect(interaction as StringSelectMenuInteraction)
+        } else if (id.startsWith('emp_custom_role:')) {
+          await handleEmployeeCustomRoleSelect(interaction as StringSelectMenuInteraction)
         }
         return
       }
@@ -87,6 +102,8 @@ export function registerInteractionCreate(client: Client) {
           await handleCakedButton(interaction as ButtonInteraction)
         } else if (id.startsWith('business_lookup:')) {
           await handleBusinessLookupButton(interaction as ButtonInteraction)
+        } else if (id.startsWith('emp_')) {
+          await handleEmployeeActionButton(interaction as ButtonInteraction)
         }
         return
       }

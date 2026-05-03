@@ -13,7 +13,8 @@
     "db:studio": "drizzle-kit studio",
     "commands:deploy": "tsx src/bot/registerCommands.ts",
     "db:seed": "tsx scripts/seed.ts",
-    "commands:clear": "tsx scripts/clearCommands.ts"
+    "commands:clear": "tsx scripts/clearCommands.ts",
+    "scan:roles": "tsx scripts/scanRoles.ts"
   },
   "keywords": [],
   "author": "",
