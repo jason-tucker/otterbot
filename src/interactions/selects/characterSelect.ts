@@ -1,23 +1,30 @@
-import type { StringSelectMenuInteraction } from 'discord.js'
+import { ContainerBuilder, TextDisplayBuilder, MessageFlags, type StringSelectMenuInteraction } from 'discord.js'
 import { resolveBusinesses } from '../../services/permissionService'
 import { getProvider } from '../../services/businessService'
 import { showCharacterEmbed } from '../../commands/lookup'
+
+function v2Error(msg: string) {
+  return {
+    flags: MessageFlags.IsComponentsV2,
+    components: [
+      new ContainerBuilder().setAccentColor(0x95a5a6).addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(msg)
+      ),
+    ],
+  }
+}
 
 export async function handleCharacterSelect(interaction: StringSelectMenuInteraction): Promise<void> {
   if (!interaction.inGuild() || !interaction.guild) return
 
   await interaction.deferUpdate()
 
-  // customId: lookup_char_select:{businessId}:{targetDiscordId}
   const parts = interaction.customId.split(':')
-  // UUID contains hyphens but no colons, so split gives: [prefix, businessId, targetDiscordId]
-  // However UUID is 36 chars with hyphens — join parts 1 and 2 is wrong since there's only 3 parts.
-  // Format: "lookup_char_select:{uuid}:{snowflake}" — 3 parts after split on ':'
   const businessId = parts[1]
   const targetDiscordId = parts[2]
 
   if (!businessId || !targetDiscordId) {
-    await interaction.editReply({ content: 'Invalid interaction data.', components: [] })
+    await interaction.editReply(v2Error('Invalid interaction data.'))
     return
   }
 
@@ -27,23 +34,22 @@ export async function handleCharacterSelect(interaction: StringSelectMenuInterac
   const chosen = resolved.find((r) => r.business.id === businessId)
 
   if (!chosen) {
-    await interaction.editReply({ content: 'You no longer have access to that business.', components: [] })
+    await interaction.editReply(v2Error('You no longer have access to that business.'))
     return
   }
 
-  // Re-fetch all characters and find the selected one
   const provider = getProvider(chosen.business)
   let characters
   try {
     characters = await provider.lookupByDiscordId(targetDiscordId)
   } catch {
-    await interaction.editReply({ content: 'Could not reach the API. Try again in a moment.', components: [] })
+    await interaction.editReply(v2Error('Could not reach the API. Try again in a moment.'))
     return
   }
 
   const character = characters.find((c) => c.id === selectedCharacterId)
   if (!character) {
-    await interaction.editReply({ content: 'Character no longer found. Try running /lookup again.', components: [] })
+    await interaction.editReply(v2Error('Character no longer found. Try running /lookup again.'))
     return
   }
 

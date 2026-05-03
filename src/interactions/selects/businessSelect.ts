@@ -1,4 +1,4 @@
-import type { StringSelectMenuInteraction } from 'discord.js'
+import { ContainerBuilder, TextDisplayBuilder, MessageFlags, type StringSelectMenuInteraction } from 'discord.js'
 import { resolveBusinesses } from '../../services/permissionService'
 import { runLookup } from '../../commands/lookup'
 
@@ -7,10 +7,12 @@ export async function handleBusinessSelect(interaction: StringSelectMenuInteract
 
   await interaction.deferUpdate()
 
-  // customId: lookup_business_select:{targetDiscordId}
   const targetDiscordId = interaction.customId.split(':')[1]
   if (!targetDiscordId) {
-    await interaction.editReply({ content: 'Invalid interaction data.', components: [] })
+    await interaction.editReply({
+      flags: MessageFlags.IsComponentsV2,
+      components: [new ContainerBuilder().setAccentColor(0x95a5a6).addTextDisplayComponents(new TextDisplayBuilder().setContent('Invalid interaction data.'))],
+    })
     return
   }
 
@@ -20,7 +22,10 @@ export async function handleBusinessSelect(interaction: StringSelectMenuInteract
   const chosen = resolved.find((r) => r.business.id === selectedBusinessId)
 
   if (!chosen) {
-    await interaction.editReply({ content: 'You no longer have access to that business.', components: [] })
+    await interaction.editReply({
+      flags: MessageFlags.IsComponentsV2,
+      components: [new ContainerBuilder().setAccentColor(0x95a5a6).addTextDisplayComponents(new TextDisplayBuilder().setContent('You no longer have access to that business.'))],
+    })
     return
   }
 

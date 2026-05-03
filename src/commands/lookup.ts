@@ -4,9 +4,12 @@ import {
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
   ActionRowBuilder,
-  EmbedBuilder,
+  ContainerBuilder,
+  TextDisplayBuilder,
+  MessageFlags,
   StringSelectMenuInteraction,
   UserContextMenuCommandInteraction,
+  type MessageActionRowComponentBuilder,
 } from 'discord.js'
 import { resolveBusinesses } from '../services/permissionService'
 import { getProvider } from '../services/businessService'
@@ -69,8 +72,13 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     )
 
   await interaction.editReply({
-    content: 'You belong to multiple businesses. Which are you acting as?',
-    components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)],
+    flags: MessageFlags.IsComponentsV2,
+    components: [
+      new ContainerBuilder().addTextDisplayComponents(
+        new TextDisplayBuilder().setContent('You belong to multiple businesses. Which are you acting as?')
+      ),
+      new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(select),
+    ],
   })
 }
 
@@ -89,8 +97,12 @@ export async function runLookup(
   } catch (err) {
     console.error('Provider lookup error:', err)
     await interaction.editReply({
-      content: `Could not reach the ${business.name} API. Try again in a moment.`,
-      components: [],
+      flags: MessageFlags.IsComponentsV2,
+      components: [
+        new ContainerBuilder().setAccentColor(0x95a5a6).addTextDisplayComponents(
+          new TextDisplayBuilder().setContent(`Could not reach the ${business.name} API. Try again in a moment.`)
+        ),
+      ],
     })
     return
   }
@@ -108,12 +120,12 @@ export async function runLookup(
 
   if (characters.length === 0) {
     await interaction.editReply({
-      embeds: [
-        new EmbedBuilder()
-          .setColor(0x95a5a6)
-          .setDescription(`No characters found for **${targetUsername}** in ${business.name}.`),
+      flags: MessageFlags.IsComponentsV2,
+      components: [
+        new ContainerBuilder().setAccentColor(0x95a5a6).addTextDisplayComponents(
+          new TextDisplayBuilder().setContent(`No characters found for **${targetUsername}** in ${business.name}.`)
+        ),
       ],
-      components: [],
     })
     return
   }
@@ -137,9 +149,13 @@ export async function runLookup(
     )
 
   await interaction.editReply({
-    content: `Found ${characters.length} characters linked to **${targetUsername}**. Which one?`,
-    components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)],
-    embeds: [],
+    flags: MessageFlags.IsComponentsV2,
+    components: [
+      new ContainerBuilder().addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(`Found ${characters.length} characters linked to **${targetUsername}**. Which one?`)
+      ),
+      new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(select),
+    ],
   })
 }
 
