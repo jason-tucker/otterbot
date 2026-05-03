@@ -7,6 +7,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+- `/employee` no longer shows duplicate owner buttons ("Add as Owner" + "Make Owner") for sudo users — sudo always uses "Make Owner" (DB-authoritative + best-effort Discord role sync)
+
 ---
 
 ## [0.6.0] — 2026-05-03

@@ -126,7 +126,7 @@ export function buildEmployeeManageEmbed(
           .setStyle(ButtonStyle.Primary),
       )
     }
-    if (canManageOwner(commandUserRank, config, isSudo).allowed) {
+    if (!isSudo && canManageOwner(commandUserRank, config, isSudo).allowed) {
       buttons.push(
         new ButtonBuilder()
           .setCustomId(`emp_to_owner:${sessionKey}`)
@@ -151,7 +151,7 @@ export function buildEmployeeManageEmbed(
           .setStyle(ButtonStyle.Primary),
       )
     }
-    if (canManageOwner(commandUserRank, config, isSudo).allowed) {
+    if (!isSudo && canManageOwner(commandUserRank, config, isSudo).allowed) {
       buttons.push(
         new ButtonBuilder()
           .setCustomId(`emp_to_owner:${sessionKey}`)
@@ -176,7 +176,7 @@ export function buildEmployeeManageEmbed(
           .setStyle(ButtonStyle.Secondary),
       )
     }
-    if (canManageOwner(commandUserRank, config, isSudo).allowed) {
+    if (!isSudo && canManageOwner(commandUserRank, config, isSudo).allowed) {
       buttons.push(
         new ButtonBuilder()
           .setCustomId(`emp_to_owner:${sessionKey}`)
