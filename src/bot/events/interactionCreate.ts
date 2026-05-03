@@ -37,6 +37,7 @@ import { handleEmployeeCustomRoleSelect } from '../../interactions/selects/emplo
 import { handleEmployeeActionButton } from '../../interactions/buttons/employeeActionButton'
 import { handlePortalButton } from '../../interactions/buttons/portalButton'
 import { handlePortalSelect } from '../../interactions/selects/portalSelect'
+import { handleTicketCharSelect } from '../../interactions/selects/ticketCharSelect'
 import { handlePortalModal } from '../../interactions/modals/portalModal'
 import { handleNoteSubmit } from '../../interactions/modals/noteSubmit'
 import { handleStandingSubmit } from '../../interactions/modals/standingSubmit'
@@ -89,6 +90,8 @@ export function registerInteractionCreate(client: Client) {
           await handleEmployeeCustomRoleSelect(interaction as StringSelectMenuInteraction)
         } else if (id.startsWith('portal_biz_select:') || id.startsWith('portal_rm_role:') || id.startsWith('portal_rm_owner:')) {
           await handlePortalSelect(interaction as StringSelectMenuInteraction)
+        } else if (id.startsWith('ticket_char_select:')) {
+          await handleTicketCharSelect(interaction as StringSelectMenuInteraction)
         }
         return
       }

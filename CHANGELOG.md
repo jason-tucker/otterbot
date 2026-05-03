@@ -7,6 +7,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- Ticket auto-lookup: when a new channel is created in the ticket category, the bot looks up the opener in the MKE API and posts their character info — or a character selector if they have multiple characters, or a link to assign one if none found
+
 ### Fixed
 - `/help` now shows public commands (artsize, tcsheet, printinfo, caked) to all users — previously blocked anyone without a staff role entirely
 
