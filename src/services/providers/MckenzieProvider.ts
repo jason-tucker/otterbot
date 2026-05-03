@@ -84,12 +84,12 @@ export class MckenzieProvider implements IBusinessProvider {
     const members: RosterMember[] = []
 
     if (owner?.status) {
-      members.push({ id: owner.id, name: owner.name, csn: owner.csn || null, role: 'owner' })
+      members.push({ id: owner.id, name: owner.name, csn: owner.csn || null, role: 'owner', discordId: owner.userId || null, character: MckenzieProvider.mapToCharacter(owner) })
     }
 
     for (const emp of employees ?? []) {
       if (emp.status) {
-        members.push({ id: emp.id, name: emp.name, csn: emp.csn || null, role: 'employee' })
+        members.push({ id: emp.id, name: emp.name, csn: emp.csn || null, role: 'employee', discordId: emp.userId || null, character: MckenzieProvider.mapToCharacter(emp) })
       }
     }
 

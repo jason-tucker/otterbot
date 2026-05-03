@@ -147,7 +147,7 @@ export async function showCharacterEmbed(
   interaction: LookupInteraction,
   resolved: ResolvedBusiness,
   character: Character,
-  targetDiscordId: string
+  targetDiscordId: string | null
 ): Promise<void> {
   const { business, rank } = resolved
 

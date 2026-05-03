@@ -14,6 +14,7 @@ import { execute as executePrintInfo, data as printInfoData } from '../../comman
 import { execute as executeArtSize, data as artSizeData } from '../../commands/artSize'
 import { execute as executeTcSheet, data as tcSheetData } from '../../commands/tcSheet'
 import { execute as executeCaked, data as cakedData } from '../../commands/caked'
+import { execute as executeHelp, data as helpData } from '../../commands/help'
 import { execute as executeUserLookup } from '../../commands/userLookup'
 import { handlePrintInfoButton } from '../../interactions/buttons/printInfoButton'
 import { handleCakedButton } from '../../interactions/buttons/cakedButton'
@@ -21,12 +22,13 @@ import { handleCakedContactSubmit } from '../../interactions/modals/cakedContact
 import { handleCakedEventSubmit } from '../../interactions/modals/cakedEventSubmit'
 import { handleSendToChannel } from '../../utils/sendable'
 import { handleBusinessSelect } from '../../interactions/selects/businessSelect'
-import { handleBusinessInfoSelect } from '../../interactions/selects/businessInfoSelect'
 import { handleCharacterSelect } from '../../interactions/selects/characterSelect'
 import { handleStandingSelect } from '../../interactions/selects/standingSelect'
 import { handleNoteAddButton } from '../../interactions/buttons/noteAdd'
 import { handleNoteViewButton } from '../../interactions/buttons/noteView'
 import { handleStandingChangeButton } from '../../interactions/buttons/standingChange'
+import { handleBusinessLookupButton } from '../../interactions/buttons/businessLookupButton'
+import { handleBusinessEmployeeSelect } from '../../interactions/selects/businessEmployeeSelect'
 import { handleNoteSubmit } from '../../interactions/modals/noteSubmit'
 import { handleStandingSubmit } from '../../interactions/modals/standingSubmit'
 
@@ -38,6 +40,7 @@ const commandHandlers = new Map<string, (i: ChatInputCommandInteraction) => Prom
   [artSizeData.name, executeArtSize],
   [tcSheetData.name, executeTcSheet],
   [cakedData.name, executeCaked],
+  [helpData.name, executeHelp],
 ])
 
 export function registerInteractionCreate(client: Client) {
@@ -58,12 +61,12 @@ export function registerInteractionCreate(client: Client) {
         const id = interaction.customId
         if (id.startsWith('lookup_business_select:')) {
           await handleBusinessSelect(interaction as StringSelectMenuInteraction)
-        } else if (id === 'business_info_select') {
-          await handleBusinessInfoSelect(interaction as StringSelectMenuInteraction)
         } else if (id.startsWith('lookup_char_select:')) {
           await handleCharacterSelect(interaction as StringSelectMenuInteraction)
         } else if (id.startsWith('standing_select:')) {
           await handleStandingSelect(interaction as StringSelectMenuInteraction)
+        } else if (id.startsWith('business_employee_select:')) {
+          await handleBusinessEmployeeSelect(interaction as StringSelectMenuInteraction)
         }
         return
       }
@@ -82,6 +85,8 @@ export function registerInteractionCreate(client: Client) {
           await handleSendToChannel(interaction as ButtonInteraction)
         } else if (id.startsWith('caked:')) {
           await handleCakedButton(interaction as ButtonInteraction)
+        } else if (id.startsWith('business_lookup:')) {
+          await handleBusinessLookupButton(interaction as ButtonInteraction)
         }
         return
       }

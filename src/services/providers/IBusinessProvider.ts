@@ -5,6 +5,8 @@ export interface RosterMember {
   name: string
   csn: string | null
   role: 'owner' | 'employee'
+  discordId: string | null
+  character: Character
 }
 
 export interface BusinessRoster {

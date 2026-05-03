@@ -8,7 +8,7 @@ interface BusinessInfo {
   providerType: 'mckenzie' | 'discord-only'
 }
 
-export function buildBusinessEmbed(info: BusinessInfo, roster: BusinessRoster | null) {
+export function buildBusinessEmbed(info: BusinessInfo, roster: BusinessRoster | null, sessionKey?: string) {
   const embed = new EmbedBuilder()
     .setColor(0x5865f2)
     .setTitle(roster?.businessName ?? info.name)
@@ -66,5 +66,20 @@ export function buildBusinessEmbed(info: BusinessInfo, roster: BusinessRoster | 
       .setStyle(ButtonStyle.Secondary)
   )
 
-  return { embeds: [embed], components: [sendRow] }
+  const components: ActionRowBuilder<ButtonBuilder>[] = []
+
+  if (sessionKey && roster.members.length > 0) {
+    const lookupRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`business_lookup:${sessionKey}`)
+        .setLabel('Lookup Employee')
+        .setEmoji('🔍')
+        .setStyle(ButtonStyle.Secondary)
+    )
+    components.push(lookupRow)
+  }
+
+  components.push(sendRow)
+
+  return { embeds: [embed], components }
 }

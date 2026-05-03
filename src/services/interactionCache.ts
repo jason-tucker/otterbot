@@ -1,11 +1,13 @@
 import { randomBytes } from 'crypto'
 import type { StaffRank } from '../types/domain'
+import type { ResolvedBusiness } from '../types/domain'
+import type { BusinessRoster } from './providers/IBusinessProvider'
 
 export interface LookupSession {
   characterId: string
   characterName: string
   businessId: string
-  targetDiscordId: string
+  targetDiscordId: string | null
   rank: StaffRank
 }
 
@@ -38,5 +40,41 @@ function evict() {
   const now = Date.now()
   for (const [key, entry] of cache) {
     if (entry.expiresAt < now) cache.delete(key)
+  }
+}
+
+export interface BusinessRosterSession {
+  resolved: ResolvedBusiness | null
+  roster: BusinessRoster
+}
+
+interface RosterCacheEntry {
+  data: BusinessRosterSession
+  expiresAt: number
+}
+
+const rosterCache = new Map<string, RosterCacheEntry>()
+
+export function storeBusinessRosterSession(data: BusinessRosterSession): string {
+  const key = randomBytes(4).toString('hex')
+  rosterCache.set(key, { data, expiresAt: Date.now() + TTL_MS })
+  evictRoster()
+  return key
+}
+
+export function getBusinessRosterSession(key: string): BusinessRosterSession | null {
+  const entry = rosterCache.get(key)
+  if (!entry) return null
+  if (entry.expiresAt < Date.now()) {
+    rosterCache.delete(key)
+    return null
+  }
+  return entry.data
+}
+
+function evictRoster() {
+  const now = Date.now()
+  for (const [key, entry] of rosterCache) {
+    if (entry.expiresAt < now) rosterCache.delete(key)
   }
 }

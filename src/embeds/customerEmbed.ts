@@ -8,7 +8,7 @@ export function buildCustomerEmbed(
   business: Business,
   standing: CustomerStanding | null,
   rank: StaffRank,
-  linkedDiscordId: string,
+  linkedDiscordId: string | null,
   notesCount: number,
   sessionKey: string
 ) {
@@ -18,9 +18,10 @@ export function buildCustomerEmbed(
   const embed = new EmbedBuilder()
     .setColor(color)
     .setTitle(character.name)
-    .setDescription(`<@${linkedDiscordId}>`)
     .setFooter({ text: `${business.name} • via Otterbot` })
     .setTimestamp()
+
+  if (linkedDiscordId) embed.setDescription(`<@${linkedDiscordId}>`)
 
   const fields: { name: string; value: string; inline: boolean }[] = []
 
