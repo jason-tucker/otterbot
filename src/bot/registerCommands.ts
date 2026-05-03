@@ -4,8 +4,9 @@ import { ALL_GUILD_IDS } from '../config/guilds.config'
 import { data as lookupData } from '../commands/lookup'
 import { data as businessData } from '../commands/business'
 import { data as moveChannelData } from '../commands/moveChannel'
+import { data as printInfoData } from '../commands/printInfo'
 
-const commands = [lookupData.toJSON(), businessData.toJSON(), moveChannelData.toJSON()]
+const commands = [lookupData.toJSON(), businessData.toJSON(), moveChannelData.toJSON(), printInfoData.toJSON()]
 const rest = new REST().setToken(env.DISCORD_BOT_TOKEN)
 
 async function deploy() {

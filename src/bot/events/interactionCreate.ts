@@ -9,6 +9,8 @@ import {
 import { execute as executeLookup, data as lookupData } from '../../commands/lookup'
 import { execute as executeBusiness, data as businessData } from '../../commands/business'
 import { execute as executeMoveChannel, data as moveChannelData } from '../../commands/moveChannel'
+import { execute as executePrintInfo, data as printInfoData } from '../../commands/printInfo'
+import { handlePrintInfoButton } from '../../interactions/buttons/printInfoButton'
 import { handleBusinessSelect } from '../../interactions/selects/businessSelect'
 import { handleBusinessInfoSelect } from '../../interactions/selects/businessInfoSelect'
 import { handleCharacterSelect } from '../../interactions/selects/characterSelect'
@@ -23,6 +25,7 @@ const commandHandlers = new Map<string, (i: ChatInputCommandInteraction) => Prom
   [lookupData.name, executeLookup],
   [businessData.name, executeBusiness],
   [moveChannelData.name, executeMoveChannel],
+  [printInfoData.name, executePrintInfo],
 ])
 
 export function registerInteractionCreate(client: Client) {
@@ -56,6 +59,8 @@ export function registerInteractionCreate(client: Client) {
           await handleNoteViewButton(interaction as ButtonInteraction)
         } else if (id.startsWith('standing_change:')) {
           await handleStandingChangeButton(interaction as ButtonInteraction)
+        } else if (id.startsWith('print_info:')) {
+          await handlePrintInfoButton(interaction as ButtonInteraction)
         }
         return
       }
