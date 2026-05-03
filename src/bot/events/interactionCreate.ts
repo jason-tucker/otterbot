@@ -11,6 +11,7 @@ import { execute as executeBusiness, data as businessData } from '../../commands
 import { execute as executeMoveChannel, data as moveChannelData } from '../../commands/moveChannel'
 import { execute as executePrintInfo, data as printInfoData } from '../../commands/printInfo'
 import { handlePrintInfoButton } from '../../interactions/buttons/printInfoButton'
+import { handleSendToChannel } from '../../utils/sendable'
 import { handleBusinessSelect } from '../../interactions/selects/businessSelect'
 import { handleBusinessInfoSelect } from '../../interactions/selects/businessInfoSelect'
 import { handleCharacterSelect } from '../../interactions/selects/characterSelect'
@@ -61,6 +62,8 @@ export function registerInteractionCreate(client: Client) {
           await handleStandingChangeButton(interaction as ButtonInteraction)
         } else if (id.startsWith('print_info:')) {
           await handlePrintInfoButton(interaction as ButtonInteraction)
+        } else if (id.startsWith('send_to_channel:')) {
+          await handleSendToChannel(interaction as ButtonInteraction)
         }
         return
       }

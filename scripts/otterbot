@@ -86,8 +86,22 @@ case "$cmd" in
     echo "✓ Otterbot installed and running."
     ;;
 
+  deploy)
+    cd "$BOTDIR"
+    echo "→ Deploying slash commands to all guilds..."
+    pnpm commands:deploy
+    echo "✓ Commands deployed."
+    ;;
+
+  seed)
+    cd "$BOTDIR"
+    echo "→ Re-seeding role mappings..."
+    pnpm db:seed
+    echo "✓ Seed complete."
+    ;;
+
   *)
-    echo "Usage: otterbot [start|stop|restart|status|logs|update|install]"
+    echo "Usage: otterbot [start|stop|restart|status|logs|update|install|deploy|seed]"
     echo ""
     echo "  start    — start the bot (auto-installs service if needed)"
     echo "  stop     — stop the bot"
@@ -96,5 +110,7 @@ case "$cmd" in
     echo "  logs     — tail live logs (Ctrl+C to exit)"
     echo "  update   — pull code, migrate DB, redeploy commands, restart"
     echo "  install  — first-time full setup"
+    echo "  deploy   — redeploy slash commands to all guilds"
+    echo "  seed     — re-seed role mappings from Discord"
     ;;
 esac
