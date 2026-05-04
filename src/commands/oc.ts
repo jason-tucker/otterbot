@@ -28,7 +28,14 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const sendKey = `oc_stock:${interaction.id}`
   registerSendable(sendKey, () => ({ components: [container], flags: 32768 }))
 
-  const extraButtons: ButtonBuilder[] = []
+  const extraButtons: ButtonBuilder[] = [
+    new ButtonBuilder()
+      .setCustomId('oc_requirements')
+      .setLabel('Requirements')
+      .setEmoji('📋')
+      .setStyle(ButtonStyle.Secondary),
+  ]
+
   if (isManager) {
     extraButtons.push(
       new ButtonBuilder()

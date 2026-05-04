@@ -229,6 +229,67 @@ export function buildOCEditItemEmbed(item: OcStockItem) {
   }
 }
 
+const FORUMS_URL = 'https://newdayrp.com/forums/gangs-criminal-organizations.67/'
+
+export function buildOCRequirementsEmbed() {
+  const container = new ContainerBuilder().setAccentColor(0x1a1a2e)
+
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent('## Original Clothing — Requirements')
+  )
+
+  container.addSeparatorComponents(sep())
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(
+      `**Eligibility**\n` +
+      `- Businesses require at least **5 active staff members**; MC/Groups require **8 active members**\n` +
+      `- A valid **Social Club license** and **Business & Premises license** are required\n` +
+      `- Gangs/organizations must have been active for at least **30 days**\n` +
+      `- Recommended: maintain an [active forum post](${FORUMS_URL}) for your gang or organization`
+    )
+  )
+
+  container.addSeparatorComponents(sep())
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(
+      `**Item Limits**\n` +
+      `- Each group starts with a maximum of **3 clothing items** — this is a hard limit\n` +
+      `- Groups earn **+1 item per year of activity**, up to a maximum of **5 items total**`
+    )
+  )
+
+  container.addSeparatorComponents(sep())
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(
+      `**Communication & Vetting**\n` +
+      `- OC requires direct communication with the **owner or leader** of your group\n` +
+      `- We work with the Department of Commerce and Labor and run **background checks** on every order to verify activity`
+    )
+  )
+
+  container.addSeparatorComponents(sep())
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(
+      `**Activity & Removal**\n` +
+      `- Activity checks are conducted **weekly or bi-weekly**\n` +
+      `- If your activity or member count falls below requirements, you'll be given a **2-week deadline** to recover\n` +
+      `- **1 month of inactivity** will result in clothing removal — contact us beforehand if inactivity is planned\n` +
+      `- If your Social Club/Business & Premises license is **terminated**, clothing is removed immediately\n` +
+      `- OC reserves the right to remove clothing **with or without notice** for valid reasons (activity, licensing, federal)`
+    )
+  )
+
+  container.addSeparatorComponents(sep())
+  container.addTextDisplayComponents(
+    new TextDisplayBuilder().setContent(
+      `**Licensing**\n` +
+      `-# By authorizing use of your assets on NewDayRP, you permanently and irrevocably waive your copyright and related rights for use on NewDayRP. Asset removal may be requested and will be honoured at OC's discretion.`
+    )
+  )
+
+  return { flags: MessageFlags.IsComponentsV2, components: [container] }
+}
+
 export function buildOCAddModal(): ModalBuilder {
   return new ModalBuilder()
     .setCustomId('oc_add_submit')

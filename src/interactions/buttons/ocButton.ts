@@ -1,7 +1,7 @@
 import { type ButtonInteraction } from 'discord.js'
 import { resolveBusinesses, hasMinRank } from '../../services/permissionService'
 import { getAllStock, getStockById, updateStockStatus, removeStockItem } from '../../services/ocStockService'
-import { buildOCManageEmbed, buildOCEditItemEmbed, buildOCAddModal, buildOCUrlModal } from '../../embeds/ocEmbed'
+import { buildOCManageEmbed, buildOCEditItemEmbed, buildOCAddModal, buildOCUrlModal, buildOCRequirementsEmbed } from '../../embeds/ocEmbed'
 import type { OcStockStatus } from '../../services/ocStockService'
 
 async function requireOCManager(interaction: ButtonInteraction) {
@@ -14,6 +14,13 @@ async function requireOCManager(interaction: ButtonInteraction) {
 
 export async function handleOCButton(interaction: ButtonInteraction): Promise<void> {
   const id = interaction.customId
+
+  // ── Requirements ────────────────────────────────────────────────────────
+  if (id === 'oc_requirements') {
+    await interaction.deferReply({ ephemeral: true })
+    await interaction.editReply({ ...buildOCRequirementsEmbed(), content: null })
+    return
+  }
 
   // ── Open management panel from the public embed ──────────────────────────
   if (id === 'oc_manage_open') {
