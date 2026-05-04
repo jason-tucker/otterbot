@@ -29,6 +29,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Fixed
 - `/help` now shows public commands (artsize, tcsheet, printinfo, caked) to all users — previously blocked anyone without a staff role
 - `/caked` no longer references the non-existent `/cakedpricing` command — pricing is accessed via the **Pricing** button
+- `/employee` custom role select now shows role names instead of raw role IDs — `role_name` column was null for all existing mappings (seeded before the column was added); backfilled from Discord
 
 ---
 
