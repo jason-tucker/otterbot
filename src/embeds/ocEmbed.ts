@@ -40,12 +40,16 @@ function sep(divider = true) {
   return new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(divider)
 }
 
-function stockLines(items: OcStockItem[], status: OcStockStatus): string {
+function itemLine(item: OcStockItem): string {
+  const label = item.url ? `[${item.name}](${item.url})` : item.name
+  return `${STATUS_EMOJI[item.status]} ${label}`
+}
+
+function stockSection(items: OcStockItem[], status: OcStockStatus): string {
   const filtered = items.filter((i) => i.status === status)
   if (filtered.length === 0) return ''
   const header = `**${STATUS_EMOJI[status]} ${STATUS_LABEL[status]}** — ${filtered.length} item${filtered.length === 1 ? '' : 's'}`
-  const rows = filtered.map((i) => `${STATUS_EMOJI[status]} [${i.name}](${OC_WEBSITE})`).join('\n')
-  return `${header}\n${rows}`
+  return `${header}\n${filtered.map(itemLine).join('\n')}`
 }
 
 export function buildOCPublicContainer(items: OcStockItem[]): ContainerBuilder {
@@ -70,21 +74,21 @@ export function buildOCPublicContainer(items: OcStockItem[]): ContainerBuilder {
   if (inStock.length > 0) {
     container.addSeparatorComponents(sep())
     container.addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(stockLines(items, 'in_stock'))
+      new TextDisplayBuilder().setContent(stockSection(items, 'in_stock'))
     )
   }
 
   if (lowStock.length > 0) {
     container.addSeparatorComponents(sep())
     container.addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(stockLines(items, 'low_stock'))
+      new TextDisplayBuilder().setContent(stockSection(items, 'low_stock'))
     )
   }
 
   if (outOfStock.length > 0) {
     container.addSeparatorComponents(sep())
     container.addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(stockLines(items, 'out_of_stock'))
+      new TextDisplayBuilder().setContent(stockSection(items, 'out_of_stock'))
     )
   }
 
@@ -105,7 +109,7 @@ export function buildOCManageEmbed(items: OcStockItem[]) {
 
   const container = new ContainerBuilder().setAccentColor(0x5865f2)
   container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent('## ⚙️ OC Stock Manager\nSelect an item below to change its status, or add a new item.')
+    new TextDisplayBuilder().setContent('## ⚙️ OC Stock Manager\nSelect an item to change its status or set its product link.')
   )
 
   if (inStock.length > 0) {
@@ -147,7 +151,7 @@ export function buildOCManageEmbed(items: OcStockItem[]) {
       .setLabel(item.name)
       .setValue(item.id)
       .setEmoji(STATUS_EMOJI[item.status])
-      .setDescription(STATUS_LABEL[item.status])
+      .setDescription(item.url ? `${STATUS_LABEL[item.status]} — link set` : STATUS_LABEL[item.status])
   )
 
   const rows: ActionRowBuilder<MessageActionRowComponentBuilder>[] = []
@@ -157,7 +161,7 @@ export function buildOCManageEmbed(items: OcStockItem[]) {
       new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
         new StringSelectMenuBuilder()
           .setCustomId('oc_item_select')
-          .setPlaceholder('Select item to edit status...')
+          .setPlaceholder('Select item to edit...')
           .addOptions(selectOptions)
       )
     )
@@ -180,7 +184,7 @@ export function buildOCEditItemEmbed(item: OcStockItem) {
   const container = new ContainerBuilder().setAccentColor(STATUS_COLOR[item.status])
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(
-      `## Edit: ${item.name}\nCurrent status: ${STATUS_EMOJI[item.status]} **${STATUS_LABEL[item.status]}**`
+      `## Edit: ${item.name}\nStatus: ${STATUS_EMOJI[item.status]} **${STATUS_LABEL[item.status]}**\nProduct link: ${item.url ? `[set](${item.url})` : '*not set*'}`
     )
   )
 
@@ -207,13 +211,18 @@ export function buildOCEditItemEmbed(item: OcStockItem) {
       ),
       new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
         new ButtonBuilder()
+          .setCustomId(`oc_url:${item.id}`)
+          .setLabel('Set Product Link')
+          .setEmoji('🔗')
+          .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
           .setCustomId(`oc_remove:${item.id}`)
           .setLabel('Remove Item')
           .setEmoji('🗑️')
           .setStyle(ButtonStyle.Danger),
         new ButtonBuilder()
           .setCustomId('oc_manage')
-          .setLabel('Back to list')
+          .setLabel('Back')
           .setStyle(ButtonStyle.Secondary),
       ),
     ],
@@ -235,4 +244,21 @@ export function buildOCAddModal(): ModalBuilder {
           .setMaxLength(80)
       )
     )
+}
+
+export function buildOCUrlModal(item: OcStockItem): ModalBuilder {
+  const input = new TextInputBuilder()
+    .setCustomId('item_url')
+    .setLabel('Product Page URL')
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder('https://ruubzz.wixsite.com/mysite/product-page/...')
+    .setRequired(false)
+    .setMaxLength(500)
+
+  if (item.url) input.setValue(item.url)
+
+  return new ModalBuilder()
+    .setCustomId(`oc_url_submit:${item.id}`)
+    .setTitle(`Link: ${item.name.slice(0, 40)}`)
+    .addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(input))
 }

@@ -1,7 +1,7 @@
 import { type ButtonInteraction } from 'discord.js'
 import { resolveBusinesses, hasMinRank } from '../../services/permissionService'
 import { getAllStock, getStockById, updateStockStatus, removeStockItem } from '../../services/ocStockService'
-import { buildOCManageEmbed, buildOCEditItemEmbed, buildOCAddModal } from '../../embeds/ocEmbed'
+import { buildOCManageEmbed, buildOCEditItemEmbed, buildOCAddModal, buildOCUrlModal } from '../../embeds/ocEmbed'
 import type { OcStockStatus } from '../../services/ocStockService'
 
 async function requireOCManager(interaction: ButtonInteraction) {
@@ -86,6 +86,23 @@ export async function handleOCButton(interaction: ButtonInteraction): Promise<vo
       return
     }
     await interaction.showModal(buildOCAddModal())
+    return
+  }
+
+  // ── Show set-URL modal ───────────────────────────────────────────────────
+  if (id.startsWith('oc_url:')) {
+    const itemId = id.slice('oc_url:'.length)
+    const oc = await requireOCManager(interaction)
+    if (!oc) {
+      await interaction.reply({ content: 'You do not have permission to manage OC stock.', ephemeral: true })
+      return
+    }
+    const item = await getStockById(itemId)
+    if (!item) {
+      await interaction.reply({ content: 'Item not found.', ephemeral: true })
+      return
+    }
+    await interaction.showModal(buildOCUrlModal(item))
     return
   }
 }

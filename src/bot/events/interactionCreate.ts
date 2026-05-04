@@ -44,6 +44,7 @@ import { handleStandingSubmit } from '../../interactions/modals/standingSubmit'
 import { handleOCButton } from '../../interactions/buttons/ocButton'
 import { handleOCItemSelect } from '../../interactions/selects/ocItemSelect'
 import { handleOCAddSubmit } from '../../interactions/modals/ocAddModal'
+import { handleOCUrlSubmit } from '../../interactions/modals/ocUrlModal'
 import { execute as executeOC, data as ocData } from '../../commands/oc'
 
 const commandHandlers = new Map<string, (i: ChatInputCommandInteraction) => Promise<void>>([
@@ -143,6 +144,8 @@ export function registerInteractionCreate(client: Client) {
           await handlePortalModal(interaction as ModalSubmitInteraction)
         } else if (id === 'oc_add_submit') {
           await handleOCAddSubmit(interaction as ModalSubmitInteraction)
+        } else if (id.startsWith('oc_url_submit:')) {
+          await handleOCUrlSubmit(interaction as ModalSubmitInteraction)
         }
         return
       }

@@ -1,0 +1,36 @@
+import { type ModalSubmitInteraction } from 'discord.js'
+import { resolveBusinesses, hasMinRank } from '../../services/permissionService'
+import { getStockById, updateStockUrl } from '../../services/ocStockService'
+import { buildOCEditItemEmbed } from '../../embeds/ocEmbed'
+
+export async function handleOCUrlSubmit(interaction: ModalSubmitInteraction): Promise<void> {
+  if (!interaction.guild) return
+
+  const itemId = interaction.customId.slice('oc_url_submit:'.length)
+
+  const member = await interaction.guild.members.fetch(interaction.user.id)
+  const resolved = await resolveBusinesses(member)
+  const oc = resolved.find((r) => r.business.slug === 'original-clothing')
+
+  if (!oc || !hasMinRank(oc.rank, 'manager')) {
+    await interaction.reply({ content: 'You do not have permission to manage OC stock.', ephemeral: true })
+    return
+  }
+
+  const rawUrl = interaction.fields.getTextInputValue('item_url').trim()
+  const url = rawUrl.length > 0 ? rawUrl : null
+
+  await updateStockUrl(itemId, url, interaction.user.id)
+
+  const item = await getStockById(itemId)
+  if (!item) {
+    await interaction.reply({ content: 'Item no longer exists.', ephemeral: true })
+    return
+  }
+
+  if (interaction.isFromMessage()) {
+    await interaction.update({ ...buildOCEditItemEmbed(item), content: null })
+  } else {
+    await interaction.reply({ ...buildOCEditItemEmbed(item), ephemeral: true })
+  }
+}
