@@ -1,5 +1,6 @@
 import type { Client } from 'discord.js'
 import { loadGuildCommandIds } from '../../utils/cmdMention'
+import { startHealthPush } from '../healthPush'
 
 export function registerReadyEvent(client: Client) {
   client.once('clientReady', async (c) => {
@@ -7,5 +8,6 @@ export function registerReadyEvent(client: Client) {
     for (const [, guild] of c.guilds.cache) {
       await loadGuildCommandIds(guild)
     }
+    startHealthPush()
   })
 }

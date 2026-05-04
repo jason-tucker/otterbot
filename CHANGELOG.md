@@ -7,6 +7,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- Uptime Kuma push monitor — bot pings `UPTIME_KUMA_PUSH_URL` every 60 s after `clientReady`; Kuma marks the service down if pushes stop arriving
+
 ---
 
 ## [0.8.0] — 2026-05-03

@@ -13,6 +13,7 @@ const envSchema = z.object({
   SUDO_ROLE_IDS: z.string().optional(),
   // Legacy — treated as an additional sudo role if present.
   DISCORD_PORTAL_ADMIN_ROLE_ID: z.string().optional(),
+  UPTIME_KUMA_PUSH_URL: z.string().url().optional(),
 })
 
 const parsed = envSchema.safeParse(process.env)
