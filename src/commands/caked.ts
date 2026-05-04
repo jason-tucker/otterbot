@@ -13,7 +13,7 @@ import {
 } from 'discord.js'
 import { registerSendable, withSendButtonV2 } from '../utils/sendable'
 
-export const CAKED_COLOR = 0xf48fb1
+export const CAKED_COLOR = 0xbf889d
 
 export const data = new SlashCommandBuilder()
   .setName('caked')
@@ -39,7 +39,7 @@ export function cakedMainContainer(): ContainerBuilder {
           '- Dietary Restrictions',
           '- Items you would like',
           '',
-          '> 💡 **TIP:** You can do </cakedpricing:1146684736417304666> to see pricing',
+          '> 💰 Use the **Pricing** button below to view our rates.',
         ].join('\n')
       )
     )

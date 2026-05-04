@@ -18,6 +18,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 - `/help` now shows public commands (artsize, tcsheet, printinfo, caked) to all users — previously blocked anyone without a staff role entirely
+- `/caked` no longer references a non-existent `/cakedpricing` command — pricing is accessed via the existing Pricing button
+- `/caked` accent color updated to `#BF889D` across all views
 
 ---
 
