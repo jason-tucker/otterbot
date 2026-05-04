@@ -1,7 +1,8 @@
-import { SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js'
+import { SlashCommandBuilder, ButtonBuilder, ButtonStyle, type ChatInputCommandInteraction } from 'discord.js'
 import { resolveBusinesses, hasMinRank } from '../services/permissionService'
 import { getAllStock } from '../services/ocStockService'
-import { buildOCPublicEmbed } from '../embeds/ocEmbed'
+import { buildOCPublicContainer } from '../embeds/ocEmbed'
+import { registerSendable, withSendButtonV2 } from '../utils/sendable'
 
 export const data = new SlashCommandBuilder()
   .setName('oc')
@@ -14,7 +15,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     return
   }
 
-  await interaction.deferReply()
+  await interaction.deferReply({ ephemeral: true })
 
   const member = await interaction.guild.members.fetch(interaction.user.id)
   const resolved = await resolveBusinesses(member)
@@ -22,5 +23,21 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const isManager = oc ? hasMinRank(oc.rank, 'manager') : false
 
   const items = await getAllStock()
-  await interaction.editReply({ ...buildOCPublicEmbed(items, isManager), content: null })
+  const container = buildOCPublicContainer(items)
+
+  const sendKey = `oc_stock:${interaction.id}`
+  registerSendable(sendKey, () => ({ components: [container], flags: 32768 }))
+
+  const extraButtons: ButtonBuilder[] = []
+  if (isManager) {
+    extraButtons.push(
+      new ButtonBuilder()
+        .setCustomId('oc_manage_open')
+        .setLabel('Manage Stock')
+        .setEmoji('⚙️')
+        .setStyle(ButtonStyle.Secondary)
+    )
+  }
+
+  await interaction.editReply({ ...withSendButtonV2(sendKey, container, extraButtons), content: null })
 }

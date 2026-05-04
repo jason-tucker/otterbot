@@ -43,10 +43,12 @@ function sep(divider = true) {
 function stockLines(items: OcStockItem[], status: OcStockStatus): string {
   const filtered = items.filter((i) => i.status === status)
   if (filtered.length === 0) return ''
-  return `**${STATUS_EMOJI[status]} ${STATUS_LABEL[status]}** — ${filtered.length} item${filtered.length === 1 ? '' : 's'}\n${filtered.map((i) => i.name).join(' • ')}`
+  const header = `**${STATUS_EMOJI[status]} ${STATUS_LABEL[status]}** — ${filtered.length} item${filtered.length === 1 ? '' : 's'}`
+  const rows = filtered.map((i) => `${STATUS_EMOJI[status]} [${i.name}](${OC_WEBSITE})`).join('\n')
+  return `${header}\n${rows}`
 }
 
-export function buildOCPublicEmbed(items: OcStockItem[], isManager: boolean) {
+export function buildOCPublicContainer(items: OcStockItem[]): ContainerBuilder {
   const inStock = items.filter((i) => i.status === 'in_stock')
   const lowStock = items.filter((i) => i.status === 'low_stock')
   const outOfStock = items.filter((i) => i.status === 'out_of_stock')
@@ -61,7 +63,7 @@ export function buildOCPublicEmbed(items: OcStockItem[], isManager: boolean) {
 
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(
-      `**Stock Key**\n🟢 **In Stock** — 10+ slots available\n🟠 **Low Stock** — fewer than 10 slots open\n🔴 **Out of Stock** — no slots, no restocks`
+      `**Stock Key**\n🟢 **In Stock** — 10+ slots available\n🟠 **Low Stock** — fewer than 10 slots open\n🔴 **Out of Stock** — no slots open`
     )
   )
 
@@ -89,25 +91,11 @@ export function buildOCPublicEmbed(items: OcStockItem[], isManager: boolean) {
   container.addSeparatorComponents(sep())
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(
-      `-# All items include male & female versions. Special imports are not available.\n-# Out of stock items are permanently unavailable — no additional stock will be added.`
+      `-# All items include male & female versions. Special imports are not available.`
     )
   )
 
-  const components: (ContainerBuilder | ActionRowBuilder<MessageActionRowComponentBuilder>)[] = [container]
-
-  if (isManager) {
-    components.push(
-      new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
-        new ButtonBuilder()
-          .setCustomId('oc_manage_open')
-          .setLabel('Manage Stock')
-          .setEmoji('⚙️')
-          .setStyle(ButtonStyle.Secondary)
-      )
-    )
-  }
-
-  return { flags: MessageFlags.IsComponentsV2, components }
+  return container
 }
 
 export function buildOCManageEmbed(items: OcStockItem[]) {
