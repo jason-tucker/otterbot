@@ -41,6 +41,10 @@ import { handleTicketCharSelect } from '../../interactions/selects/ticketCharSel
 import { handlePortalModal } from '../../interactions/modals/portalModal'
 import { handleNoteSubmit } from '../../interactions/modals/noteSubmit'
 import { handleStandingSubmit } from '../../interactions/modals/standingSubmit'
+import { handleOCButton } from '../../interactions/buttons/ocButton'
+import { handleOCItemSelect } from '../../interactions/selects/ocItemSelect'
+import { handleOCAddSubmit } from '../../interactions/modals/ocAddModal'
+import { execute as executeOC, data as ocData } from '../../commands/oc'
 
 const commandHandlers = new Map<string, (i: ChatInputCommandInteraction) => Promise<void>>([
   [lookupData.name, executeLookup],
@@ -53,6 +57,7 @@ const commandHandlers = new Map<string, (i: ChatInputCommandInteraction) => Prom
   [helpData.name, executeHelp],
   [employeeData.name, executeEmployee],
   [portalData.name, executePortal],
+  [ocData.name, executeOC],
 ])
 
 export function registerInteractionCreate(client: Client) {
@@ -92,6 +97,8 @@ export function registerInteractionCreate(client: Client) {
           await handlePortalSelect(interaction as StringSelectMenuInteraction)
         } else if (id.startsWith('ticket_char_select:')) {
           await handleTicketCharSelect(interaction as StringSelectMenuInteraction)
+        } else if (id === 'oc_item_select') {
+          await handleOCItemSelect(interaction as StringSelectMenuInteraction)
         }
         return
       }
@@ -116,6 +123,8 @@ export function registerInteractionCreate(client: Client) {
           await handleEmployeeActionButton(interaction as ButtonInteraction)
         } else if (id.startsWith('portal_')) {
           await handlePortalButton(interaction as ButtonInteraction)
+        } else if (id.startsWith('oc_')) {
+          await handleOCButton(interaction as ButtonInteraction)
         }
         return
       }
@@ -132,6 +141,8 @@ export function registerInteractionCreate(client: Client) {
           await handleCakedEventSubmit(interaction as ModalSubmitInteraction)
         } else if (id.startsWith('portal_') && id.includes('_modal:')) {
           await handlePortalModal(interaction as ModalSubmitInteraction)
+        } else if (id === 'oc_add_submit') {
+          await handleOCAddSubmit(interaction as ModalSubmitInteraction)
         }
         return
       }

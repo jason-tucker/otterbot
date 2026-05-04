@@ -9,6 +9,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 - Ticket auto-lookup: when a new channel is created in the ticket category, the bot looks up the opener in the MKE API and posts their character info — or a character selector if they have multiple characters, or a link to assign one if none found
+- `/oc` command — shows Original Clothing stock grouped by status (🟢 In Stock / 🟠 Low Stock / 🔴 Out of Stock) with website link; OC Managers and above see a "Manage Stock" button to add, remove, and update items inline via a Discord editor
 
 ### Changed
 - All embeds migrated to Discord Components V2 (ContainerBuilder, TextDisplayBuilder, SeparatorBuilder) — richer layout, better visual hierarchy across `/lookup`, `/business`, `/portal`, and `/employee`
