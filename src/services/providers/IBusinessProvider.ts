@@ -15,8 +15,18 @@ export interface BusinessRoster {
   members: RosterMember[]
 }
 
+export interface ApiNote {
+  id: string
+  created: string
+  profileId: string
+  type: number
+  content: string
+  employeeId: number
+}
+
 export interface IBusinessProvider {
   lookupByDiscordId(discordId: string): Promise<Character[]>
   lookupByName(name: string): Promise<Character[]>
   getBusinessRoster(): Promise<BusinessRoster | null>
+  getNotes?(characterId: string): Promise<ApiNote[]>
 }

@@ -141,7 +141,9 @@ export async function showCharacterEmbed(
 ): Promise<void> {
   const { business, rank } = resolved
 
-  const [standingRow, notesCountRow] = await Promise.all([
+  const provider = getProvider(business)
+
+  const [standingRow, notesCountRow, apiNotes] = await Promise.all([
     db
       .select()
       .from(standings)
@@ -151,10 +153,11 @@ export async function showCharacterEmbed(
       .select({ value: count() })
       .from(notes)
       .where(and(eq(notes.businessId, business.id), eq(notes.characterId, character.id))),
+    provider.getNotes ? provider.getNotes(character.id).catch(() => []) : Promise.resolve([]),
   ])
 
   const standing = standingRow[0] ?? null
-  const notesCount = notesCountRow[0]?.value ?? 0
+  const notesCount = Number(notesCountRow[0]?.value ?? 0) + apiNotes.length
 
   const standingTyped = standing
     ? {

@@ -1,6 +1,6 @@
 import { env } from '../../config/env'
 import type { Character, Business } from '../../types/domain'
-import type { IBusinessProvider, BusinessRoster, RosterMember } from './IBusinessProvider'
+import type { IBusinessProvider, BusinessRoster, RosterMember, ApiNote } from './IBusinessProvider'
 
 interface MkCharacterProfile {
   id: string
@@ -98,6 +98,17 @@ export class MckenzieProvider implements IBusinessProvider {
       ownerName: owner?.name ?? null,
       members,
     }
+  }
+
+  async getNotes(characterId: string): Promise<ApiNote[]> {
+    const res = await fetch(
+      `${this.baseUrl}/character-profiles/${encodeURIComponent(characterId)}/notes`,
+      { method: 'GET', headers: this.headers(), signal: AbortSignal.timeout(8000) }
+    )
+    if (!res.ok) return []
+    const data = await res.json()
+    if (!Array.isArray(data)) return []
+    return data as ApiNote[]
   }
 
   private static mapToCharacter(profile: MkCharacterProfile): Character {
