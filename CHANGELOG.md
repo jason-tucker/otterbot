@@ -9,6 +9,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 - README link to the [Bot Development project board](https://github.com/users/jason-tucker/projects/3) — full roadmap, completed work, and open action items tracked there with `Tucker Action` and `Blocked` statuses.
+- `/business` roster and `/lookup` multi-character picker now show **CSN, phone number, and bank number inline** for each character, so staff can see the key identifiers without drilling into a single profile.
+- New `lookup_sessions` DB table (key, characterId, characterName, businessId, targetDiscordId, rank, expiresAt) — created automatically by `drizzle-kit push` on first boot.
+
+### Changed
+- `/lookup` sessions are now **DB-backed** instead of in-memory, so Add Note / View Notes / Change Standing buttons keep working after a bot restart. TTL bumped from 1 hour → 24 hours since the data is stable.
+- `storeLookupSession` / `getLookupSession` are now async; all 6 button/modal/select callers (noteAdd, noteView, noteSubmit, standingChange, standingSelect, standingSubmit) plus `/lookup` updated to await.
+
+### Fixed
+- Notes silently failed for many users because the in-memory session cache was wiped on every bot restart — clicking Add Note 5+ minutes after `/lookup` (or after any deploy) returned "expired" without persisting anything. Persistent sessions resolve this.
 
 ---
 

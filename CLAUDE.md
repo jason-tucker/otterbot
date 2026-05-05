@@ -100,6 +100,7 @@ const isManager = oc ? hasMinRank(oc.rank, 'manager') : false
 | `notes` | businessId, characterId, content, visibility (staff/manager/owner) | Per-business character notes |
 | `audit_logs` | actorDiscordId, businessId, action, targetType, targetId, success, details | All staff action logs |
 | `oc_stock` | name, status (in_stock/low_stock/out_of_stock), sortOrder, url, updatedByDiscordId | OC clothing items with product links |
+| `lookup_sessions` | key (random hex), characterId, characterName, businessId, targetDiscordId, rank, expiresAt | DB-backed `/lookup` sessions so Add Note / View Notes / Change Standing buttons survive bot restarts. 24 h TTL, swept on insert. |
 
 **Migrations:** `src/db/migrations/*.sql` + `src/db/migrations/meta/_journal.json`
 When adding a migration manually, the `when` timestamp must be higher than all existing entries. Run `pnpm db:migrate` to apply. If it doesn't apply (already marked done in `__drizzle_migrations` table), run the SQL directly via a temp `tsx` script in `scripts/`, then delete the script.

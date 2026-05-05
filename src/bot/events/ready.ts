@@ -18,7 +18,11 @@ export function registerReadyEvent(client: Client) {
       const owner = await c.users.fetch(env.BOT_OWNER_ID).catch(() => null)
       if (owner) {
         const guilds = [...c.guilds.cache.values()].map(g => `${g.name} (${g.id})`).join(', ')
-        await owner.send(`🟢 **Otterbot started**\nLogged in as **${c.user.tag}**\nGuilds: ${guilds}`).catch(() => {})
+        // 4096 = MessageFlags.SuppressNotifications — successful boot is informational
+        await owner.send({
+          content: `🟢 **Otterbot started**\nLogged in as **${c.user.tag}**\nGuilds: ${guilds}`,
+          flags: 4096,
+        } as any).catch(() => {})
       }
     }
   })

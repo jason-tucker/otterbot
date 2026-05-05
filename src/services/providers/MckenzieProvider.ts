@@ -101,14 +101,32 @@ export class MckenzieProvider implements IBusinessProvider {
   }
 
   async getNotes(characterId: string): Promise<ApiNote[]> {
-    const res = await fetch(
-      `${this.baseUrl}/character-profiles/${encodeURIComponent(characterId)}/notes`,
-      { method: 'GET', headers: this.headers(), signal: AbortSignal.timeout(8000) }
-    )
-    if (!res.ok) return []
-    const data = await res.json()
-    if (!Array.isArray(data)) return []
-    return data as ApiNote[]
+    // FIXME: the MKE API endpoint for notes is unknown. Probed several patterns
+    // (/character-profiles/{id}/notes, /notes/{id}, /notes?profileId=, etc.) — all 404.
+    // Once the correct path is known, replace the URL below. For now this logs
+    // the failure instead of swallowing it silently.
+    const url = `${this.baseUrl}/character-profiles/${encodeURIComponent(characterId)}/notes`
+    try {
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: this.headers(),
+        signal: AbortSignal.timeout(8000),
+      })
+      if (!res.ok) {
+        const body = await res.text().catch(() => '')
+        console.warn(`[MKE] getNotes ${res.status} ${url} body=${body.slice(0, 200)}`)
+        return []
+      }
+      const data = await res.json()
+      if (!Array.isArray(data)) {
+        console.warn(`[MKE] getNotes returned non-array:`, data)
+        return []
+      }
+      return data as ApiNote[]
+    } catch (err) {
+      console.warn(`[MKE] getNotes fetch failed:`, err)
+      return []
+    }
   }
 
   private static mapToCharacter(profile: MkCharacterProfile): Character {

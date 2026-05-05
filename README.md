@@ -23,8 +23,8 @@ Roadmap, completed work, and open action items are tracked in the [Bot Developme
 ### Staff Commands
 | Command | Who | Description |
 |---|---|---|
-| `/lookup` | McKenzie staff | Look up a Discord user's characters, standing, and notes. Add notes or change standing from the embed. |
-| `/business` | Any staff | Search a business roster by name. Staff of that business get a **Lookup Employee** button. |
+| `/lookup` | McKenzie staff | Look up a Discord user's characters, standing, and notes. Add notes or change standing from the embed. Sessions are DB-backed so the buttons keep working after bot restarts (24 h TTL). The character picker shows CSN / 📞 phone / 🏦 bank in each option. |
+| `/business` | Any staff | Search a business roster by name. Staff of that business get a **Lookup Employee** button. Roster lines now show CSN, phone, and bank number for each member. |
 | `/employee` | Manager+ | Hire, fire, promote, and demote employees. Custom role support. Right-click any user → Apps → **Manage Employee**. |
 | `/movechannel` | Manager+ | Move a ticket channel to a different category. |
 | `/portal` | Sudo only | Full business management — create/edit businesses, manage role mappings, designated owners, and permission flags. |
