@@ -1,116 +1,95 @@
-#!/bin/bash
-# otterbot — management CLI for the Otterbot Discord bot
-# Install: sudo cp scripts/otterbot /usr/local/bin/otterbot && sudo chmod +x /usr/local/bin/otterbot
+#!/usr/bin/env bash
+# otterbot — management CLI for the Docker-based Otterbot deployment
+#
+# Install once on a server:
+#   sudo cp scripts/otterbot /usr/local/bin/otterbot
+#   sudo chmod +x /usr/local/bin/otterbot
 
-BOTDIR="/home/botuser/projects/otterbot"
+set -Eeuo pipefail
+
 SERVICE="otterbot"
 
-_installed() {
-  systemctl list-unit-files "${SERVICE}.service" &>/dev/null && \
-    systemctl list-unit-files "${SERVICE}.service" | grep -q "${SERVICE}"
+detect_project_dir() {
+    if [ -n "${PROJECT_DIR:-}" ] && [ -f "$PROJECT_DIR/docker-compose.yml" ]; then
+        echo "$PROJECT_DIR"; return
+    fi
+    for candidate in \
+        "$HOME/projects/otterbot" \
+        "/home/botuser/projects/otterbot" \
+        "/root/projects/otterbot" \
+        "$(pwd)"; do
+        if [ -f "$candidate/docker-compose.yml" ]; then
+            echo "$candidate"; return
+        fi
+    done
+    echo "ERROR: otterbot project directory not found." >&2
+    echo "Set PROJECT_DIR=/path/to/otterbot or run from inside the repo." >&2
+    exit 1
 }
 
-_install_service() {
-  echo "Installing systemd service..."
-  sudo cp "${BOTDIR}/deploy/systemd/otterbot.service" /etc/systemd/system/
-  sudo cp "${BOTDIR}/deploy/systemd/otterbot-restart.service" /etc/systemd/system/
-  sudo cp "${BOTDIR}/deploy/systemd/otterbot-restart.timer" /etc/systemd/system/
-  sudo systemctl daemon-reload
-  sudo systemctl enable "${SERVICE}.service"
-  sudo systemctl enable otterbot-restart.timer
-  sudo systemctl start otterbot-restart.timer
-  echo "Service installed and weekly restart timer enabled."
-}
+PROJECT_DIR=$(detect_project_dir)
+cd "$PROJECT_DIR"
 
-cmd="${1:-start}"
+cmd="${1:-status}"
+shift || true
 
 case "$cmd" in
+    start)    docker compose up -d "$@"; docker compose ps ;;
+    stop)     docker compose stop; echo "✓ otterbot stack stopped." ;;
+    down)     docker compose down "$@"; echo "✓ otterbot stack removed." ;;
+    restart)  docker compose restart "$SERVICE"; docker compose ps "$SERVICE" ;;
+    status|ps) docker compose ps ;;
+    logs)     docker compose logs "$SERVICE" -f --tail=50 "$@" ;;
+    tail)     N="${1:-30}"; docker compose logs "$SERVICE" --tail="$N" ;;
+    pull)     docker compose pull "$@" ;;
+    update)
+        echo "▶ Pulling latest source..."
+        git fetch --all
+        git reset --hard origin/main
+        echo "▶ Pulling latest image..."
+        docker compose pull "$SERVICE"
+        echo "▶ Restarting..."
+        docker compose up -d --remove-orphans
+        echo "✓ otterbot updated."
+        docker compose ps
+        ;;
+    build)    docker compose build "$@" ;;
+    rebuild)  docker compose up -d --build --remove-orphans ;;
+    deploy)
+        docker compose run --rm "$SERVICE" node dist/bot/registerCommands.js
+        ;;
+    shell|exec) docker compose exec "$SERVICE" sh ;;
+    db:shell|psql)
+        docker compose exec db psql -U otterbot otterbot
+        ;;
+    env)
+        ${EDITOR:-nano} .env
+        echo "▶ Reloading containers..."
+        docker compose up -d
+        ;;
+    where)    echo "$PROJECT_DIR" ;;
+    *)
+        cat <<EOF
+Usage: otterbot <command>
 
-  start)
-    cd "$BOTDIR"
-    echo "→ Checking for database migrations..."
-    pnpm db:migrate --silent 2>/dev/null || pnpm db:migrate
-    if ! _installed; then
-      _install_service
-    fi
-    sudo systemctl start "$SERVICE"
-    echo "✓ Otterbot started."
-    sudo systemctl status "$SERVICE" --no-pager -l | tail -5
-    ;;
+  start         start the stack
+  stop          stop the stack (preserves volumes)
+  restart       restart just the bot container
+  down          stop and remove containers (preserves volumes)
+  status / ps   show container status
+  logs          tail live logs
+  tail [N]      show last N lines (default 30)
+  pull          pull latest image from registry
+  update        git pull + docker compose pull + up -d
+  build         build image locally
+  rebuild       up -d with --build
+  deploy        register slash commands
+  shell / exec  open shell inside the bot container
+  db:shell      open psql against postgres
+  env           edit .env and restart to apply
+  where         print the auto-detected project directory
 
-  stop)
-    sudo systemctl stop "$SERVICE"
-    echo "✓ Otterbot stopped."
-    ;;
-
-  restart)
-    cd "$BOTDIR"
-    echo "→ Checking for database migrations..."
-    pnpm db:migrate --silent 2>/dev/null || pnpm db:migrate
-    sudo systemctl restart "$SERVICE"
-    echo "✓ Otterbot restarted."
-    ;;
-
-  status)
-    sudo systemctl status "$SERVICE" --no-pager -l
-    ;;
-
-  logs)
-    sudo journalctl -u "$SERVICE" -f --no-pager
-    ;;
-
-  update)
-    cd "$BOTDIR"
-    echo "→ Pulling latest code..."
-    git pull
-    echo "→ Installing dependencies..."
-    pnpm install
-    echo "→ Running migrations..."
-    pnpm db:migrate
-    echo "→ Re-seeding role mappings..."
-    pnpm db:seed
-    echo "→ Redeploying commands..."
-    pnpm commands:deploy
-    sudo systemctl restart "$SERVICE"
-    echo "✓ Otterbot updated and restarted."
-    ;;
-
-  install)
-    cd "$BOTDIR"
-    _install_service
-    echo "→ Running initial setup..."
-    pnpm db:migrate
-    pnpm db:seed
-    pnpm commands:deploy
-    sudo systemctl start "$SERVICE"
-    echo "✓ Otterbot installed and running."
-    ;;
-
-  deploy)
-    cd "$BOTDIR"
-    echo "→ Deploying slash commands to all guilds..."
-    pnpm commands:deploy
-    echo "✓ Commands deployed."
-    ;;
-
-  seed)
-    cd "$BOTDIR"
-    echo "→ Re-seeding role mappings..."
-    pnpm db:seed
-    echo "✓ Seed complete."
-    ;;
-
-  *)
-    echo "Usage: otterbot [start|stop|restart|status|logs|update|install|deploy|seed]"
-    echo ""
-    echo "  start    — start the bot (auto-installs service if needed)"
-    echo "  stop     — stop the bot"
-    echo "  restart  — restart the bot"
-    echo "  status   — show service status"
-    echo "  logs     — tail live logs (Ctrl+C to exit)"
-    echo "  update   — pull code, migrate DB, redeploy commands, restart"
-    echo "  install  — first-time full setup"
-    echo "  deploy   — redeploy slash commands to all guilds"
-    echo "  seed     — re-seed role mappings from Discord"
-    ;;
+Project dir: $PROJECT_DIR
+EOF
+        ;;
 esac
