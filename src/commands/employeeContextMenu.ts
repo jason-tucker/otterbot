@@ -7,7 +7,7 @@ import { resolveBusinesses } from '../services/permissionService'
 import { isSudoUser } from '../services/sudoService'
 import { getAllBusinesses } from '../services/portalService'
 import { runEmployeeManage } from './employee'
-import type { ResolvedBusiness } from '../services/permissionService'
+import type { ResolvedBusiness } from '../types/domain'
 
 // Right-click a user → Apps → "Manage Employee"
 export const data = new ContextMenuCommandBuilder()

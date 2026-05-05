@@ -27,7 +27,7 @@ export function buildBusinessEmbed(info: BusinessInfo, roster: BusinessRoster | 
       .addTextDisplayComponents(
         new TextDisplayBuilder().setContent('-# via Otterbot')
       )
-    return { flags: MessageFlags.IsComponentsV2, components: [container] }
+    return { flags: MessageFlags.IsComponentsV2, components: [container] as any[] }
   }
 
   const employees = roster.members.filter((m) => m.role === 'employee')
@@ -112,5 +112,5 @@ export function buildBusinessEmbed(info: BusinessInfo, roster: BusinessRoster | 
     )
   )
 
-  return { flags: MessageFlags.IsComponentsV2, components: [container, ...actionRows] }
+  return { flags: MessageFlags.IsComponentsV2, components: [container, ...actionRows] as any[] }
 }

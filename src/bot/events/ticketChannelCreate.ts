@@ -86,14 +86,14 @@ export function registerTicketChannelCreate(client: Client): void {
             .addTextDisplayComponents(
               new TextDisplayBuilder().setContent('-# via Otterbot')
             ),
-        ],
+        ] as any[],
         flags: MessageFlags.IsComponentsV2,
       })
       return
     }
 
     if (characters.length === 1) {
-      await channel.send(buildTicketCharacterEmbed(characters[0], targetDiscordId))
+      await channel.send(buildTicketCharacterEmbed(characters[0], targetDiscordId) as any)
       return
     }
 
@@ -124,7 +124,7 @@ export function registerTicketChannelCreate(client: Client): void {
           .addActionRowComponents(
             new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)
           ),
-      ],
+      ] as any[],
       flags: MessageFlags.IsComponentsV2,
     })
   })

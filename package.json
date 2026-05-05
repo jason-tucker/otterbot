@@ -12,6 +12,7 @@
     "db:migrate": "tsx src/db/migrate.ts",
     "db:studio": "drizzle-kit studio",
     "deploy:commands": "node dist/bot/registerCommands.js",
+    "commands:deploy": "tsx src/bot/registerCommands.ts",
     "db:seed": "tsx scripts/seed.ts",
     "commands:clear": "tsx scripts/clearCommands.ts",
     "scan:roles": "tsx scripts/scanRoles.ts"

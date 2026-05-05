@@ -29,8 +29,8 @@ export async function handleOCUrlSubmit(interaction: ModalSubmitInteraction): Pr
   }
 
   if (interaction.isFromMessage()) {
-    await interaction.update({ ...buildOCEditItemEmbed(item), content: null })
+    await interaction.update({ ...buildOCEditItemEmbed(item), content: null } as any)
   } else {
-    await interaction.reply({ ...buildOCEditItemEmbed(item), ephemeral: true })
+    await interaction.reply({ ...buildOCEditItemEmbed(item), ephemeral: true } as any)
   }
 }

@@ -76,7 +76,7 @@ export async function runLookup(
         new ContainerBuilder().setAccentColor(0x95a5a6).addTextDisplayComponents(
           new TextDisplayBuilder().setContent(`Could not reach the ${business.name} API. Try again in a moment.`)
         ),
-      ],
+      ] as any[],
     })
     return
   }
@@ -99,7 +99,7 @@ export async function runLookup(
         new ContainerBuilder().setAccentColor(0x95a5a6).addTextDisplayComponents(
           new TextDisplayBuilder().setContent(`No characters found for **${targetUsername}** in ${business.name}.`)
         ),
-      ],
+      ] as any[],
     })
     return
   }
@@ -129,7 +129,7 @@ export async function runLookup(
         new TextDisplayBuilder().setContent(`Found ${characters.length} characters linked to **${targetUsername}**. Which one?`)
       ),
       new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(select),
-    ],
+    ] as any[],
   })
 }
 
@@ -178,5 +178,5 @@ export async function showCharacterEmbed(
   })
 
   const response = buildCustomerEmbed(character, business, standingTyped, rank, targetDiscordId, Number(notesCount), sessionKey)
-  await interaction.editReply({ ...response, content: null })
+  await interaction.editReply({ ...response, content: null } as any)
 }

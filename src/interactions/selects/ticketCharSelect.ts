@@ -50,5 +50,5 @@ export async function handleTicketCharSelect(interaction: StringSelectMenuIntera
     return
   }
 
-  await interaction.editReply(buildTicketCharacterEmbed(character, targetDiscordId))
+  await interaction.editReply(buildTicketCharacterEmbed(character, targetDiscordId) as any)
 }

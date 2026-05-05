@@ -177,7 +177,7 @@ export function buildOCManageEmbed(items: OcStockItem[]) {
     )
   )
 
-  return { flags: MessageFlags.IsComponentsV2, components: [container, ...rows] }
+  return { flags: MessageFlags.IsComponentsV2, components: [container, ...rows] as any[] }
 }
 
 export function buildOCEditItemEmbed(item: OcStockItem) {
@@ -225,7 +225,7 @@ export function buildOCEditItemEmbed(item: OcStockItem) {
           .setLabel('Back')
           .setStyle(ButtonStyle.Secondary),
       ),
-    ],
+    ] as any[],
   }
 }
 
@@ -287,7 +287,7 @@ export function buildOCRequirementsEmbed() {
     )
   )
 
-  return { flags: MessageFlags.IsComponentsV2, components: [container] }
+  return { flags: MessageFlags.IsComponentsV2, components: [container] as any[] }
 }
 
 export function buildOCAddModal(): ModalBuilder {

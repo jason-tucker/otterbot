@@ -18,7 +18,7 @@ export async function handleOCButton(interaction: ButtonInteraction): Promise<vo
   // ── Requirements ────────────────────────────────────────────────────────
   if (id === 'oc_requirements') {
     await interaction.deferReply({ ephemeral: true })
-    await interaction.editReply({ ...buildOCRequirementsEmbed(), content: null })
+    await interaction.editReply({ ...buildOCRequirementsEmbed(), content: null } as any)
     return
   }
 
@@ -31,7 +31,7 @@ export async function handleOCButton(interaction: ButtonInteraction): Promise<vo
       return
     }
     const items = await getAllStock()
-    await interaction.editReply({ ...buildOCManageEmbed(items), content: null })
+    await interaction.editReply({ ...buildOCManageEmbed(items), content: null } as any)
     return
   }
 
@@ -44,7 +44,7 @@ export async function handleOCButton(interaction: ButtonInteraction): Promise<vo
       return
     }
     const items = await getAllStock()
-    await interaction.editReply({ ...buildOCManageEmbed(items), content: null })
+    await interaction.editReply({ ...buildOCManageEmbed(items), content: null } as any)
     return
   }
 
@@ -63,10 +63,10 @@ export async function handleOCButton(interaction: ButtonInteraction): Promise<vo
     const item = await getStockById(itemId)
     if (!item) {
       const items = await getAllStock()
-      await interaction.editReply({ ...buildOCManageEmbed(items), content: null })
+      await interaction.editReply({ ...buildOCManageEmbed(items), content: null } as any)
       return
     }
-    await interaction.editReply({ ...buildOCEditItemEmbed(item), content: null })
+    await interaction.editReply({ ...buildOCEditItemEmbed(item), content: null } as any)
     return
   }
 
@@ -81,7 +81,7 @@ export async function handleOCButton(interaction: ButtonInteraction): Promise<vo
     const itemId = id.split(':')[1]
     await removeStockItem(itemId)
     const items = await getAllStock()
-    await interaction.editReply({ ...buildOCManageEmbed(items), content: null })
+    await interaction.editReply({ ...buildOCManageEmbed(items), content: null } as any)
     return
   }
 

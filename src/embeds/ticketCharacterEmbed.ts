@@ -42,7 +42,7 @@ export function buildTicketCharacterEmbed(character: TicketCharacter, discordId:
   )
 
   return {
-    components: [container],
+    components: [container] as any[],
     flags: MessageFlags.IsComponentsV2,
   }
 }

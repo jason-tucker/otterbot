@@ -24,5 +24,5 @@ export async function handleOCItemSelect(interaction: StringSelectMenuInteractio
     return
   }
 
-  await interaction.editReply({ ...buildOCEditItemEmbed(item), content: null })
+  await interaction.editReply({ ...buildOCEditItemEmbed(item), content: null } as any)
 }

@@ -25,8 +25,8 @@ export async function handleOCAddSubmit(interaction: ModalSubmitInteraction): Pr
   const items = await getAllStock()
 
   if (interaction.isFromMessage()) {
-    await interaction.update({ ...buildOCManageEmbed(items), content: null })
+    await interaction.update({ ...buildOCManageEmbed(items), content: null } as any)
   } else {
-    await interaction.reply({ ...buildOCManageEmbed(items), ephemeral: true })
+    await interaction.reply({ ...buildOCManageEmbed(items), ephemeral: true } as any)
   }
 }
