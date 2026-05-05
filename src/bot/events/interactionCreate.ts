@@ -138,6 +138,9 @@ export function registerInteractionCreate(client: Client) {
           await handlePortalButton(interaction as ButtonInteraction)
         } else if (id.startsWith('oc_')) {
           await handleOCButton(interaction as ButtonInteraction)
+        } else if (id.startsWith('report_approve:') || id.startsWith('report_reject:')) {
+          const { handleReportReview } = await import('../../interactions/buttons/reportReview')
+          await handleReportReview(interaction as ButtonInteraction)
         }
         return
       }

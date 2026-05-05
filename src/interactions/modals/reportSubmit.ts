@@ -1,5 +1,11 @@
-import type { ModalSubmitInteraction } from 'discord.js'
+import {
+  type ModalSubmitInteraction,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+} from 'discord.js'
 import { env } from '../../config/env'
+import { createReportSession } from '../../services/reportCache'
 
 export async function handleReportSubmit(interaction: ModalSubmitInteraction): Promise<void> {
   await interaction.deferReply({ ephemeral: true })
@@ -7,6 +13,12 @@ export async function handleReportSubmit(interaction: ModalSubmitInteraction): P
   if (!env.GITHUB_TOKEN || !env.GITHUB_REPO) {
     await interaction.editReply({
       content: '❌ /report is not configured. Set `GITHUB_TOKEN` and `GITHUB_REPO` in the bot env.',
+    })
+    return
+  }
+  if (!env.BOT_OWNER_ID) {
+    await interaction.editReply({
+      content: '❌ /report requires `BOT_OWNER_ID` to gate review approval.',
     })
     return
   }
@@ -27,28 +39,50 @@ export async function handleReportSubmit(interaction: ModalSubmitInteraction): P
     `\n\n---\n_Reported by Discord user **${interaction.user.tag}** (\`${interaction.user.id}\`) via /report._`,
   ].join('')
 
-  const res = await fetch(`https://api.github.com/repos/${env.GITHUB_REPO}/issues`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${env.GITHUB_TOKEN}`,
-      Accept: 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28',
-      'User-Agent': 'otterbot-report',
-    },
-    body: JSON.stringify({ title, body, labels }),
+  const sessionKey = createReportSession({
+    reporterId: interaction.user.id,
+    reporterTag: interaction.user.tag,
+    title,
+    body,
+    labels,
   })
 
-  if (!res.ok) {
-    const err = await res.text().catch(() => '<no body>')
-    console.error(`/report: GitHub API ${res.status}: ${err}`)
+  try {
+    const owner = await interaction.client.users.fetch(env.BOT_OWNER_ID)
+
+    const labelLine = labels.length > 0 ? labels.join(', ') : '_none_'
+    const summary = [
+      `📝 **New /report from ${interaction.user.tag}**`,
+      `**Title:** ${title}`,
+      `**Labels:** ${labelLine}`,
+      '',
+      body,
+    ].join('\n')
+    const truncated = summary.length > 1900 ? summary.slice(0, 1900) + '\n_…(truncated)_' : summary
+
+    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`report_approve:${sessionKey}`)
+        .setLabel('Approve & File')
+        .setEmoji('✅')
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(`report_reject:${sessionKey}`)
+        .setLabel('Reject')
+        .setEmoji('❌')
+        .setStyle(ButtonStyle.Danger),
+    )
+
+    await owner.send({ content: truncated, components: [row] })
+  } catch (err) {
+    console.error('Failed to DM bot owner about /report:', err)
     await interaction.editReply({
-      content: `❌ Failed to file issue (HTTP ${res.status}). Check bot logs.`,
+      content: '❌ Could not notify the bot owner. The owner may have DMs disabled. Try again later.',
     })
     return
   }
 
-  const data = (await res.json()) as { html_url: string; number: number }
   await interaction.editReply({
-    content: `✅ Issue **#${data.number}** filed: ${data.html_url}`,
+    content: '✅ Your report has been sent to the bot owner for review. You\'ll get a DM with the result.',
   })
 }
