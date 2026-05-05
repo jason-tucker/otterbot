@@ -51,6 +51,7 @@ Register in both `src/bot/registerCommands.ts` AND `src/bot/events/interactionCr
 | `/tcsheet` | `commands/tcSheet.ts` | Anyone | Trading card sheet reference. |
 | `/movechannel` | `commands/moveChannel.ts` | Manager+ | Move ticket channels to different categories. |
 | `/help` | `commands/help.ts` | All | Dynamic command list based on user's roles. |
+| `/report` | `commands/report.ts` | All | Modal (Title/Type/Description/Steps) → DMs the owner with Approve+Notify / Approve Silent / Reject+Notify / Reject Silent buttons → on approve, files a GitHub issue to `GITHUB_REPO`. |
 
 ### Context menu commands (right-click user → Apps)
 
@@ -267,3 +268,7 @@ await interaction.editReply({ ...withSendButtonV2(sendKey, container, extraButto
 | `SUDO_ROLE_IDS` | No | Comma-separated Discord role IDs for sudo access |
 | `NODE_ENV` | No | `development` or `production` |
 | `DISCORD_PORTAL_ADMIN_ROLE_ID` | No | Legacy sudo fallback — use `SUDO_ROLE_IDS` instead |
+| `BOT_OWNER_ID` | No (Yes for `/report`) | Receives DM on every `/report` for review approval, plus startup pings |
+| `GITHUB_TOKEN` | No | Fine-grained PAT with `Issues: Read & Write` on `GITHUB_REPO`; required for `/report` |
+| `GITHUB_REPO` | No | `owner/name` of the repo issues land in (e.g. `jason-tucker/otterbot`); required for `/report` |
+| `UPTIME_KUMA_PUSH_URL` | No | Kuma push URL — bot pings every 60 s after `clientReady` |

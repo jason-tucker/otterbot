@@ -36,6 +36,7 @@ See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the full setup guide and CI/CD 
 | `/printinfo` | Anyone | McKenzie Enterprises printing reference with pricing. |
 | `/artsize` | Anyone | Art size reference sheet. |
 | `/tcsheet` | Anyone | Trading card sheet reference. |
+| `/report` | Anyone | File a bug report or feature request. Bot owner reviews each one via DM and (on approve) files a GitHub issue. |
 
 ### Context Menu Commands (right-click a user → Apps)
 | Command | Who | Description |

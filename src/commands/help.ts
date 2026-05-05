@@ -59,6 +59,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         `${cmd('printinfo', guildId)} — McKenzie Enterprises printing reference`,
         `${cmd('artsize', guildId)} — Art commission size reference`,
         `${cmd('tcsheet', guildId)} — Trading card sheet reference`,
+        `${cmd('report', guildId)} — File a bug or feature request (owner-reviewed → GitHub issue)`,
         `${cmd('help', guildId)} — This menu`,
       ].join('\n')
     )
