@@ -6,7 +6,7 @@ import type { BusinessRoster } from './providers/IBusinessProvider'
 const TTL_MS = 60 * 60 * 1000 // 1 hour
 
 function makeKey(): string {
-  return randomBytes(4).toString('hex')
+  return randomBytes(16).toString('hex')
 }
 
 // ---------------------------------------------------------------------------
