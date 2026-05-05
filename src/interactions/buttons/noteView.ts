@@ -9,7 +9,7 @@ import { getProvider } from '../../services/businessService'
 
 export async function handleNoteViewButton(interaction: ButtonInteraction): Promise<void> {
   const sessionKey = interaction.customId.split(':')[1]
-  const session = getLookupSession(sessionKey)
+  const session = await getLookupSession(sessionKey)
 
   if (!session) {
     await interaction.reply({ content: `This lookup has expired. Run ${cmd('lookup', interaction.guildId!)} again.`, ephemeral: true })

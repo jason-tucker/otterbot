@@ -9,8 +9,17 @@ import {
   MessageFlags,
 } from 'discord.js'
 import { randomUUID } from 'crypto'
-import type { BusinessRoster } from '../services/providers/IBusinessProvider'
+import type { BusinessRoster, RosterMember } from '../services/providers/IBusinessProvider'
 import { registerSendable } from '../utils/sendable'
+
+function formatRosterMember(m: RosterMember, includeDiscord: boolean): string {
+  const parts: string[] = []
+  if (m.csn) parts.push(`CSN \`${m.csn}\``)
+  if (m.character.phoneNumber) parts.push(`📞 \`${m.character.phoneNumber}\``)
+  if (m.character.bankNumber) parts.push(`🏦 \`${m.character.bankNumber}\``)
+  if (includeDiscord && m.discordId) parts.push(`<@${m.discordId}>`)
+  return `**${m.name}**${parts.length ? ' — ' + parts.join(' · ') : ''}`
+}
 
 interface BusinessInfo {
   name: string
@@ -45,9 +54,7 @@ export function buildBusinessEmbed(info: BusinessInfo, roster: BusinessRoster | 
   )
 
   // Owner + count
-  const ownerText = owner
-    ? `${owner.name}${owner.csn ? ` · \`${owner.csn}\`` : ''}${owner.discordId ? ` · <@${owner.discordId}>` : ''}`
-    : 'Unknown'
+  const ownerText = owner ? formatRosterMember(owner, true) : 'Unknown'
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(
       `**Owner** · ${ownerText}\n**Total Employees** · ${employees.length}`
@@ -60,7 +67,7 @@ export function buildBusinessEmbed(info: BusinessInfo, roster: BusinessRoster | 
       new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small)
     )
     const shown = employees.slice(0, 20)
-    const lines = shown.map((e) => `· ${e.name}${e.csn ? ` — \`${e.csn}\`` : ''}`)
+    const lines = shown.map((e) => `· ${formatRosterMember(e, false)}`)
     if (employees.length > 20) lines.push(`-# … and ${employees.length - 20} more not shown`)
     container.addTextDisplayComponents(
       new TextDisplayBuilder().setContent(`### Roster\n${lines.join('\n')}`)

@@ -4,7 +4,7 @@ import { cmd } from '../../utils/cmdMention'
 
 export async function handleNoteAddButton(interaction: ButtonInteraction): Promise<void> {
   const sessionKey = interaction.customId.split(':')[1]
-  const session = getLookupSession(sessionKey)
+  const session = await getLookupSession(sessionKey)
 
   if (!session) {
     await interaction.reply({

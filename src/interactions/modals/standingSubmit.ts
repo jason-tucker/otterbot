@@ -15,7 +15,7 @@ export async function handleStandingSubmit(interaction: ModalSubmitInteraction):
   const parts = interaction.customId.split(':')
   const sessionKey = parts[1]
   const newStanding = parts[2] as Standing
-  const session = getLookupSession(sessionKey)
+  const session = await getLookupSession(sessionKey)
 
   if (!session || !VALID_STANDINGS.includes(newStanding)) {
     await interaction.reply({ content: `This lookup has expired. Run ${cmd('lookup', interaction.guildId!)} again.`, ephemeral: true })

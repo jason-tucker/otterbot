@@ -114,12 +114,16 @@ export async function runLookup(
     .setCustomId(`lookup_char_select:${business.id}:${targetDiscordId}`)
     .setPlaceholder('Select a character')
     .addOptions(
-      characters.map((c) =>
-        new StringSelectMenuOptionBuilder()
+      characters.map((c) => {
+        const parts: string[] = []
+        if (c.csn) parts.push(`CSN ${c.csn}`)
+        if (c.phoneNumber) parts.push(`📞 ${c.phoneNumber}`)
+        if (c.bankNumber) parts.push(`🏦 ${c.bankNumber}`)
+        return new StringSelectMenuOptionBuilder()
           .setLabel(c.name)
-          .setDescription(c.csn ? `CSN: ${c.csn}` : 'No CSN on record')
+          .setDescription(parts.join(' · ').slice(0, 100) || 'No info on record')
           .setValue(c.id)
-      )
+      })
     )
 
   await interaction.editReply({
@@ -172,7 +176,7 @@ export async function showCharacterEmbed(
       }
     : null
 
-  const sessionKey = storeLookupSession({
+  const sessionKey = await storeLookupSession({
     characterId: character.id,
     characterName: character.name,
     businessId: business.id,

@@ -1,16 +1,21 @@
 import { randomBytes } from 'crypto'
+import { and, eq, gt, lt } from 'drizzle-orm'
 import type { StaffRank } from '../types/domain'
 import type { ResolvedBusiness } from '../types/domain'
 import type { BusinessRoster } from './providers/IBusinessProvider'
+import { db } from '../db/client'
+import { lookupSessions } from '../db/schema'
 
 const TTL_MS = 60 * 60 * 1000 // 1 hour
+const LOOKUP_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours — survives bot restarts via DB
 
 function makeKey(): string {
   return randomBytes(16).toString('hex')
 }
 
 // ---------------------------------------------------------------------------
-// Lookup session
+// Lookup session — DB-backed so it survives bot restarts.
+// (Other session caches stay in-memory; they're tied to short-lived flows.)
 // ---------------------------------------------------------------------------
 
 export interface LookupSession {
@@ -21,26 +26,29 @@ export interface LookupSession {
   rank: StaffRank
 }
 
-interface LookupCacheEntry { data: LookupSession; expiresAt: number }
-const lookupCache = new Map<string, LookupCacheEntry>()
-
-export function storeLookupSession(data: LookupSession): string {
+export async function storeLookupSession(data: LookupSession): Promise<string> {
   const key = makeKey()
-  lookupCache.set(key, { data, expiresAt: Date.now() + TTL_MS })
-  evictLookup()
+  const expiresAt = new Date(Date.now() + LOOKUP_TTL_MS)
+  await db.insert(lookupSessions).values({ key, ...data, expiresAt })
+  // Sweep old rows opportunistically; not blocking on errors
+  await db.delete(lookupSessions).where(lt(lookupSessions.expiresAt, new Date())).catch(() => {})
   return key
 }
 
-export function getLookupSession(key: string): LookupSession | null {
-  const entry = lookupCache.get(key)
-  if (!entry) return null
-  if (entry.expiresAt < Date.now()) { lookupCache.delete(key); return null }
-  return entry.data
-}
-
-function evictLookup() {
-  const now = Date.now()
-  for (const [k, e] of lookupCache) if (e.expiresAt < now) lookupCache.delete(k)
+export async function getLookupSession(key: string): Promise<LookupSession | null> {
+  const [row] = await db
+    .select()
+    .from(lookupSessions)
+    .where(and(eq(lookupSessions.key, key), gt(lookupSessions.expiresAt, new Date())))
+    .limit(1)
+  if (!row) return null
+  return {
+    characterId: row.characterId,
+    characterName: row.characterName,
+    businessId: row.businessId,
+    targetDiscordId: row.targetDiscordId,
+    rank: row.rank as StaffRank,
+  }
 }
 
 // ---------------------------------------------------------------------------
