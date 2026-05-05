@@ -38,10 +38,13 @@ function buildInfoContainer(
 
   const container = new ContainerBuilder().setAccentColor(accent)
 
-  // Header
+  // Header — character name links to their MKE profile when sourced from the MKE API
+  const nameNode = character.source === 'mckenzie_api'
+    ? `[${character.name}](https://mke.euphoric.gg/employee/portal/customers/view/${character.id})`
+    : character.name
   const header = linkedDiscordId
-    ? `## ${character.name}\n<@${linkedDiscordId}>`
-    : `## ${character.name}\n-# No Discord account linked`
+    ? `## ${nameNode}\n<@${linkedDiscordId}>`
+    : `## ${nameNode}\n-# No Discord account linked`
   container.addTextDisplayComponents(new TextDisplayBuilder().setContent(header))
 
   container.addSeparatorComponents(

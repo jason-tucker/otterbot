@@ -10,6 +10,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 - README link to the [Bot Development project board](https://github.com/users/jason-tucker/projects/3) — full roadmap, completed work, and open action items tracked there with `Tucker Action` and `Blocked` statuses.
 - `/business` roster and `/lookup` multi-character picker now show **CSN, phone number, and bank number inline** for each character, so staff can see the key identifiers without drilling into a single profile.
+- `/lookup` character-name header now links straight to the customer's profile page on `mke.euphoric.gg` (`/employee/portal/customers/view/{id}`) when the character is sourced from the MKE API. Discord-only characters render the name as plain text.
 - New `lookup_sessions` DB table (key, characterId, characterName, businessId, targetDiscordId, rank, expiresAt) — created automatically by `drizzle-kit push` on first boot.
 
 ### Changed
