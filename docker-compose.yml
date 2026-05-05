@@ -27,6 +27,8 @@ services:
       POSTGRES_USER: otterbot
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-otterbot_dev}
       POSTGRES_DB: otterbot
+    ports:
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
