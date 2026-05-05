@@ -157,7 +157,7 @@ export async function showCharacterEmbed(
       .select({ value: count() })
       .from(notes)
       .where(and(eq(notes.businessId, business.id), eq(notes.characterId, character.id))),
-    provider.getNotes ? provider.getNotes(character.id).catch(() => []) : Promise.resolve([]),
+    provider.getNotes && character.csn ? provider.getNotes(character.csn).catch(() => []) : Promise.resolve([]),
   ])
 
   const standing = standingRow[0] ?? null
@@ -179,6 +179,7 @@ export async function showCharacterEmbed(
   const sessionKey = await storeLookupSession({
     characterId: character.id,
     characterName: character.name,
+    characterCsn: character.csn,
     businessId: business.id,
     targetDiscordId,
     rank,

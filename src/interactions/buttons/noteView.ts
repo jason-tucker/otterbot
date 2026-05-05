@@ -38,8 +38,8 @@ export async function handleNoteViewButton(interaction: ButtonInteraction): Prom
   // Fetch API notes (McKenzie GET) and local bot-added notes in parallel
   const provider = getProvider(business.business)
   const [apiNotes, localRows] = await Promise.all([
-    provider.getNotes
-      ? provider.getNotes(session.characterId).catch(() => [])
+    provider.getNotes && session.characterCsn
+      ? provider.getNotes(session.characterCsn).catch(() => [])
       : Promise.resolve([]),
     db.select().from(notes)
       .where(and(eq(notes.businessId, session.businessId), eq(notes.characterId, session.characterId)))

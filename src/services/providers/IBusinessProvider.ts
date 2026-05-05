@@ -28,5 +28,6 @@ export interface IBusinessProvider {
   lookupByDiscordId(discordId: string): Promise<Character[]>
   lookupByName(name: string): Promise<Character[]>
   getBusinessRoster(): Promise<BusinessRoster | null>
-  getNotes?(characterId: string): Promise<ApiNote[]>
+  /** Fetch markers (notes/warnings/standings) by CSN. */
+  getNotes?(csn: string): Promise<ApiNote[]>
 }

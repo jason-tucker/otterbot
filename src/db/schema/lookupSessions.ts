@@ -7,6 +7,7 @@ export const lookupSessions = pgTable('lookup_sessions', {
   key: text('key').primaryKey(),
   characterId: text('character_id').notNull(),
   characterName: text('character_name').notNull(),
+  characterCsn: text('character_csn'), // nullable — required for MKE API marker fetches
   businessId: uuid('business_id').notNull(),
   targetDiscordId: text('target_discord_id'),
   rank: text('rank').notNull(),

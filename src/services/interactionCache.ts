@@ -21,6 +21,7 @@ function makeKey(): string {
 export interface LookupSession {
   characterId: string
   characterName: string
+  characterCsn: string | null
   businessId: string
   targetDiscordId: string | null
   rank: StaffRank
@@ -45,6 +46,7 @@ export async function getLookupSession(key: string): Promise<LookupSession | nul
   return {
     characterId: row.characterId,
     characterName: row.characterName,
+    characterCsn: row.characterCsn,
     businessId: row.businessId,
     targetDiscordId: row.targetDiscordId,
     rank: row.rank as StaffRank,

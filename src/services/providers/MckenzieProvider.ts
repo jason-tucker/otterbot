@@ -100,12 +100,14 @@ export class MckenzieProvider implements IBusinessProvider {
     }
   }
 
-  async getNotes(characterId: string): Promise<ApiNote[]> {
-    // FIXME: the MKE API endpoint for notes is unknown. Probed several patterns
-    // (/character-profiles/{id}/notes, /notes/{id}, /notes?profileId=, etc.) — all 404.
-    // Once the correct path is known, replace the URL below. For now this logs
-    // the failure instead of swallowing it silently.
-    const url = `${this.baseUrl}/character-profiles/${encodeURIComponent(characterId)}/notes`
+  /**
+   * Fetch markers (notes / warnings / standings) for a character by CSN.
+   * The MKE API exposes these via /character-profiles/csn/{csn}/markers.
+   * Found by mining the SPA bundle for `character-profiles/markers/...`
+   * action names and probing CSN-based sub-resources.
+   */
+  async getNotes(csn: string): Promise<ApiNote[]> {
+    const url = `${this.baseUrl}/character-profiles/csn/${encodeURIComponent(csn)}/markers`
     try {
       const res = await fetch(url, {
         method: 'GET',
@@ -122,6 +124,8 @@ export class MckenzieProvider implements IBusinessProvider {
         console.warn(`[MKE] getNotes returned non-array:`, data)
         return []
       }
+      // Defensive: tolerate either the legacy ApiNote shape (id/content/created/employeeId/profileId)
+      // or any shape with at least content + created. Unknown fields pass through.
       return data as ApiNote[]
     } catch (err) {
       console.warn(`[MKE] getNotes fetch failed:`, err)
