@@ -26,6 +26,7 @@ import { handleCakedEventSubmit } from '../../interactions/modals/cakedEventSubm
 import { handleSendToChannel } from '../../utils/sendable'
 import { handleBusinessSelect } from '../../interactions/selects/businessSelect'
 import { handleCharacterSelect } from '../../interactions/selects/characterSelect'
+import { recordActivity } from '../../services/presence'
 import { handleStandingSelect } from '../../interactions/selects/standingSelect'
 import { handleNoteAddButton } from '../../interactions/buttons/noteAdd'
 import { handleNoteViewButton } from '../../interactions/buttons/noteView'
@@ -64,6 +65,7 @@ const commandHandlers = new Map<string, (i: ChatInputCommandInteraction) => Prom
 export function registerInteractionCreate(client: Client) {
   client.on('interactionCreate', async (interaction: Interaction) => {
     try {
+      recordActivity()
       if (interaction.isChatInputCommand()) {
         const handler = commandHandlers.get(interaction.commandName)
         if (handler) await handler(interaction)
