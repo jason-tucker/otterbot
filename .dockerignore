@@ -1,0 +1,39 @@
+# Never bake secrets into the image
+.env
+.env.*
+
+# Build artifacts (compiled inside Docker from source)
+dist
+*.tsbuildinfo
+
+# Dev dependencies not needed in image context
+node_modules
+
+# Migration SQL files — schema is applied via drizzle-kit push at startup
+src/db/migrations
+
+# Runtime and local tooling
+logs
+*.log
+.DS_Store
+
+# VCS
+.git
+.github
+
+# Docs and test files not needed in the image
+docs
+tests
+README.md
+CHANGELOG.md
+CLAUDE.md
+instructions.txt
+
+# Scripts not needed in the image
+scripts/otterbot
+scripts/clearCommands.ts
+scripts/scanRoles.ts
+scripts/seed.ts
+
+# drizzle local-dev config (Docker uses drizzle.docker.config.cjs)
+drizzle.config.ts

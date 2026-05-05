@@ -1,22 +1,45 @@
-version: '3.9'
-
 services:
-  postgres:
+  otterbot:
+    # CI sets BOT_IMAGE to ghcr.io/<owner>/otterbot:<sha>.
+    # Locally, omit BOT_IMAGE and use `docker compose up -d --build` to build from source.
+    image: ${BOT_IMAGE:-otterbot:latest}
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Overrides DATABASE_URL from .env so the bot always connects to the
+      # compose-managed postgres service, regardless of what's in .env.
+      DATABASE_URL: "postgresql://otterbot:${POSTGRES_PASSWORD:-otterbot_dev}@db:5432/otterbot"
+      NODE_ENV: production
+    depends_on:
+      db:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  db:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: otterbot
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-otterbot_dev}
       POSTGRES_DB: otterbot
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U otterbot"]
       interval: 5s
       timeout: 5s
-      retries: 5
-    restart: unless-stopped
+      retries: 10
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
 
 volumes:
   postgres_data:
