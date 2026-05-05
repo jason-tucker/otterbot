@@ -2,6 +2,20 @@
 
 A Discord staff management bot for multi-business roleplay communities. Handles employee management, customer lookups, standing records, staff notes, business rosters, and public business info — all scoped per-business with role-based permissions.
 
+## Quick install (any VPS with Docker)
+
+```bash
+# 1. Install Docker (skip if already installed)
+curl -fsSL https://get.docker.com | sudo sh && sudo usermod -aG docker $USER && newgrp docker
+
+# 2. Install Otterbot (replace YOURUSER with your GitHub username)
+GITHUB_OWNER=YOURUSER bash <(curl -fsSL https://raw.githubusercontent.com/YOURUSER/otterbot/main/scripts/install.sh)
+```
+
+The installer verifies Docker, clones the repo, generates a strong Postgres password, opens `.env` so you can paste your Discord + Euphoric API credentials, pulls the GHCR image, and starts the bot.
+
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the full setup guide and CI/CD configuration.
+
 ## Commands
 
 ### Staff Commands
