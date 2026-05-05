@@ -6,6 +6,11 @@ import { notes } from '../../db/schema'
 import { and, eq, desc } from 'drizzle-orm'
 import { resolveBusinesses } from '../../services/permissionService'
 import { getProvider } from '../../services/businessService'
+import {
+  VISIBLE_MARKER_TYPES,
+  markerTypeLabel,
+  markerTypeEmoji,
+} from '../../services/providers/IBusinessProvider'
 
 export async function handleNoteViewButton(interaction: ButtonInteraction): Promise<void> {
   const sessionKey = interaction.customId.split(':')[1]
@@ -48,7 +53,14 @@ export async function handleNoteViewButton(interaction: ButtonInteraction): Prom
   ])
 
   const localVisible = localRows.filter((n) => visibilityFilter.includes(n.visibility))
-  const hasAny = apiNotes.length > 0 || localVisible.length > 0
+  // Only show the 3 user-visible marker types (Note / Good Experience / Bad Experience).
+  // Other types (warnings, bans, security flags) come through the same endpoint
+  // but are reflected via the standing field, not listed as notes.
+  const visibleApi = apiNotes
+    .filter((n) => (VISIBLE_MARKER_TYPES as readonly number[]).includes(n.type))
+    .sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime())
+
+  const hasAny = visibleApi.length > 0 || localVisible.length > 0
 
   if (!hasAny) {
     await interaction.editReply({
@@ -67,11 +79,11 @@ export async function handleNoteViewButton(interaction: ButtonInteraction): Prom
     .setFooter({ text: `${business.business.name}` })
     .setTimestamp()
 
-  // API notes first (McKenzie system, fetched via GET)
-  for (const note of apiNotes.slice(0, 8)) {
+  // MKE API markers first (newest), labeled with type
+  for (const note of visibleApi.slice(0, 8)) {
     const date = new Date(note.created).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
     embed.addFields({
-      name: `[MKE] Employee #${note.employeeId} — ${date}`,
+      name: `${markerTypeEmoji(note.type)} ${markerTypeLabel(note.type)} — Employee #${note.employeeId} — ${date}`,
       value: note.content || '*(empty)*',
       inline: false,
     })

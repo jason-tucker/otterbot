@@ -161,7 +161,24 @@ export async function showCharacterEmbed(
   ])
 
   const standing = standingRow[0] ?? null
-  const notesCount = Number(notesCountRow[0]?.value ?? 0) + apiNotes.length
+
+  // Only count user-visible marker types (Note / Good Experience / Bad Experience).
+  const { VISIBLE_MARKER_TYPES, MARKER_TYPE_GOOD, MARKER_TYPE_BAD } = await import('../services/providers/IBusinessProvider')
+  const visibleApi = apiNotes
+    .filter((n) => (VISIBLE_MARKER_TYPES as readonly number[]).includes(n.type))
+    .sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime())
+  const notesCount = Number(notesCountRow[0]?.value ?? 0) + visibleApi.length
+
+  // Derive a standing from the most-recent good/bad marker when no local DB
+  // standing override exists. Most recent bad → bad; most recent good → good;
+  // otherwise neutral. Local DB standing (set by managers via Change Standing)
+  // takes precedence when present.
+  const recentMarker = visibleApi.find(
+    (n) => n.type === MARKER_TYPE_GOOD || n.type === MARKER_TYPE_BAD
+  )
+  const derivedStanding: import('../types/domain').Standing | null = recentMarker
+    ? recentMarker.type === MARKER_TYPE_BAD ? 'bad' : 'good'
+    : null
 
   const standingTyped = standing
     ? {
@@ -174,7 +191,18 @@ export async function showCharacterEmbed(
         updatedByDiscordId: standing.updatedByDiscordId,
         updatedAt: standing.updatedAt,
       }
-    : null
+    : derivedStanding
+      ? {
+          id: 'derived',
+          businessId: business.id,
+          characterId: character.id,
+          characterName: character.name,
+          standing: derivedStanding,
+          reason: `Derived from most recent MKE ${derivedStanding === 'bad' ? 'Bad' : 'Good'} Experience marker`,
+          updatedByDiscordId: 'system',
+          updatedAt: new Date(recentMarker!.created),
+        }
+      : null
 
   const sessionKey = await storeLookupSession({
     characterId: character.id,
