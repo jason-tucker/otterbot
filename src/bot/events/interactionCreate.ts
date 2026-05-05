@@ -47,6 +47,8 @@ import { handleOCItemSelect } from '../../interactions/selects/ocItemSelect'
 import { handleOCAddSubmit } from '../../interactions/modals/ocAddModal'
 import { handleOCUrlSubmit } from '../../interactions/modals/ocUrlModal'
 import { execute as executeOC, data as ocData } from '../../commands/oc'
+import { execute as executeReport, data as reportData } from '../../commands/report'
+import { handleReportSubmit } from '../../interactions/modals/reportSubmit'
 
 const commandHandlers = new Map<string, (i: ChatInputCommandInteraction) => Promise<void>>([
   [lookupData.name, executeLookup],
@@ -60,6 +62,7 @@ const commandHandlers = new Map<string, (i: ChatInputCommandInteraction) => Prom
   [employeeData.name, executeEmployee],
   [portalData.name, executePortal],
   [ocData.name, executeOC],
+  [reportData.name, executeReport],
 ])
 
 export function registerInteractionCreate(client: Client) {
@@ -155,6 +158,8 @@ export function registerInteractionCreate(client: Client) {
           await handleOCAddSubmit(interaction as ModalSubmitInteraction)
         } else if (id.startsWith('oc_url_submit:')) {
           await handleOCUrlSubmit(interaction as ModalSubmitInteraction)
+        } else if (id === 'report:submit') {
+          await handleReportSubmit(interaction as ModalSubmitInteraction)
         }
         return
       }

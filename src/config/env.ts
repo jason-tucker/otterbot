@@ -15,6 +15,10 @@ const envSchema = z.object({
   DISCORD_PORTAL_ADMIN_ROLE_ID: z.string().optional(),
   UPTIME_KUMA_PUSH_URL: z.string().url().optional(),
   BOT_OWNER_ID: z.string().optional(),
+
+  // /report — files GitHub issues from inside Discord
+  GITHUB_TOKEN: z.string().optional(),
+  GITHUB_REPO: z.string().optional(),
 })
 
 const parsed = envSchema.safeParse(process.env)
