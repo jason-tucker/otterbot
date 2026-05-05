@@ -102,6 +102,9 @@ export function registerInteractionCreate(client: Client) {
           await handleTicketCharSelect(interaction as StringSelectMenuInteraction)
         } else if (id === 'oc_item_select') {
           await handleOCItemSelect(interaction as StringSelectMenuInteraction)
+        } else if (id === 'help:section') {
+          const { handleHelpSelect } = await import('../../interactions/selects/helpSelect')
+          await handleHelpSelect(interaction as StringSelectMenuInteraction)
         }
         return
       }
@@ -116,6 +119,10 @@ export function registerInteractionCreate(client: Client) {
           await handleStandingChangeButton(interaction as ButtonInteraction)
         } else if (id.startsWith('print_info:')) {
           await handlePrintInfoButton(interaction as ButtonInteraction)
+        } else if (id === 'help:back') {
+          // Re-run the /help command to show the overview panel
+          const { execute: helpExecute } = await import('../../commands/help')
+          await helpExecute(interaction as any)
         } else if (id.startsWith('send_to_channel:')) {
           await handleSendToChannel(interaction as ButtonInteraction)
         } else if (id.startsWith('caked:')) {

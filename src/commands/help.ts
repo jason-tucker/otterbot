@@ -5,6 +5,8 @@ import {
   TextDisplayBuilder,
   SeparatorBuilder,
   SeparatorSpacingSize,
+  ActionRowBuilder,
+  StringSelectMenuBuilder,
   MessageFlags,
 } from 'discord.js'
 import { resolveBusinesses } from '../services/permissionService'
@@ -125,7 +127,23 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     )
   }
 
-  await interaction.editReply({ flags: MessageFlags.IsComponentsV2, components: [container], content: null })
+  // Select menu for interactive section drill-down
+  const sections = [
+    { label: 'Public commands', value: 'public', emoji: '🌐', description: '/oc, /caked, /printinfo and more' },
+    ...(isStaff ? [{ label: 'Staff commands', value: 'staff', emoji: '👔', description: '/lookup, /business, notes and standing' }] : []),
+    ...(isManagerPlus ? [{ label: 'Manager commands', value: 'manager', emoji: '⚙️', description: '/employee, /movechannel, OC stock' }] : []),
+    ...(admin ? [{ label: 'Admin commands', value: 'admin', emoji: '🛡️', description: '/portal and ownership controls' }] : []),
+    { label: 'Your access', value: 'access', emoji: '🔑', description: 'See your business roles' },
+  ]
+
+  const selectRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId('help:section')
+      .setPlaceholder('Dive deeper into a section...')
+      .addOptions(sections)
+  )
+
+  await interaction.editReply({ flags: MessageFlags.IsComponentsV2, components: [container, selectRow], content: null })
 }
 
 function capitalize(s: string): string {
