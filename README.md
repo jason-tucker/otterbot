@@ -23,8 +23,8 @@ Roadmap, completed work, and open action items are tracked in the [Bot Developme
 ### Staff Commands
 | Command | Who | Description |
 |---|---|---|
-| `/lookup` | McKenzie staff | Look up a Discord user's characters, standing, and notes. Add notes or change standing from the embed. Sessions are DB-backed so the buttons keep working after bot restarts (24 h TTL). The character picker shows CSN / 📞 phone / 🏦 bank in each option. |
-| `/business` | Any staff | Search a business roster by name. Staff of that business get a **Lookup Employee** button. Roster lines now show CSN, phone, and bank number for each member. |
+| `/lookup` | McKenzie staff | Look up a Discord user's characters, MKE notes, and auto-derived standing. The character-name header links to the customer's profile on `mke.euphoric.gg`. Multi-character picker shows CSN / 📞 phone / 🏦 bank in each option. Buttons: **Add Note** (📝 Note / ✅ Good Experience / ❌ Bad Experience — posts to MKE), **View Notes** (filtered to those 3 types). Sessions are DB-backed so the buttons survive bot restarts (24 h TTL). Owners can also `/lookup` themselves without staff rank for an info-only ephemeral view. |
+| `/business` | Any staff | Search a business roster by name. Staff of that business get a **Lookup Employee** button. Each roster line shows CSN, phone, and bank inline. |
 | `/employee` | Manager+ | Hire, fire, promote, and demote employees. Custom role support. Right-click any user → Apps → **Manage Employee**. |
 | `/movechannel` | Manager+ | Move a ticket channel to a different category. |
 | `/portal` | Sudo only | Full business management — create/edit businesses, manage role mappings, designated owners, and permission flags. |
@@ -49,10 +49,11 @@ Roadmap, completed work, and open action items are tracked in the [Bot Developme
 ## Tech Stack
 
 - [Discord.js](https://discord.js.org/) v14 with Components V2
-- TypeScript + [tsx](https://github.com/privatenumber/tsx) (no compile step)
-- PostgreSQL + [Drizzle ORM](https://orm.drizzle.team/)
+- TypeScript compiled in CI (`tsc` — never on the VPS, OOMs)
+- PostgreSQL + [Drizzle ORM](https://orm.drizzle.team/) using **`drizzle-kit push`** (no committed SQL migrations)
 - [pnpm](https://pnpm.io/)
-- Runs as a systemd service in production
+- Docker Compose in production — image built in GitHub Actions, pushed to GHCR, pulled on the VPS
+- McKenzie API at `mke.api.euphoric.gg`, plus the website at `mke.euphoric.gg/employee/portal/customers/view/{id}` for direct profile links
 
 ## Setup
 
@@ -70,28 +71,29 @@ pnpm install
 
 ### 2. Configure environment
 
-Create a `.env` file in the project root:
+Copy `.env.example` to `.env` and fill in:
 
-```env
-DISCORD_BOT_TOKEN=your_bot_token
-DISCORD_CLIENT_ID=your_application_client_id
-DATABASE_URL=postgresql://user:password@host:5432/dbname
-EUPHORIC_API_BASE_URL=https://mke.api.euphoric.gg
-EUPHORIC_API_KEY=your_api_key
+| Variable | Required | Description |
+|---|---|---|
+| `DISCORD_BOT_TOKEN` | Yes | Bot token |
+| `DISCORD_CLIENT_ID` | Yes | Application ID |
+| `DATABASE_URL` | Yes | PostgreSQL connection string |
+| `EUPHORIC_API_BASE_URL` | Yes | Base URL for the McKenzie API (default: `https://mke.api.euphoric.gg`) |
+| `EUPHORIC_API_KEY` | Yes | API key (sent as `EUPHORIC-API-KEY` header) |
+| `SUDO_ROLE_IDS` | No | Comma-separated Discord role IDs that grant full sudo access |
+| `DISCORD_PORTAL_ADMIN_ROLE_ID` | No | Legacy fallback — use `SUDO_ROLE_IDS` instead |
+| `NODE_ENV` | No | `development` or `production` |
+| `UPTIME_KUMA_PUSH_URL` | No | Push monitor URL — bot pings every 60 s after `clientReady` |
+| `BOT_OWNER_ID` | Yes for `/report` | Receives DM on every `/report` for review approval, plus startup pings (silent) |
+| `GITHUB_TOKEN` | Yes for `/report` | Fine-grained PAT with **Issues: Read & Write** on `GITHUB_REPO` |
+| `GITHUB_REPO` | Yes for `/report` | `owner/name`, e.g. `jason-tucker/otterbot` |
 
-# Comma-separated Discord role IDs that grant full sudo access
-SUDO_ROLE_IDS=111111111111111111,222222222222222222
+### 3. Apply database schema
 
-# development | production
-NODE_ENV=development
-```
-
-> `DISCORD_PORTAL_ADMIN_ROLE_ID` still works as a fallback but `SUDO_ROLE_IDS` is preferred.
-
-### 3. Run database migrations
+Otterbot uses `drizzle-kit push` — schema lives only in `src/db/schema/*.ts`, no SQL migration files in git. The Docker entrypoint runs the push automatically on every start. For local non-Docker dev:
 
 ```bash
-pnpm db:migrate
+pnpm drizzle-kit push
 ```
 
 ### 4. Seed initial businesses
@@ -114,8 +116,13 @@ pnpm commands:deploy
 # Development (auto-restarts on file changes)
 pnpm dev
 
-# Production (systemd manages the process)
-node_modules/.bin/tsx src/index.ts
+# Production: Docker Compose (image built in CI, pulled from GHCR)
+docker compose up -d
+```
+
+The `otterbot` management CLI (installed via `scripts/otterbot`) wraps Docker Compose:
+```bash
+otterbot start | stop | restart | logs | tail [N] | update | rebuild | deploy | env | db:shell
 ```
 
 ## Managing Businesses
@@ -141,10 +148,12 @@ NODE_ENV=production pnpm scan:roles
 
 | Level | Can do |
 |---|---|
-| **Employee** | `/lookup`, `/business`, reference commands |
-| **Manager** | All above + hire/fire, add notes, change standing, manage OC stock |
+| **Employee** | `/lookup`, `/business`, reference commands. Add notes (Note / Good Experience / Bad Experience) — they post to the MKE portal as markers. |
+| **Manager** | All above + hire/fire/promote/demote, manage OC stock |
 | **Owner** | All above + promote/demote managers, manage owner roles |
 | **Sudo** | Everything + `/portal`, Make/Revoke Owner, see all businesses |
+
+> **Standing** is no longer a role-gated action — it's read-only and auto-derives from the customer's most-recent MKE Good/Bad Experience marker. Was previously a Change Standing button gated to Manager+; that was removed in [0.9.1](CHANGELOG.md) since the website's standing actually lives in `profile.securityRiskLevel` and the bot can't write to that field.
 
 ## Scripts
 
@@ -153,7 +162,7 @@ NODE_ENV=production pnpm scan:roles
 | `pnpm dev` | Start in watch mode |
 | `pnpm commands:deploy` | Push slash commands to Discord |
 | `pnpm commands:clear` | Remove all slash commands from Discord |
-| `pnpm db:migrate` | Run pending database migrations |
+| `pnpm drizzle-kit push` | Apply schema to the DB (replaces the old `db:migrate`) |
 | `pnpm db:seed` | Sync businesses.config.ts to database |
 | `pnpm db:studio` | Open Drizzle Studio (database UI) |
 | `pnpm scan:roles` | Verify all configured role names exist in the server |
