@@ -65,9 +65,12 @@ jobs:
       # ── 6. Deploy slash commands (runs built image on runner, deploys to all guilds)
       # EUPHORIC_API_KEY and DATABASE_URL are required by env.ts validation but not
       # actually used during command registration — placeholder values satisfy Zod.
+      # Non-blocking — if Discord secrets aren't set, this step fails but the VPS
+      # deploy below still runs because of continue-on-error.
       - name: Deploy slash commands
+        continue-on-error: true
         run: |
-          docker run --rm \
+          docker run --rm --entrypoint="" \
             -e DISCORD_BOT_TOKEN="${{ secrets.DISCORD_BOT_TOKEN }}" \
             -e DISCORD_CLIENT_ID="${{ secrets.DISCORD_CLIENT_ID }}" \
             -e DATABASE_URL="postgresql://placeholder/placeholder" \
