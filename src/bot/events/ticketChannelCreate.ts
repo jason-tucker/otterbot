@@ -13,6 +13,10 @@ import {
 } from 'discord.js'
 import { env } from '../../config/env'
 import { buildTicketCharacterEmbed } from '../../embeds/ticketCharacterEmbed'
+import { db } from '../../db/client'
+import { businesses } from '../../db/schema'
+import { and, eq } from 'drizzle-orm'
+import { storeLookupSession } from '../../services/interactionCache'
 
 const TICKET_CATEGORY_ID = '1101739267908177991'
 const TICKET_BOT_USER_ID = '722196398635745312'
@@ -39,10 +43,18 @@ async function fetchCharacters(discordId: string) {
     id: p.id,
     name: p.name,
     csn: p.csn || null,
-    dob: p.dob,
     phoneNumber: p.phoneNumber || null,
     bankNumber: p.bankNumber || null,
   }))
+}
+
+async function getMckenzieBusinessId(guildId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ id: businesses.id })
+    .from(businesses)
+    .where(and(eq(businesses.providerType, 'mckenzie'), eq(businesses.guildId, guildId), eq(businesses.active, true)))
+    .limit(1)
+  return row?.id ?? null
 }
 
 const pendingTicketChannels = new Set<string>()
@@ -92,8 +104,23 @@ export function registerTicketChannelCreate(client: Client): void {
       return
     }
 
+    const businessId = channel.guildId ? await getMckenzieBusinessId(channel.guildId) : null
+
     if (characters.length === 1) {
-      await channel.send(buildTicketCharacterEmbed(characters[0], targetDiscordId) as any)
+      const character = characters[0]
+      const sessionKey = businessId
+        ? await storeLookupSession({
+            characterId: character.id,
+            characterName: character.name,
+            characterCsn: character.csn,
+            businessId,
+            targetDiscordId,
+            rank: 'employee',
+          })
+        : undefined
+      await channel.send(
+        buildTicketCharacterEmbed(character, targetDiscordId, { sessionKey, lookupMethod: 'discord' }) as any
+      )
       return
     }
 

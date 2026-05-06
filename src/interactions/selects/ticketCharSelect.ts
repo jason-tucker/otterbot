@@ -1,6 +1,10 @@
 import type { StringSelectMenuInteraction } from 'discord.js'
 import { env } from '../../config/env'
 import { buildTicketCharacterEmbed } from '../../embeds/ticketCharacterEmbed'
+import { db } from '../../db/client'
+import { businesses } from '../../db/schema'
+import { and, eq } from 'drizzle-orm'
+import { storeLookupSession } from '../../services/interactionCache'
 
 interface MkCharacterProfile {
   id: string
@@ -24,10 +28,18 @@ async function fetchCharacters(discordId: string) {
     id: p.id,
     name: p.name,
     csn: p.csn || null,
-    dob: p.dob,
     phoneNumber: p.phoneNumber || null,
     bankNumber: p.bankNumber || null,
   }))
+}
+
+async function getMckenzieBusinessId(guildId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ id: businesses.id })
+    .from(businesses)
+    .where(and(eq(businesses.providerType, 'mckenzie'), eq(businesses.guildId, guildId), eq(businesses.active, true)))
+    .limit(1)
+  return row?.id ?? null
 }
 
 export async function handleTicketCharSelect(interaction: StringSelectMenuInteraction): Promise<void> {
@@ -50,5 +62,19 @@ export async function handleTicketCharSelect(interaction: StringSelectMenuIntera
     return
   }
 
-  await interaction.editReply(buildTicketCharacterEmbed(character, targetDiscordId) as any)
+  const businessId = interaction.guildId ? await getMckenzieBusinessId(interaction.guildId) : null
+  const sessionKey = businessId
+    ? await storeLookupSession({
+        characterId: character.id,
+        characterName: character.name,
+        characterCsn: character.csn,
+        businessId,
+        targetDiscordId,
+        rank: 'employee',
+      })
+    : undefined
+
+  await interaction.editReply(
+    buildTicketCharacterEmbed(character, targetDiscordId, { sessionKey, lookupMethod: 'discord' }) as any
+  )
 }

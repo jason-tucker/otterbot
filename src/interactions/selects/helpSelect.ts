@@ -40,8 +40,8 @@ export async function handleHelpSelect(interaction: StringSelectMenuInteraction)
         `${cmd('business', guildId)} — Search any business roster by name. Staff of that business can look up employees directly.\n\n` +
         `**From any lookup result:**\n` +
         `- **Add Note** — attach an internal note to a character\n` +
-        `- **View Notes** — see all notes on record (includes McKenzie API notes)\n` +
-        `- **Change Standing** — mark a character as good / neutral / bad / blacklisted`
+        `- **View Notes** — see all notes on record (includes McKenzie API notes — Note / Good Experience / Bad Experience)\n` +
+        `- **Standing** — automatically derived from the most recent MKE Good/Bad Experience marker`
       ))
     await interaction.editReply({ flags: MessageFlags.IsComponentsV2, components: [c, backRow] } as any)
 
@@ -64,8 +64,8 @@ export async function handleHelpSelect(interaction: StringSelectMenuInteraction)
         `Right-click a user → Apps → **Manage Employee** for a shortcut.\n\n` +
         `${cmd('movechannel', guildId)} — Move the current ticket channel to a different category.\n\n` +
         `**On any lookup result:**\n` +
-        `- **Change Standing** — set good / neutral / bad / blacklisted on a character\n` +
-        `- **Add Note** — attach manager or owner-only notes\n\n` +
+        `- **Add Note** — attach manager or owner-only notes\n` +
+        `- **Standing** is read-only and derived from the customer's most recent MKE Good/Bad Experience marker.\n\n` +
         `**OC Managers only:**\n` +
         `- ${cmd('oc', guildId)} → **Manage Stock** — update item statuses and product links`
       ))

@@ -2,6 +2,11 @@ import { ContainerBuilder, TextDisplayBuilder, MessageFlags, type StringSelectMe
 import { resolveBusinesses } from '../../services/permissionService'
 import { getProvider } from '../../services/businessService'
 import { showCharacterEmbed } from '../../commands/lookup'
+import { db } from '../../db/client'
+import { businesses } from '../../db/schema'
+import { eq } from 'drizzle-orm'
+import type { Business, ResolvedBusiness } from '../../types/domain'
+import type { ViewerMode } from '../../embeds/customerEmbed'
 
 function v2Error(msg: string) {
   return {
@@ -11,6 +16,21 @@ function v2Error(msg: string) {
         new TextDisplayBuilder().setContent(msg)
       ),
     ] as any[],
+  }
+}
+
+async function loadBusinessById(id: string): Promise<Business | null> {
+  const [row] = await db.select().from(businesses).where(eq(businesses.id, id)).limit(1)
+  if (!row) return null
+  return {
+    id: row.id,
+    name: row.name,
+    slug: row.slug,
+    providerType: row.providerType,
+    guildId: row.guildId,
+    active: row.active,
+    settings: row.settings ?? null,
+    createdAt: row.createdAt,
   }
 }
 
@@ -31,9 +51,22 @@ export async function handleCharacterSelect(interaction: StringSelectMenuInterac
   const selectedCharacterId = interaction.values[0]
   const member = await interaction.guild.members.fetch(interaction.user.id)
   const resolved = await resolveBusinesses(member)
-  const chosen = resolved.find((r) => r.business.id === businessId)
+  const staffMatch = resolved.find((r) => r.business.id === businessId)
 
-  if (!chosen) {
+  let chosen: ResolvedBusiness
+  let viewerMode: ViewerMode
+  if (staffMatch) {
+    chosen = staffMatch
+    viewerMode = 'staff'
+  } else if (targetDiscordId === interaction.user.id) {
+    const business = await loadBusinessById(businessId)
+    if (!business || business.providerType !== 'mckenzie' || !business.active) {
+      await interaction.editReply(v2Error('You no longer have access to that business.') as any)
+      return
+    }
+    chosen = { business, rank: 'employee' }
+    viewerMode = 'self'
+  } else {
     await interaction.editReply(v2Error('You no longer have access to that business.') as any)
     return
   }
@@ -53,5 +86,5 @@ export async function handleCharacterSelect(interaction: StringSelectMenuInterac
     return
   }
 
-  await showCharacterEmbed(interaction, chosen, character, targetDiscordId)
+  await showCharacterEmbed(interaction, chosen, character, targetDiscordId, viewerMode)
 }

@@ -87,8 +87,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       `${cmd('employee', guildId)} — Hire, fire, promote, and demote employees`,
       `Right-click a user → Apps → **Manage Employee** for a quick shortcut`,
       `${cmd('movechannel', guildId)} — Move the current ticket channel to a different category`,
-      `**Change Standing** — Set good / neutral / bad / blacklisted on any lookup result`,
-      `**Add / View Notes** — Attach internal notes to a character on any lookup result`,
+      `**Add / View Notes** — Attach internal notes; standing auto-derives from the customer's most recent MKE Good/Bad Experience marker`,
     ]
 
     if (isOCManager) {

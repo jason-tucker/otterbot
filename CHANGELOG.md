@@ -7,13 +7,35 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+---
+
+## [0.9.1] — 2026-05-05
+
+### Removed
+- **Change Standing button** — replaced by an auto-derived standing from the most-recent MKE Good/Bad Experience marker. Managers can no longer flip standing manually because the underlying truth lives in the McKenzie portal markers (which the bot can't write to via API — POST is gated by employee context). Local-DB precedence and the `standings` read on every `/lookup` are gone too. The `standings` schema/table is left in place but unused; will be dropped in a later release.
+- `src/interactions/buttons/standingChange.ts`, `src/interactions/selects/standingSelect.ts`, `src/interactions/modals/standingSubmit.ts` and the three matching routing branches in `interactionCreate.ts`.
+- `Change Standing` mentions in `/help`, `helpSelect`, README, and CLAUDE.md.
+
 ### Added
+- **Business Accounts on `/lookup`** — character card now shows the businesses on file for the customer (resolved from `__businessAccounts__` on the MKE profile). Names are resolved via a fresh-every-run cache that calls `business-accounts/find?name={name}` for every active McKenzie business in our local DB. Displays as e.g. `Business Accounts · 2 on file — McKenzie Enterprises · 1 other`. When at least one UUID can't be resolved to a known business, a 🔎 **Search Business** button appears alongside Add Note / View Notes; clicking it opens a modal so staff can lookup any business by name (same flow as `/business`).
+- New `MckenzieProvider.getCharacterByCsn(csn)` returning extended profile (incl. `businessAccountIds`) — added to `IBusinessProvider` interface.
+- New service `mckenzieBusinessCache.ts` — `refreshKnownMckenzieBusinesses()` returns `Map<uuid, KnownBusiness>` rebuilt on every call.
+- **Add Note posts to MKE** — Add Note now calls `POST /character-profiles/csn/{csn}/markers` with `{ employeeDiscordId, type, content }` (the staff member's Discord ID is what the API uses to resolve the note's author). Notes land in the McKenzie portal alongside ones created from the website. New `IBusinessProvider.createMarker(csn, type, content, employeeDiscordId)` + `MckenzieProvider` implementation. Falls back to a local-DB-only save with a warning if the API ever rejects.
+- **Three-type Add Note flow** — Add Note button → ephemeral select (📝 Note · ✅ Good Experience · ❌ Bad Experience) → modal. Type maps to MKE marker type 0/1/2 and is included in the POST body.
+- **Lookup Method** field on the ticket character card (currently always "Discord link" — wired so future CSN/phone lookup paths can label themselves).
+- **Staff-only View Notes / Add Note buttons on the ticket card** — created through the existing `lookup_sessions` table so the buttons survive bot restarts. Non-staff who click get "You must be McKenzie staff to …".
+- **Owner self-lookup** — non-staff can now run `/lookup user:@themselves` and see their own MKE character info ephemerally (info-only, no Add Note / View Notes / Change Standing buttons). Running `/lookup` on anyone else still requires McKenzie staff.
+- **Send to Channel hides notes count** — public broadcasts from `/lookup` no longer include the "Notes on Record" line. Contact info (DOB, phone, bank) still posts; notes-derived info stays internal.
+- New `note_type_select:{sessionKey}` select-menu handler (`src/interactions/selects/noteTypeSelect.ts`) routed in `interactionCreate.ts`.
 - README link to the [Bot Development project board](https://github.com/users/jason-tucker/projects/3) — full roadmap, completed work, and open action items tracked there with `Tucker Action` and `Blocked` statuses.
 - `/business` roster and `/lookup` multi-character picker now show **CSN, phone number, and bank number inline** for each character, so staff can see the key identifiers without drilling into a single profile.
 - `/lookup` character-name header now links straight to the customer's profile page on `mke.euphoric.gg` (`/employee/portal/customers/view/{id}`) when the character is sourced from the MKE API. Discord-only characters render the name as plain text.
 - New `lookup_sessions` DB table (key, characterId, characterName, businessId, targetDiscordId, rank, expiresAt) — created automatically by `drizzle-kit push` on first boot.
 
 ### Changed
+- **Standing no longer derived from MKE markers.** Previously the lookup card auto-flipped to "Bad" or "Good" based on the most-recent Bad/Good Experience marker. Now standing comes only from the local DB row (set via Change Standing). Defaults to `neutral` when nothing is stored. Markers still display in View Notes; they just don't drive the standing field anymore.
+- **Ticket character card** drops Date of Birth and adds a Lookup Method line. Field set is now Name · CSN · Phone · Bank · Lookup Method.
+- **Note submit modal customId** now carries the type: `note_submit:{sessionKey}:{type}` (was `note_submit:{sessionKey}`). Routing prefix unchanged.
 - `/lookup` sessions are now **DB-backed** instead of in-memory, so Add Note / View Notes / Change Standing buttons keep working after a bot restart. TTL bumped from 1 hour → 24 hours since the data is stable.
 - `storeLookupSession` / `getLookupSession` are now async; all 6 button/modal/select callers (noteAdd, noteView, noteSubmit, standingChange, standingSelect, standingSubmit) plus `/lookup` updated to await.
 

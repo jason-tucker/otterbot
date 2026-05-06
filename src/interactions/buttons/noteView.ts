@@ -29,7 +29,7 @@ export async function handleNoteViewButton(interaction: ButtonInteraction): Prom
   const business = resolved.find((r) => r.business.id === session.businessId)
 
   if (!business) {
-    await interaction.editReply('You no longer have access to that business.')
+    await interaction.editReply('You must be McKenzie staff to view notes.')
     return
   }
 

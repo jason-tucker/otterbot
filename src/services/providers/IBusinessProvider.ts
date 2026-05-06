@@ -54,10 +54,33 @@ export function markerTypeEmoji(type: number): string {
   return '❓'
 }
 
+export interface CreateMarkerResult {
+  ok: boolean
+  /** Marker returned by the API on success. */
+  marker?: ApiNote
+  /** Status code if non-2xx. */
+  status?: number
+  /** Error body / message for diagnostics. */
+  error?: string
+}
+
+export interface CharacterWithBusinesses extends Character {
+  businessAccountIds: string[]
+  hasBusinessAccounts: boolean
+}
+
 export interface IBusinessProvider {
   lookupByDiscordId(discordId: string): Promise<Character[]>
   lookupByName(name: string): Promise<Character[]>
   getBusinessRoster(): Promise<BusinessRoster | null>
   /** Fetch markers (notes/warnings/standings) by CSN. */
   getNotes?(csn: string): Promise<ApiNote[]>
+  /** Create a new marker (note) for a CSN. type: 0=Note, 1=Good, 2=Bad. */
+  createMarker?(csn: string, type: number, content: string, employeeDiscordId: string): Promise<CreateMarkerResult>
+  /**
+   * Fetch a single character by CSN with extended fields the by-discord lookup
+   * doesn't return — most importantly `__businessAccounts__` (UUID list of
+   * business accounts on file). Returns null if the CSN isn't found.
+   */
+  getCharacterByCsn?(csn: string): Promise<CharacterWithBusinesses | null>
 }

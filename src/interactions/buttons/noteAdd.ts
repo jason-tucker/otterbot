@@ -1,6 +1,17 @@
-import { ButtonInteraction, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } from 'discord.js'
+import {
+  ButtonInteraction,
+  StringSelectMenuBuilder,
+  StringSelectMenuOptionBuilder,
+  ActionRowBuilder,
+} from 'discord.js'
 import { getLookupSession } from '../../services/interactionCache'
 import { cmd } from '../../utils/cmdMention'
+import { resolveBusinesses } from '../../services/permissionService'
+import {
+  MARKER_TYPE_NOTE,
+  MARKER_TYPE_GOOD,
+  MARKER_TYPE_BAD,
+} from '../../services/providers/IBusinessProvider'
 
 export async function handleNoteAddButton(interaction: ButtonInteraction): Promise<void> {
   const sessionKey = interaction.customId.split(':')[1]
@@ -14,18 +25,42 @@ export async function handleNoteAddButton(interaction: ButtonInteraction): Promi
     return
   }
 
-  const modal = new ModalBuilder()
-    .setCustomId(`note_submit:${sessionKey}`)
-    .setTitle(`Add Note — ${session.characterName}`)
+  if (!interaction.guild) return
+  const member = await interaction.guild.members.fetch(interaction.user.id)
+  const resolved = await resolveBusinesses(member)
+  const business = resolved.find((r) => r.business.id === session.businessId)
+  if (!business) {
+    await interaction.reply({
+      content: 'You must be McKenzie staff to add notes.',
+      ephemeral: true,
+    })
+    return
+  }
 
-  const noteInput = new TextInputBuilder()
-    .setCustomId('note_content')
-    .setLabel('Note')
-    .setStyle(TextInputStyle.Paragraph)
-    .setRequired(true)
-    .setMaxLength(1000)
-    .setPlaceholder('Enter note...')
+  const select = new StringSelectMenuBuilder()
+    .setCustomId(`note_type_select:${sessionKey}`)
+    .setPlaceholder('Choose a note type')
+    .addOptions(
+      new StringSelectMenuOptionBuilder()
+        .setLabel('Note')
+        .setDescription('Neutral observation')
+        .setEmoji('📝')
+        .setValue(String(MARKER_TYPE_NOTE)),
+      new StringSelectMenuOptionBuilder()
+        .setLabel('Good Experience')
+        .setDescription('Positive marker')
+        .setEmoji('✅')
+        .setValue(String(MARKER_TYPE_GOOD)),
+      new StringSelectMenuOptionBuilder()
+        .setLabel('Bad Experience')
+        .setDescription('Negative marker')
+        .setEmoji('❌')
+        .setValue(String(MARKER_TYPE_BAD)),
+    )
 
-  modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(noteInput))
-  await interaction.showModal(modal)
+  await interaction.reply({
+    content: `Adding a note for **${session.characterName}** — pick a type:`,
+    components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)],
+    ephemeral: true,
+  })
 }

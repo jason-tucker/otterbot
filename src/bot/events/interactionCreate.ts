@@ -27,10 +27,11 @@ import { handleSendToChannel } from '../../utils/sendable'
 import { handleBusinessSelect } from '../../interactions/selects/businessSelect'
 import { handleCharacterSelect } from '../../interactions/selects/characterSelect'
 import { recordActivity } from '../../services/presence'
-import { handleStandingSelect } from '../../interactions/selects/standingSelect'
+import { handleNoteTypeSelect } from '../../interactions/selects/noteTypeSelect'
+import { handleBusinessSearchButton } from '../../interactions/buttons/businessSearchButton'
+import { handleBusinessSearchSubmit } from '../../interactions/modals/businessSearchSubmit'
 import { handleNoteAddButton } from '../../interactions/buttons/noteAdd'
 import { handleNoteViewButton } from '../../interactions/buttons/noteView'
-import { handleStandingChangeButton } from '../../interactions/buttons/standingChange'
 import { handleBusinessLookupButton } from '../../interactions/buttons/businessLookupButton'
 import { handleBusinessEmployeeSelect } from '../../interactions/selects/businessEmployeeSelect'
 import { handleEmployeeBusinessSelect } from '../../interactions/selects/employeeBusinessSelect'
@@ -41,7 +42,6 @@ import { handlePortalSelect } from '../../interactions/selects/portalSelect'
 import { handleTicketCharSelect } from '../../interactions/selects/ticketCharSelect'
 import { handlePortalModal } from '../../interactions/modals/portalModal'
 import { handleNoteSubmit } from '../../interactions/modals/noteSubmit'
-import { handleStandingSubmit } from '../../interactions/modals/standingSubmit'
 import { handleOCButton } from '../../interactions/buttons/ocButton'
 import { handleOCItemSelect } from '../../interactions/selects/ocItemSelect'
 import { handleOCAddSubmit } from '../../interactions/modals/ocAddModal'
@@ -91,8 +91,8 @@ export function registerInteractionCreate(client: Client) {
           await handleBusinessSelect(interaction as StringSelectMenuInteraction)
         } else if (id.startsWith('lookup_char_select:')) {
           await handleCharacterSelect(interaction as StringSelectMenuInteraction)
-        } else if (id.startsWith('standing_select:')) {
-          await handleStandingSelect(interaction as StringSelectMenuInteraction)
+        } else if (id.startsWith('note_type_select:')) {
+          await handleNoteTypeSelect(interaction as StringSelectMenuInteraction)
         } else if (id.startsWith('business_employee_select:')) {
           await handleBusinessEmployeeSelect(interaction as StringSelectMenuInteraction)
         } else if (id.startsWith('emp_business_select:')) {
@@ -118,8 +118,6 @@ export function registerInteractionCreate(client: Client) {
           await handleNoteAddButton(interaction as ButtonInteraction)
         } else if (id.startsWith('note_view:')) {
           await handleNoteViewButton(interaction as ButtonInteraction)
-        } else if (id.startsWith('standing_change:')) {
-          await handleStandingChangeButton(interaction as ButtonInteraction)
         } else if (id.startsWith('print_info:')) {
           await handlePrintInfoButton(interaction as ButtonInteraction)
         } else if (id === 'help:back') {
@@ -132,6 +130,8 @@ export function registerInteractionCreate(client: Client) {
           await handleCakedButton(interaction as ButtonInteraction)
         } else if (id.startsWith('business_lookup:')) {
           await handleBusinessLookupButton(interaction as ButtonInteraction)
+        } else if (id.startsWith('business_search:')) {
+          await handleBusinessSearchButton(interaction as ButtonInteraction)
         } else if (id.startsWith('emp_')) {
           await handleEmployeeActionButton(interaction as ButtonInteraction)
         } else if (id.startsWith('portal_')) {
@@ -149,8 +149,8 @@ export function registerInteractionCreate(client: Client) {
         const id = interaction.customId
         if (id.startsWith('note_submit:')) {
           await handleNoteSubmit(interaction as ModalSubmitInteraction)
-        } else if (id.startsWith('standing_submit:')) {
-          await handleStandingSubmit(interaction as ModalSubmitInteraction)
+        } else if (id.startsWith('business_search_submit:')) {
+          await handleBusinessSearchSubmit(interaction as ModalSubmitInteraction)
         } else if (id === 'caked_contact_submit') {
           await handleCakedContactSubmit(interaction as ModalSubmitInteraction)
         } else if (id === 'caked_event_submit') {

@@ -1,6 +1,6 @@
 import { env } from '../../config/env'
 import type { Character, Business } from '../../types/domain'
-import type { IBusinessProvider, BusinessRoster, RosterMember, ApiNote } from './IBusinessProvider'
+import type { IBusinessProvider, BusinessRoster, RosterMember, ApiNote, CreateMarkerResult, CharacterWithBusinesses } from './IBusinessProvider'
 
 interface MkCharacterProfile {
   id: string
@@ -12,6 +12,8 @@ interface MkCharacterProfile {
   phoneNumber: string
   bankNumber: string
   created: string
+  __businessAccounts__?: string[]
+  __has_businessAccounts__?: boolean
 }
 
 interface MkBusinessAccount {
@@ -130,6 +132,46 @@ export class MckenzieProvider implements IBusinessProvider {
     } catch (err) {
       console.warn(`[MKE] getNotes fetch failed:`, err)
       return []
+    }
+  }
+
+  async getCharacterByCsn(csn: string): Promise<CharacterWithBusinesses | null> {
+    const url = `${this.baseUrl}/character-profiles/csn/${encodeURIComponent(csn)}`
+    try {
+      const res = await fetch(url, { headers: this.headers(), signal: AbortSignal.timeout(8000) })
+      if (!res.ok) return null
+      const profile = await res.json() as MkCharacterProfile
+      if (!profile?.id) return null
+      const character = MckenzieProvider.mapToCharacter(profile)
+      return {
+        ...character,
+        businessAccountIds: Array.isArray(profile.__businessAccounts__) ? profile.__businessAccounts__ : [],
+        hasBusinessAccounts: profile.__has_businessAccounts__ === true,
+      }
+    } catch (err) {
+      console.warn(`[MKE] getCharacterByCsn fetch failed:`, err)
+      return null
+    }
+  }
+
+  async createMarker(csn: string, type: number, content: string, employeeDiscordId: string): Promise<CreateMarkerResult> {
+    const url = `${this.baseUrl}/character-profiles/csn/${encodeURIComponent(csn)}/markers`
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { ...this.headers(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ employeeDiscordId, type, content }),
+        signal: AbortSignal.timeout(8000),
+      })
+      const text = await res.text().catch(() => '')
+      if (!res.ok) {
+        return { ok: false, status: res.status, error: text.slice(0, 500) }
+      }
+      let marker: ApiNote | undefined
+      try { marker = text ? JSON.parse(text) as ApiNote : undefined } catch { /* non-JSON success */ }
+      return { ok: true, marker }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) }
     }
   }
 
