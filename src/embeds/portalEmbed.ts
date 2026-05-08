@@ -458,11 +458,15 @@ export function buildPortalPermsView(
     new TextDisplayBuilder().setContent('-# Sudo mode')
   )
 
-  const makeToggle = (flag: string) =>
-    new ButtonBuilder()
+  // Button label + color reflect the CURRENT flag state. Clicking still toggles.
+  const makeToggle = (flag: string) => {
+    const enabled = Boolean(settings[flag])
+    return new ButtonBuilder()
       .setCustomId(`portal_toggle:${flag}:${sessionKey}`)
-      .setLabel(FLAG_LABELS[flag])
-      .setStyle(Boolean(settings[flag]) ? ButtonStyle.Success : ButtonStyle.Secondary)
+      .setLabel(`${FLAG_LABELS[flag]}: ${enabled ? 'ON' : 'OFF'}`)
+      .setEmoji(enabled ? '🟢' : '🔴')
+      .setStyle(enabled ? ButtonStyle.Success : ButtonStyle.Danger)
+  }
 
   const row1 = new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
     makeToggle('managersCanPromote'),

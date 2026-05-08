@@ -7,6 +7,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- **`Account Made` button on auto-ticket no-character message.** Posted silently; clicking re-runs the MKE character lookup. If a character is now linked, the original message is replaced in-channel with the proper character embed/selector. If still nothing, an ephemeral reply offers three buttons: 🌐 **Website** (link to https://mke.euphoric.gg/account), 🆘 **Ask for Help** (posts a silent message in the ticket pinging the Printing Press Operator role `1308966159516827688`), and 🔁 **Retry** (re-runs the lookup, rate-limited per user to once every 4 minutes). Restricted to the ticket creator unless the clicker has `ManageChannels`.
+
+### Changed
+- **Portal permission-flag buttons now show current state, not just color.** Labels become `<flag name>: ON` (green) / `<flag name>: OFF` (red) with a 🟢/🔴 emoji, instead of the bare flag name in green/gray. Clicking still toggles. Matches the convention adopted today across squishybot's profile/voice/game-prefs panels.
+
 ---
 
 ## [0.9.1] — 2026-05-05

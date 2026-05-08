@@ -141,6 +141,12 @@ export function registerInteractionCreate(client: Client) {
         } else if (id.startsWith('report_approve_') || id.startsWith('report_reject_')) {
           const { handleReportReview } = await import('../../interactions/buttons/reportReview')
           await handleReportReview(interaction as ButtonInteraction)
+        } else if (id.startsWith('ticket_account_made:')) {
+          const { handleTicketAccountMadeButton } = await import('../../interactions/buttons/ticketAccountMade')
+          await handleTicketAccountMadeButton(interaction as ButtonInteraction)
+        } else if (id.startsWith('ticket_account_help:')) {
+          const { handleTicketAccountHelpButton } = await import('../../interactions/buttons/ticketAccountMade')
+          await handleTicketAccountHelpButton(interaction as ButtonInteraction)
         }
         return
       }

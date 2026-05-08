@@ -5,12 +5,17 @@ import {
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
   ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
   ContainerBuilder,
   TextDisplayBuilder,
   SeparatorBuilder,
   SeparatorSpacingSize,
   MessageFlags,
+  type MessageActionRowComponentBuilder,
 } from 'discord.js'
+
+const SUPPRESS_NOTIFICATIONS = 1 << 12
 import { env } from '../../config/env'
 import { buildTicketCharacterEmbed } from '../../embeds/ticketCharacterEmbed'
 import { db } from '../../db/client'
@@ -86,21 +91,29 @@ export function registerTicketChannelCreate(client: Client): void {
     }
 
     if (characters.length === 0) {
+      const accountMadeRow = new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`ticket_account_made:${targetDiscordId}`)
+          .setLabel('Account Made')
+          .setEmoji('✅')
+          .setStyle(ButtonStyle.Success),
+      )
       await channel.send({
         components: [
           new ContainerBuilder()
             .setAccentColor(0xed4245)
             .addTextDisplayComponents(
               new TextDisplayBuilder().setContent(
-                `Hey <@${targetDiscordId}>! It looks like you don't have a character linked to your Discord account.\n\nPlease visit **https://mke.euphoric.gg** to assign your character, then let us know and we can help you further.`
+                `Hey <@${targetDiscordId}>! It looks like you don't have a character linked to your Discord account.\n\nPlease visit **https://mke.euphoric.gg/account** to create one, then click **Account Made** below so we can verify and help you further.`
               )
             )
+            .addActionRowComponents(accountMadeRow)
             .addTextDisplayComponents(
               new TextDisplayBuilder().setContent('-# via Otterbot')
             ),
         ] as any[],
-        flags: MessageFlags.IsComponentsV2,
-      })
+        flags: ((MessageFlags.IsComponentsV2 as number) | SUPPRESS_NOTIFICATIONS),
+      } as any)
       return
     }
 
