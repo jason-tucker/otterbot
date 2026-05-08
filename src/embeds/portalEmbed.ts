@@ -1,8 +1,8 @@
 import {
   ContainerBuilder,
   TextDisplayBuilder,
-  SeparatorBuilder,
-  SeparatorSpacingSize,
+
+
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
@@ -11,6 +11,7 @@ import {
   MessageFlags,
   type MessageActionRowComponentBuilder,
 } from 'discord.js'
+import { sep,sepLarge,sepBlank } from '../utils/cv2'
 import type { BusinessRecord, RoleMappingRecord, BusinessOwnerRecord } from '../services/portalService'
 
 type PortalViewPayload = {
@@ -37,7 +38,7 @@ export function buildPortalMainMenu(
   )
 
   container.addSeparatorComponents(
-    new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Large)
+    sepLarge()
   )
 
   // Business list
@@ -56,7 +57,7 @@ export function buildPortalMainMenu(
 
   // Footer
   container.addSeparatorComponents(
-    new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small)
+    sepBlank()
   )
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(
@@ -126,7 +127,7 @@ export function buildPortalBusinessDetail(
   )
 
   container.addSeparatorComponents(
-    new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Large)
+    sepLarge()
   )
 
   // Stats row
@@ -137,7 +138,7 @@ export function buildPortalBusinessDetail(
   )
 
   container.addSeparatorComponents(
-    new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small)
+    sep()
   )
 
   // Flags
@@ -149,7 +150,7 @@ export function buildPortalBusinessDetail(
 
   // Footer
   container.addSeparatorComponents(
-    new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small)
+    sepBlank()
   )
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(`-# ID: \`${biz.id}\` · Sudo mode`)
@@ -230,7 +231,7 @@ export function buildPortalRolesView(
   )
 
   container.addSeparatorComponents(
-    new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Large)
+    sepLarge()
   )
 
   if (roleMappings.length === 0) {
@@ -267,7 +268,7 @@ export function buildPortalRolesView(
   }
 
   container.addSeparatorComponents(
-    new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small)
+    sepBlank()
   )
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(
@@ -326,7 +327,7 @@ export function buildPortalOwnersView(
   )
 
   container.addSeparatorComponents(
-    new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Large)
+    sepLarge()
   )
 
   if (owners.length === 0) {
@@ -345,7 +346,7 @@ export function buildPortalOwnersView(
   }
 
   container.addSeparatorComponents(
-    new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small)
+    sepBlank()
   )
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(
@@ -432,7 +433,7 @@ export function buildPortalPermsView(
   )
 
   container.addSeparatorComponents(
-    new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Large)
+    sepLarge()
   )
 
   const lines = ALL_FLAGS.map(
@@ -444,7 +445,7 @@ export function buildPortalPermsView(
 
   if (settings.apiBusinessName) {
     container.addSeparatorComponents(
-      new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small)
+      sep()
     )
     container.addTextDisplayComponents(
       new TextDisplayBuilder().setContent(`**API Business Name** · \`${settings.apiBusinessName}\``)
@@ -452,7 +453,7 @@ export function buildPortalPermsView(
   }
 
   container.addSeparatorComponents(
-    new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small)
+    sepBlank()
   )
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent('-# Sudo mode')

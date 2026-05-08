@@ -1,6 +1,6 @@
-import { type ModalSubmitInteraction, MessageFlags } from 'discord.js'
-import { ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize } from 'discord.js'
+import { type ModalSubmitInteraction, MessageFlags, ContainerBuilder, TextDisplayBuilder } from 'discord.js'
 import { CAKED_COLOR } from '../../commands/caked'
+import { sep } from '../../utils/cv2'
 
 export async function handleCakedEventSubmit(
   interaction: ModalSubmitInteraction
@@ -17,7 +17,7 @@ export async function handleCakedEventSubmit(
       new TextDisplayBuilder().setContent('🎉 **Caked Up — Event Submission**')
     )
     .addSeparatorComponents(
-      new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small)
+      sep()
     )
     .addTextDisplayComponents(
       new TextDisplayBuilder().setContent(

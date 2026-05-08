@@ -5,12 +5,13 @@ import {
   TextInputStyle,
   ActionRowBuilder,
 } from 'discord.js'
+import { sepBlank } from '../../utils/cv2'
 import {
   ContainerBuilder,
   TextDisplayBuilder,
-  SeparatorBuilder,
+
   MediaGalleryBuilder,
-  SeparatorSpacingSize,
+
   MessageFlags,
 } from 'discord.js'
 import { CAKED_COLOR } from '../../commands/caked'
@@ -42,7 +43,7 @@ function pricingContainer(): ContainerBuilder {
       )
     )
     .addSeparatorComponents(
-      new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small)
+      sepBlank()
     )
     .addMediaGalleryComponents(
       new MediaGalleryBuilder().addItems([

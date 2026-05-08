@@ -1,13 +1,14 @@
 import {
   ContainerBuilder,
   TextDisplayBuilder,
-  SeparatorBuilder,
-  SeparatorSpacingSize,
+
+
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
   MessageFlags,
 } from 'discord.js'
+import { sep,sepLarge,sepBlank } from '../utils/cv2'
 import { randomUUID } from 'crypto'
 import type { BusinessRoster, RosterMember } from '../services/providers/IBusinessProvider'
 import { registerSendable } from '../utils/sendable'
@@ -50,7 +51,7 @@ export function buildBusinessEmbed(info: BusinessInfo, roster: BusinessRoster | 
   )
 
   container.addSeparatorComponents(
-    new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Large)
+    sepLarge()
   )
 
   // Owner + count
@@ -64,7 +65,7 @@ export function buildBusinessEmbed(info: BusinessInfo, roster: BusinessRoster | 
   // Roster
   if (employees.length > 0) {
     container.addSeparatorComponents(
-      new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small)
+      sep()
     )
     const shown = employees.slice(0, 20)
     const lines = shown.map((e) => `· ${formatRosterMember(e, false)}`)
@@ -74,7 +75,7 @@ export function buildBusinessEmbed(info: BusinessInfo, roster: BusinessRoster | 
     )
   } else if (info.providerType === 'discord-only') {
     container.addSeparatorComponents(
-      new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small)
+      sepBlank()
     )
     container.addTextDisplayComponents(
       new TextDisplayBuilder().setContent('-# Roster management coming soon for this business.')
@@ -83,7 +84,7 @@ export function buildBusinessEmbed(info: BusinessInfo, roster: BusinessRoster | 
 
   // Footer
   container.addSeparatorComponents(
-    new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small)
+    sepBlank()
   )
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent('-# via Otterbot')

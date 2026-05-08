@@ -1,13 +1,14 @@
 import {
   ContainerBuilder,
   TextDisplayBuilder,
-  SeparatorBuilder,
-  SeparatorSpacingSize,
+
+
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
   MessageFlags,
 } from 'discord.js'
+import { sep,sepLarge,sepBlank } from '../utils/cv2'
 import type { Character, Business, StaffRank, CustomerStanding, Standing } from '../types/domain'
 import { STANDING_COLORS } from '../types/domain'
 import { registerSendable } from '../utils/sendable'
@@ -58,7 +59,7 @@ function buildInfoContainer(
   container.addTextDisplayComponents(new TextDisplayBuilder().setContent(header))
 
   container.addSeparatorComponents(
-    new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Large)
+    sepLarge()
   )
 
   const fields: string[] = []
@@ -70,7 +71,7 @@ function buildInfoContainer(
   if (fields.length > 0) {
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent(fields.join('\n')))
     container.addSeparatorComponents(
-      new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small)
+      sep()
     )
   }
 
@@ -98,7 +99,7 @@ function buildInfoContainer(
 
   if (character.securityRiskLevel > 0) {
     container.addSeparatorComponents(
-      new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small)
+      sep()
     )
     const riskDetail = character.securityRiskInfo?.reason
       ? `\n${character.securityRiskInfo.reason}`
@@ -111,7 +112,7 @@ function buildInfoContainer(
   }
 
   container.addSeparatorComponents(
-    new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small)
+    sepBlank()
   )
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(`-# ${business.name} · via Otterbot`)

@@ -1,9 +1,8 @@
-import { type StringSelectMenuInteraction, ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } from 'discord.js'
+import { type StringSelectMenuInteraction, ContainerBuilder, TextDisplayBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } from 'discord.js'
 import { resolveBusinesses } from '../../services/permissionService'
 import { isSudoUser } from '../../services/sudoService'
 import { cmd } from '../../utils/cmdMention'
-
-function sep() { return new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true) }
+import { sep } from '../../utils/cv2'
 
 export async function handleHelpSelect(interaction: StringSelectMenuInteraction): Promise<void> {
   if (!interaction.guild) return

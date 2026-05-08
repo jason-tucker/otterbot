@@ -3,8 +3,6 @@ import {
   ChatInputCommandInteraction,
   ContainerBuilder,
   TextDisplayBuilder,
-  SeparatorBuilder,
-  SeparatorSpacingSize,
   ActionRowBuilder,
   StringSelectMenuBuilder,
   MessageFlags,
@@ -12,16 +10,13 @@ import {
 import { resolveBusinesses } from '../services/permissionService'
 import { isSudoUser } from '../services/sudoService'
 import { cmd } from '../utils/cmdMention'
+import { sep } from '../utils/cv2'
 import type { ResolvedBusiness } from '../types/domain'
 
 export const data = new SlashCommandBuilder()
   .setName('help')
   .setDescription('Show available commands based on your role')
   .setDMPermission(false)
-
-function sep() {
-  return new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true)
-}
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!interaction.inGuild() || !interaction.guild) {

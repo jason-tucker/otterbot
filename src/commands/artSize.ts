@@ -1,13 +1,13 @@
-import { SlashCommandBuilder, ChatInputCommandInteraction } from 'discord.js'
 import {
+  SlashCommandBuilder,
+  ChatInputCommandInteraction,
   ContainerBuilder,
   TextDisplayBuilder,
-  SeparatorBuilder,
   MediaGalleryBuilder,
-  SeparatorSpacingSize,
   MessageFlags,
 } from 'discord.js'
 import { registerSendable, withSendButtonV2 } from '../utils/sendable'
+import { sepLarge } from '../utils/cv2'
 
 const BRAND_COLOR = 0x588c7e
 
@@ -26,7 +26,7 @@ function artSizeContainer(): ContainerBuilder {
       // SeparatorBuilder with setDivider(true) draws a visible horizontal line.
       // SeparatorSpacingSize.Large adds extra vertical padding on both sides.
       .addSeparatorComponents(
-        new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Large)
+        sepLarge()
       )
 
       // ── Size list ─────────────────────────────────────────────────────────
@@ -66,7 +66,7 @@ function artSizeContainer(): ContainerBuilder {
 
       // ── Printable frame note ──────────────────────────────────────────────
       .addSeparatorComponents(
-        new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Large)
+        sepLarge()
       )
       .addTextDisplayComponents(
         new TextDisplayBuilder().setContent(

@@ -14,6 +14,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Portal permission-flag buttons now show current state, not just color.** Labels become `<flag name>: ON` (green) / `<flag name>: OFF` (red) with a 🟢/🔴 emoji, instead of the bare flag name in green/gray. Clicking still toggles. Matches the convention adopted today across squishybot's profile/voice/game-prefs panels.
 - **`/help` Staff section now documents the Auto-Ticket helper.** Both the inline overview and the drill-down ("👔 Staff commands") list the 1-character / 2+ character / 0-character outcomes and the **Account Made → Website / Ask for Help / Retry** flow.
 
+### Refactor
+- **Removed duplicated `fetchCharacters` + `getMckenzieBusinessId` + `MkCharacterProfile`.** Both `bot/events/ticketChannelCreate.ts` and `interactions/buttons/ticketAccountMade.ts` had verbatim copies (~40 lines each) of the MKE Discord-id lookup and the local-business-id query. Extracted to `src/services/ticketLookup.ts` along with the `TICKET_CATEGORY_ID` and `TICKET_BOT_USER_ID` constants. Both call sites now import from there.
+- **Extracted `src/utils/cv2.ts` (`sep` / `sepLarge` / `sepBlank`).** Replaced ~20 inlined `new SeparatorBuilder().setDivider(...).setSpacing(...)` calls across embed / command / button / modal modules with a single import per file. Helpers mirror the pattern squishybot already uses.
+- **Capped the `lastRetry` Map in `ticketAccountMade.ts` at 1000 entries.** The map keys are user IDs that were never evicted, so on a busy server it grew unbounded over the bot's lifetime. New `rememberRetry()` helper drops the oldest entry on overflow (Map iteration is insertion-ordered).
+- **Fixed `function sep() { return sep() }` infinite-recursion stubs** that an editor auto-replace had left behind in `commands/help.ts` and `interactions/selects/helpSelect.ts` after pulling the local `sep()` defs out — both now import from the shared `utils/cv2.ts` instead.
+
 ### Changed
 - **Bot presence now shows "last used X ago" — refreshed every 5 min, idles after 60 min.** Status text becomes `Watching staff requests · last used 12m ago`. Throttled to 5-minute push intervals; back-to-back interactions coalesce. Idle threshold bumped from 15 min to 60 min, and idle status carries the same "last used X ago" string instead of going blank.
 

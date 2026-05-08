@@ -1,13 +1,14 @@
 import {
   ContainerBuilder,
   TextDisplayBuilder,
-  SeparatorBuilder,
-  SeparatorSpacingSize,
+
+
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
   MessageFlags,
 } from 'discord.js'
+import { sepLarge } from '../utils/cv2'
 
 interface TicketCharacter {
   id: string
@@ -47,7 +48,7 @@ export function buildTicketCharacterEmbed(
       new TextDisplayBuilder().setContent(`### ${character.name}\n<@${discordId}>`)
     )
     .addSeparatorComponents(
-      new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Large)
+      sepLarge()
     )
     .addTextDisplayComponents(
       new TextDisplayBuilder().setContent(fields.join('\n'))

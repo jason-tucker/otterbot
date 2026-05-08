@@ -4,11 +4,12 @@ import {
   ButtonBuilder,
   ButtonStyle,
 } from 'discord.js'
+import { sepLarge } from '../utils/cv2'
 import {
   ContainerBuilder,
   TextDisplayBuilder,
-  SeparatorBuilder,
-  SeparatorSpacingSize,
+
+
   MessageFlags,
 } from 'discord.js'
 import { registerSendable, withSendButtonV2 } from '../utils/sendable'
@@ -44,7 +45,7 @@ export function cakedMainContainer(): ContainerBuilder {
       )
     )
     .addSeparatorComponents(
-      new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Large)
+      sepLarge()
     )
 }
 

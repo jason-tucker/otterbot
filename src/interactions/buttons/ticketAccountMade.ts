@@ -6,65 +6,36 @@ import {
   ButtonStyle,
   ContainerBuilder,
   MessageFlags,
-  SeparatorBuilder,
-  SeparatorSpacingSize,
+
+
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
   TextDisplayBuilder,
   type MessageActionRowComponentBuilder,
 } from 'discord.js'
-import { env } from '../../config/env'
-import { db } from '../../db/client'
-import { businesses } from '../../db/schema'
-import { and, eq } from 'drizzle-orm'
+import { sepLarge } from '../../utils/cv2'
 import { storeLookupSession } from '../../services/interactionCache'
 import { buildTicketCharacterEmbed } from '../../embeds/ticketCharacterEmbed'
+import { fetchCharacters, getMckenzieBusinessId } from '../../services/ticketLookup'
 
 const RETRY_COOLDOWN_MS = 4 * 60 * 1000
+const RETRY_MAP_MAX = 1000
 const lastRetry = new Map<string, number>()
 
 const HELP_ROLE_ID = '1308966159516827688'
 const SIGNUP_URL = 'https://mke.euphoric.gg/account'
 const SUPPRESS_NOTIFICATIONS = 1 << 12
 
-interface MkCharacterProfile {
-  id: string
-  status: boolean
-  name: string
-  csn: string
-  dob: string | null
-  phoneNumber: string
-  bankNumber: string
-}
-
-async function fetchCharacters(discordId: string) {
-  const res = await fetch(
-    `${env.EUPHORIC_API_BASE_URL}/character-profiles/discord/${encodeURIComponent(discordId)}`,
-    { headers: { 'EUPHORIC-API-KEY': env.EUPHORIC_API_KEY }, signal: AbortSignal.timeout(8000) },
-  )
-  if (!res.ok) return []
-  const data = await res.json() as MkCharacterProfile[]
-  if (!Array.isArray(data)) return []
-  return data.filter(p => p.status).map(p => ({
-    id: p.id,
-    name: p.name,
-    csn: p.csn || null,
-    phoneNumber: p.phoneNumber || null,
-    bankNumber: p.bankNumber || null,
-  }))
-}
-
-async function getMckenzieBusinessId(guildId: string): Promise<string | null> {
-  const [row] = await db
-    .select({ id: businesses.id })
-    .from(businesses)
-    .where(and(
-      eq(businesses.providerType, 'mckenzie'),
-      eq(businesses.guildId, guildId),
-      eq(businesses.active, true),
-    ))
-    .limit(1)
-  return row?.id ?? null
+/** Cap the rate-limit map size — Map keys are user IDs and we never delete
+ *  entries on their own, so without a cap a busy server's map grows
+ *  unbounded over the bot's lifetime. When we hit the cap, drop the oldest
+ *  insertion (Map iteration is insertion-ordered). */
+function rememberRetry(userId: string): void {
+  if (lastRetry.size >= RETRY_MAP_MAX) {
+    const oldest = lastRetry.keys().next().value
+    if (oldest) lastRetry.delete(oldest)
+  }
+  lastRetry.set(userId, Date.now())
 }
 
 function buildNoAccountEphemeral(targetDiscordId: string) {
@@ -120,7 +91,7 @@ export async function handleTicketAccountMadeButton(interaction: ButtonInteracti
     })
     return
   }
-  lastRetry.set(interaction.user.id, Date.now())
+  rememberRetry(interaction.user.id)
 
   await interaction.deferReply({ ephemeral: true })
 
@@ -180,7 +151,7 @@ export async function handleTicketAccountMadeButton(interaction: ButtonInteracti
             ),
           )
           .addSeparatorComponents(
-            new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Large),
+            sepLarge(),
           )
           .addActionRowComponents(
             new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select),

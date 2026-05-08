@@ -1,13 +1,15 @@
-import { SlashCommandBuilder, ChatInputCommandInteraction, ButtonBuilder, ButtonStyle } from 'discord.js'
 import {
+  SlashCommandBuilder,
+  ChatInputCommandInteraction,
+  ButtonBuilder,
+  ButtonStyle,
   ContainerBuilder,
   SectionBuilder,
   TextDisplayBuilder,
-  SeparatorBuilder,
-  SeparatorSpacingSize,
   MessageFlags,
 } from 'discord.js'
 import { registerSendable, withSendButtonV2 } from '../utils/sendable'
+import { sepLarge } from '../utils/cv2'
 
 const BRAND_COLOR = 0x588c7e
 const SHEET_URL =
@@ -41,7 +43,7 @@ function tcSheetContainer(): ContainerBuilder {
       // ── Rename instructions ───────────────────────────────────────────────
       // SeparatorSpacingSize.Large gives breathing room between sections.
       .addSeparatorComponents(
-        new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Large)
+        sepLarge()
       )
       // ### H3 header works inside TextDisplay components
       .addTextDisplayComponents(

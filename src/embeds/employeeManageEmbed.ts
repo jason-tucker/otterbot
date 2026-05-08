@@ -7,13 +7,12 @@ import {
   ContainerBuilder,
   SectionBuilder,
   TextDisplayBuilder,
-  SeparatorBuilder,
   ThumbnailBuilder,
-  SeparatorSpacingSize,
   MessageFlags,
   type GuildMember,
   type MessageActionRowComponentBuilder,
 } from 'discord.js'
+import { sep, sepBlank } from '../utils/cv2'
 import type { DbEmployeeBusinessConfig, DbCustomRole, TargetEmploymentStatus } from '../services/employeeService'
 import {
   canHire,
@@ -94,7 +93,7 @@ export function buildEmployeeManageEmbed(
       ),
   )
 
-  container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
+  container.addSeparatorComponents(sep())
 
   // Account info row
   container.addTextDisplayComponents(
@@ -103,7 +102,7 @@ export function buildEmployeeManageEmbed(
     ),
   )
 
-  container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
+  container.addSeparatorComponents(sep())
 
   // Employment summary
   container.addTextDisplayComponents(
@@ -112,7 +111,7 @@ export function buildEmployeeManageEmbed(
     ),
   )
 
-  container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
+  container.addSeparatorComponents(sep())
 
   // Current business + status
   container.addTextDisplayComponents(
@@ -122,7 +121,7 @@ export function buildEmployeeManageEmbed(
   )
 
   // Footer
-  container.addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
+  container.addSeparatorComponents(sepBlank())
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(
       `-# Managing: ${config.name}${isSudo ? ' · Sudo mode' : ''} · <t:${Math.floor(Date.now() / 1000)}:t>`,
@@ -136,7 +135,7 @@ export function buildEmployeeManageEmbed(
 
   // MKE roles are managed externally — show read-only view only
   if (config.providerType === 'mckenzie') {
-    container.addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(SeparatorSpacingSize.Small))
+    container.addSeparatorComponents(sepBlank())
     container.addTextDisplayComponents(
       new TextDisplayBuilder().setContent('-# McKenzie Enterprises roles are managed by the MKE website. No changes can be made here.'),
     )
