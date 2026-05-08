@@ -7,6 +7,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.10.2] — 2026-05-08
+
+Cumulative since 0.9.1 — the auto-ticket Account Made flow (silent message, 4-min cooldown, Website / Help / Retry fallback), portal status-flip toggles, presence "last used X ago", a security pass (default `allowedMentions: { parse: [] }`, OC URL protocol gating, `/artsize` accidental-ping fix), and a refactor pass that pulled the duplicated MKE lookup helpers into `services/ticketLookup.ts` + extracted `utils/cv2.ts`. Held back from 1.0 — that's a deliberate deferred milestone — but this is the most stable release we've cut.
+
 ### Added
 - **`Account Made` button on auto-ticket no-character message.** Posted silently; clicking re-runs the MKE character lookup. If a character is now linked, the original message is replaced in-channel with the proper character embed/selector. If still nothing, an ephemeral reply offers three buttons: 🌐 **Website** (link to https://mke.euphoric.gg/account), 🆘 **Ask for Help** (posts a silent message in the ticket pinging the Printing Press Operator role `1308966159516827688`), and 🔁 **Retry** (re-runs the lookup, rate-limited per user to once every 4 minutes). Restricted to the ticket creator unless the clicker has `ManageChannels`.
 
