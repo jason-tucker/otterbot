@@ -32,6 +32,16 @@ export interface SendablePayload {
   flags?: number
 }
 
+/**
+ * Default for every sendable: render `<@id>` / `<@&id>` as clickable links but
+ * suppress the actual notification ping. Reference commands like /artsize and
+ * /printinfo embed user/role mentions in their body text purely as references
+ * — pinging the named users every time someone runs the command is the bug we
+ * keep tripping over. Pass `allowedMentions` explicitly on the `interaction.reply`
+ * / `interaction.followUp` call to override.
+ */
+const NO_PING_ALLOWED_MENTIONS = { parse: [] as const }
+
 const registry = new Map<string, () => SendablePayload>()
 
 export function registerSendable(key: string, builder: () => SendablePayload): void {
@@ -47,6 +57,7 @@ export function withSendButton(
   return {
     ...payload,
     ephemeral: true,
+    allowedMentions: NO_PING_ALLOWED_MENTIONS,
     components: [
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         ...extraButtons,
@@ -79,6 +90,7 @@ export function withSendButtonV2(
           .setStyle(ButtonStyle.Secondary)
       ),
     ] as unknown as ActionRowBuilder<ButtonBuilder>[],
+    allowedMentions: NO_PING_ALLOWED_MENTIONS,
     flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
   }
 }
@@ -115,5 +127,6 @@ export async function handleSendToChannel(interaction: ButtonInteraction): Promi
     components: payload.components,
     flags: publicFlags,
     ephemeral: false,
+    allowedMentions: NO_PING_ALLOWED_MENTIONS,
   })
 }

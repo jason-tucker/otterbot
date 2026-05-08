@@ -29,5 +29,6 @@ export async function handleCakedContactSubmit(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     components: [container] as any,
     flags: MessageFlags.IsComponentsV2,
+    allowedMentions: { parse: [] },
   })
 }
