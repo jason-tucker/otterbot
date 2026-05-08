@@ -75,6 +75,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
           `${cmd('lookup', guildId)} — Look up a Discord user's characters, standing, and notes`,
           `Right-click a user → Apps → **Lookup** for a quick shortcut`,
           `${cmd('business', guildId)} — Search a business roster; staff of that business can look up any employee directly`,
+          `**Auto-Ticket helper** — When Ticket Tool opens a ticket and pings a user, otterbot auto-runs the MKE lookup. If the user has no character, the bot posts an **Account Made** button (4-min per-user cooldown). On click, it re-runs the lookup; if still nothing, the user gets an ephemeral with **Website**, **Ask for Help**, and **Retry** buttons.`,
         ].join('\n')
       )
     )

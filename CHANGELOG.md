@@ -12,6 +12,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 - **Portal permission-flag buttons now show current state, not just color.** Labels become `<flag name>: ON` (green) / `<flag name>: OFF` (red) with a 🟢/🔴 emoji, instead of the bare flag name in green/gray. Clicking still toggles. Matches the convention adopted today across squishybot's profile/voice/game-prefs panels.
+- **`/help` Staff section now documents the Auto-Ticket helper.** Both the inline overview and the drill-down ("👔 Staff commands") list the 1-character / 2+ character / 0-character outcomes and the **Account Made → Website / Ask for Help / Retry** flow.
 
 ---
 

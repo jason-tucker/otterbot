@@ -41,7 +41,11 @@ export async function handleHelpSelect(interaction: StringSelectMenuInteraction)
         `**From any lookup result:**\n` +
         `- **Add Note** — attach an internal note to a character\n` +
         `- **View Notes** — see all notes on record (includes McKenzie API notes — Note / Good Experience / Bad Experience)\n` +
-        `- **Standing** — automatically derived from the most recent MKE Good/Bad Experience marker`
+        `- **Standing** — automatically derived from the most recent MKE Good/Bad Experience marker\n\n` +
+        `**Auto-Ticket helper** — When Ticket Tool opens a ticket channel and pings a user, otterbot automatically runs the MKE lookup so staff don't have to.\n` +
+        `- 1 character found → posts the character embed with the usual Add Note / View Notes buttons.\n` +
+        `- 2+ characters → posts a select menu so the user picks the right one.\n` +
+        `- 0 characters → posts a silent message with an **Account Made** button. The user is told to sign up at the website, then click **Account Made** to re-check (4-min per-user cooldown). If the lookup still returns nothing, an ephemeral pops up with **🌐 Website**, **🆘 Ask for Help** (silent ping to the Printing Press Operator role), and **🔁 Retry**.`
       ))
     await interaction.editReply({ flags: MessageFlags.IsComponentsV2, components: [c, backRow] } as any)
 
