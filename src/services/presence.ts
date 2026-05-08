@@ -1,10 +1,24 @@
 import { ActivityType, type Client } from 'discord.js'
 
-const IDLE_AFTER_MS = 15 * 60 * 1000 // 15 minutes
+/** After 60 min of no user-initiated activity, the bot flips to idle. */
+const IDLE_AFTER_MS = 60 * 60 * 1000
+
+/**
+ * Throttle presence-update pushes to once every 5 minutes. The status text
+ * shows "last used X ago" at minute granularity, so refreshing more often is
+ * wasted work AND risks Discord's PRESENCE_UPDATE rate limit (~5 per 20 s).
+ * 5 minutes is well above the floor and matches the displayed text's
+ * granularity. Updates inside the window coalesce — the next push carries
+ * the latest `_lastUsedAt`.
+ */
+const MIN_PRESENCE_INTERVAL_MS = 5 * 60 * 1000
 
 let _client: Client | null = null
 let _idleTimer: ReturnType<typeof setTimeout> | null = null
 let _currentStatus: 'online' | 'idle' | 'dnd' = 'online'
+let _lastUsedAt: Date | null = null
+let _lastPresenceUpdateAt = 0
+let _pendingRefresh: ReturnType<typeof setTimeout> | null = null
 
 export function initPresence(client: Client): void {
   _client = client
@@ -14,17 +28,20 @@ export function initPresence(client: Client): void {
 export function setOnline(): void {
   if (!_client?.user) return
   _currentStatus = 'online'
-  _client.user.setPresence({
-    status: 'online',
-    activities: [{ name: 'staff requests', type: ActivityType.Watching }],
-  })
+  pushPresenceNow('online')
   resetIdleTimer()
 }
 
 export function setIdle(): void {
   if (!_client?.user) return
   _currentStatus = 'idle'
-  _client.user.setPresence({ status: 'idle', activities: [] })
+  // Idle status keeps the "last used X ago" stamp visible so anyone glancing
+  // at the bot's profile sees the freshness even when it's gone idle.
+  _client.user.setPresence({
+    status: 'idle',
+    activities: [{ name: buildActivityName(), type: ActivityType.Watching }],
+  })
+  _lastPresenceUpdateAt = Date.now()
 }
 
 export function setDnd(reason = 'Check logs for errors'): void {
@@ -35,12 +52,60 @@ export function setDnd(reason = 'Check logs for errors'): void {
     status: 'dnd',
     activities: [{ name: reason, type: ActivityType.Watching }],
   })
+  _lastPresenceUpdateAt = Date.now()
 }
 
 export function recordActivity(): void {
   if (_currentStatus === 'dnd') return
-  if (_currentStatus === 'idle') setOnline()
-  else resetIdleTimer()
+  _lastUsedAt = new Date()
+  if (_currentStatus === 'idle') {
+    setOnline()
+    return
+  }
+  resetIdleTimer()
+  scheduleOnlineRefresh()
+}
+
+function scheduleOnlineRefresh(): void {
+  if (_currentStatus !== 'online') return
+  const now = Date.now()
+  const since = now - _lastPresenceUpdateAt
+  if (since >= MIN_PRESENCE_INTERVAL_MS) {
+    pushPresenceNow('online')
+    return
+  }
+  if (_pendingRefresh) return
+  _pendingRefresh = setTimeout(() => {
+    _pendingRefresh = null
+    if (_currentStatus === 'online') pushPresenceNow('online')
+  }, MIN_PRESENCE_INTERVAL_MS - since)
+}
+
+function pushPresenceNow(status: 'online'): void {
+  if (!_client?.user) return
+  _lastPresenceUpdateAt = Date.now()
+  _client.user.setPresence({
+    status,
+    activities: [{ name: buildActivityName(), type: ActivityType.Watching }],
+  })
+}
+
+function buildActivityName(): string {
+  const base = 'staff requests'
+  if (!_lastUsedAt) return base
+  return `${base} · last used ${formatRelative(_lastUsedAt)}`
+}
+
+function formatRelative(d: Date): string {
+  const sec = Math.max(0, Math.floor((Date.now() - d.getTime()) / 1000))
+  if (sec < 5)    return 'just now'
+  if (sec < 60)   return `${sec}s ago`
+  const min = Math.floor(sec / 60)
+  if (min < 60)   return `${min}m ago`
+  const hr = Math.floor(min / 60)
+  if (hr < 24)    return `${hr}h ago`
+  const day = Math.floor(hr / 24)
+  return `${day}d ago`
 }
 
 function resetIdleTimer(): void {

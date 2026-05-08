@@ -18,7 +18,24 @@ export async function handleOCUrlSubmit(interaction: ModalSubmitInteraction): Pr
   }
 
   const rawUrl = interaction.fields.getTextInputValue('item_url').trim()
-  const url = rawUrl.length > 0 ? rawUrl : null
+  // Reject anything that isn't an http(s) URL — the value gets rendered as a
+  // markdown link `[name](url)` in the public OC stock embed, so accepting
+  // arbitrary text would let a manager slip a `javascript:` / `data:` URL
+  // into the channel for everyone to click.
+  let url: string | null = null
+  if (rawUrl.length > 0) {
+    try {
+      const parsed = new URL(rawUrl)
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        await interaction.reply({ content: `❌ URL must use http:// or https://. Got: \`${parsed.protocol}\``, ephemeral: true })
+        return
+      }
+      url = parsed.toString()
+    } catch {
+      await interaction.reply({ content: `❌ Not a valid URL: \`${rawUrl.slice(0, 80)}\``, ephemeral: true })
+      return
+    }
+  }
 
   await updateStockUrl(itemId, url, interaction.user.id)
 

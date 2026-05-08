@@ -14,6 +14,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Portal permission-flag buttons now show current state, not just color.** Labels become `<flag name>: ON` (green) / `<flag name>: OFF` (red) with a 🟢/🔴 emoji, instead of the bare flag name in green/gray. Clicking still toggles. Matches the convention adopted today across squishybot's profile/voice/game-prefs panels.
 - **`/help` Staff section now documents the Auto-Ticket helper.** Both the inline overview and the drill-down ("👔 Staff commands") list the 1-character / 2+ character / 0-character outcomes and the **Account Made → Website / Ask for Help / Retry** flow.
 
+### Changed
+- **Bot presence now shows "last used X ago" — refreshed every 5 min, idles after 60 min.** Status text becomes `Watching staff requests · last used 12m ago`. Throttled to 5-minute push intervals; back-to-back interactions coalesce. Idle threshold bumped from 15 min to 60 min, and idle status carries the same "last used X ago" string instead of going blank.
+
+### Security
+- **Client-wide default `allowedMentions: { parse: [] }`.** Set on the discord.js Client constructor so every reply / send / followUp defaults to "no mentions resolve". Defends every code path that interpolates user-supplied text (portal modal fields, note content, /report description, etc.) against accidental `@everyone` / `@user` resolution. Legitimate ping call sites (the auto-ticket help-role ping) already pass explicit overrides.
+- **OC product URL hardening.** The `oc_url_submit` modal's `item_url` field is now parsed as a `URL` and gated to `http:` / `https:` before being saved + rendered as a markdown link in the public OC stock embed. Rejects `javascript:` / `data:` and any other scheme up front so a manager (or compromised manager account) can't drop a click-through-to-arbitrary-content link into the channel.
+
 ### Fixed
 - **Reference commands no longer ping the users they mention.** `/artsize` (and any other command using the shared `withSendButton` / `withSendButtonV2` Send-to-Channel helper, e.g. `/caked`, `/printinfo`, `/oc`) was rendering `<@id>` mentions in the body text as real Discord pings every time someone ran the command — the named users got a notification on every invocation. The sendable helper now defaults `allowedMentions: { parse: [] }` on both the ephemeral reply and the Send-to-Channel public follow-up, so `<@id>` and `<@&id>` still render as clickable links but don't notify. Same fix applied to the `/caked` Contact and Event submit replies (`Submitted by <@user>` line was pinging the submitter on each form post).
 
