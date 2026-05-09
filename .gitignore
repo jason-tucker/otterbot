@@ -8,6 +8,7 @@ logs
 .DS_Store
 instructions.txt
 *.tsbuildinfo
+.presence-state.json
 
 # Migration SQL files are never committed — schema is managed via drizzle-kit push
 src/db/migrations/*.sql

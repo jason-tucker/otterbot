@@ -7,6 +7,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+- **Bot presence is now a Custom Status — no "Watching staff requests · " prefix, just the relative-time stamp.** Activity type flipped from `Watching` to `Custom` and the `staff requests · last used ` prefix dropped, so Discord renders the status as plain text (e.g. `12m ago` / `just now`). `_lastUsedAt` is now persisted to `.presence-state.json` (gitignored) and re-read on boot, so the stamp survives systemd restarts and deploys — the bot doesn't show up "fresh" right after a restart anymore. DND status text also uses Custom now for the same prefix-free look.
+
 ## [0.10.2] — 2026-05-08
 
 Cumulative since 0.9.1 — the auto-ticket Account Made flow (silent message, 4-min cooldown, Website / Help / Retry fallback), portal status-flip toggles, presence "last used X ago", a security pass (default `allowedMentions: { parse: [] }`, OC URL protocol gating, `/artsize` accidental-ping fix), and a refactor pass that pulled the duplicated MKE lookup helpers into `services/ticketLookup.ts` + extracted `utils/cv2.ts`. Held back from 1.0 — that's a deliberate deferred milestone — but this is the most stable release we've cut.

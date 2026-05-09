@@ -1,7 +1,16 @@
 import { ActivityType, type Client } from 'discord.js'
+import { readFileSync, writeFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 
 /** After 60 min of no user-initiated activity, the bot flips to idle. */
 const IDLE_AFTER_MS = 60 * 60 * 1000
+
+/**
+ * Persist `_lastUsedAt` to disk so the relative-time stamp survives
+ * deploys, restarts, and crashes. Read once on init, written each time
+ * we push a new presence.
+ */
+const STATE_FILE = resolve(process.cwd(), '.presence-state.json')
 
 /**
  * Throttle presence-update pushes to once every 5 minutes. The status text
@@ -22,6 +31,7 @@ let _pendingRefresh: ReturnType<typeof setTimeout> | null = null
 
 export function initPresence(client: Client): void {
   _client = client
+  _lastUsedAt = readPersistedLastUsedAt()
   setOnline()
 }
 
@@ -39,9 +49,10 @@ export function setIdle(): void {
   // at the bot's profile sees the freshness even when it's gone idle.
   _client.user.setPresence({
     status: 'idle',
-    activities: [{ name: buildActivityName(), type: ActivityType.Watching }],
+    activities: buildActivities(),
   })
   _lastPresenceUpdateAt = Date.now()
+  persistLastUsedAt()
 }
 
 export function setDnd(reason = 'Check logs for errors'): void {
@@ -50,7 +61,7 @@ export function setDnd(reason = 'Check logs for errors'): void {
   cancelIdleTimer()
   _client.user.setPresence({
     status: 'dnd',
-    activities: [{ name: reason, type: ActivityType.Watching }],
+    activities: [{ name: reason, state: reason, type: ActivityType.Custom }],
   })
   _lastPresenceUpdateAt = Date.now()
 }
@@ -86,14 +97,44 @@ function pushPresenceNow(status: 'online'): void {
   _lastPresenceUpdateAt = Date.now()
   _client.user.setPresence({
     status,
-    activities: [{ name: buildActivityName(), type: ActivityType.Watching }],
+    activities: buildActivities(),
   })
+  persistLastUsedAt()
+}
+
+function buildActivities() {
+  const text = buildActivityName()
+  if (!text) return []
+  // ActivityType.Custom suppresses Discord's verb prefix ("Watching ..."),
+  // showing just the `state` text. `name` is required by the API but ignored
+  // for display on Custom activities.
+  return [{ name: text, state: text, type: ActivityType.Custom }]
 }
 
 function buildActivityName(): string {
-  const base = 'staff requests'
-  if (!_lastUsedAt) return base
-  return `${base} · last used ${formatRelative(_lastUsedAt)}`
+  if (!_lastUsedAt) return ''
+  return formatRelative(_lastUsedAt)
+}
+
+function readPersistedLastUsedAt(): Date | null {
+  try {
+    const raw = readFileSync(STATE_FILE, 'utf8')
+    const parsed = JSON.parse(raw) as { lastUsedAt?: string }
+    if (!parsed.lastUsedAt) return null
+    const d = new Date(parsed.lastUsedAt)
+    return Number.isNaN(d.getTime()) ? null : d
+  } catch {
+    return null
+  }
+}
+
+function persistLastUsedAt(): void {
+  if (!_lastUsedAt) return
+  try {
+    writeFileSync(STATE_FILE, JSON.stringify({ lastUsedAt: _lastUsedAt.toISOString() }))
+  } catch {
+    // Non-fatal — presence still works in-memory; we just won't survive a restart.
+  }
 }
 
 function formatRelative(d: Date): string {
