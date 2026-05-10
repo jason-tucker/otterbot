@@ -4,7 +4,8 @@ import {
   UserContextMenuCommandInteraction,
 } from 'discord.js'
 import { resolveBusinesses } from '../services/permissionService'
-import { runLookup } from './lookup'
+import { isSudoUser } from '../services/sudoService'
+import { runLookup, checkLookupCooldown } from './lookup'
 
 // Right-click a user → Apps → "Lookup"
 // Restricted to McKenzie Enterprises staff only.
@@ -22,6 +23,13 @@ export async function execute(interaction: UserContextMenuCommandInteraction): P
   await interaction.deferReply({ ephemeral: true })
 
   const member = await interaction.guild.members.fetch(interaction.user.id)
+
+  const cd = checkLookupCooldown(interaction.user.id, isSudoUser(member))
+  if (!cd.ok) {
+    await interaction.editReply({ content: `⏳ Slow down — try again in ${cd.retrySec}s.` })
+    return
+  }
+
   const resolved = await resolveBusinesses(member)
 
   // Only MKE staff can use the right-click lookup
