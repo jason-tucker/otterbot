@@ -36,6 +36,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Observability
 - **Interaction error logs now carry structured context.** Was `"Interaction error: <stack>"`; now `"Interaction error: cmd=lookup user=123 guild=456 <stack>"` — each failure includes command name / customId / context-menu name + user id + guild id. No more grepping customIds out of stack frames during triage.
+- **New `src/utils/logger.ts` structured logger** — `createLogger(scope)` returns `{ debug, info, warn, error }`; each method renders as `[scope] message key=value key=value`. Honours `LOG_LEVEL` (`debug | info | warn | error`, default `info`) so debug strings don't pay a cost in prod. Adopted in `MckenzieProvider` for the four warn sites in `getNotes` / `getCharacterByCsn`; same PII-safe behaviour preserved (no response bodies logged; the non-array branch logs `typeof` only, not the value).
 
 ### Fixed
 - **`ocStockService.addStockItem` race-safe sortOrder.** Was `SELECT * → Math.max(...) + 1 → INSERT` — two concurrent Add Item submissions read the same max and produced duplicate `sort_order` values, breaking the deterministic ordering used by `/oc` and the manage panel. Replaced with a single `INSERT ... VALUES (..., COALESCE((SELECT MAX(sort_order) FROM oc_stock), 0) + 1, ...)` so the next sortOrder is derived atomically inside the same statement.
