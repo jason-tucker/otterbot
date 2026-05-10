@@ -22,10 +22,17 @@ process.on('uncaughtException', (err) => {
 })
 
 /**
- * Graceful shutdown — systemd sends SIGTERM on `systemctl restart`. Without
- * a handler the gateway connection drops abruptly + the health-push interval
- * keeps spinning until the kill timeout, costing a few seconds of "RECONNECTING"
- * on every deploy. Tear things down explicitly.
+ * Graceful shutdown. Two callers we care about:
+ *
+ *   - `systemctl restart` / `systemctl stop` → systemd sends SIGTERM. systemd
+ *     bypasses Restart=on-failure for its own stops, so exit code doesn't
+ *     matter here.
+ *   - The CLAUDE.md deploy pattern (`kill -TERM $(ps …)`) → systemd sees an
+ *     unexpected exit and uses Restart=on-failure to bring us back up. That
+ *     requires a NON-zero exit code; cleanly `process.exit(0)` would leave
+ *     the unit dead until manual `systemctl start`.
+ *
+ * SIGINT (Ctrl-C in dev) cleanly exits 0 — no systemd in that case.
  */
 let shuttingDown = false
 async function gracefulShutdown(signal: NodeJS.Signals): Promise<void> {
@@ -35,7 +42,10 @@ async function gracefulShutdown(signal: NodeJS.Signals): Promise<void> {
   shutdownPresence()
   stopHealthPush()
   try { await client.destroy() } catch (err) { console.warn('client.destroy failed', err) }
-  setTimeout(() => process.exit(0), 2_000).unref()
+  // SIGTERM → mimic the natural "unhandled signal" exit code (128 + 15 = 143)
+  // so systemd's Restart=on-failure still triggers. SIGINT → clean exit.
+  const code = signal === 'SIGTERM' ? 143 : 0
+  setTimeout(() => process.exit(code), 2_000).unref()
 }
 process.on('SIGTERM', () => { void gracefulShutdown('SIGTERM') })
 process.on('SIGINT',  () => { void gracefulShutdown('SIGINT') })
