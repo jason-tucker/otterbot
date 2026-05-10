@@ -1,6 +1,9 @@
 import { env } from '../../config/env'
 import type { Character, Business } from '../../types/domain'
+import { createLogger } from '../../utils/logger'
 import type { IBusinessProvider, BusinessRoster, RosterMember, ApiNote, CreateMarkerResult, CharacterWithBusinesses } from './IBusinessProvider'
+
+const logger = createLogger('MKE')
 
 interface MkCharacterProfile {
   id: string
@@ -139,19 +142,20 @@ export class MckenzieProvider implements IBusinessProvider {
         // Don't log the response body — MKE error payloads can echo back
         // PII (CSN / phone / bank fields) and journald retains otterbot logs.
         // Status + URL is enough to triage without exposing PII.
-        console.warn(`[MKE] getNotes ${res.status} ${url}`)
+        logger.warn('getNotes failed', { status: res.status, url })
         return []
       }
       const data = await res.json()
       if (!Array.isArray(data)) {
-        console.warn(`[MKE] getNotes returned non-array:`, data)
+        // Only log the type — the value itself can echo PII.
+        logger.warn('getNotes returned non-array', { type: typeof data })
         return []
       }
       // Defensive: tolerate either the legacy ApiNote shape (id/content/created/employeeId/profileId)
       // or any shape with at least content + created. Unknown fields pass through.
       return data as ApiNote[]
     } catch (err) {
-      console.warn(`[MKE] getNotes fetch failed:`, err)
+      logger.warn('getNotes fetch failed', { err })
       return []
     }
   }
@@ -170,7 +174,7 @@ export class MckenzieProvider implements IBusinessProvider {
         hasBusinessAccounts: profile.__has_businessAccounts__ === true,
       }
     } catch (err) {
-      console.warn(`[MKE] getCharacterByCsn fetch failed:`, err)
+      logger.warn('getCharacterByCsn fetch failed', { err })
       return null
     }
   }
