@@ -19,6 +19,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **`bot/healthPush.ts` setInterval is now stoppable.** Capture the timer handle, skip if already running (defends against a future re-ready / reconnect path), and `unref()` so it doesn't block clean exit.
 - **`services/mckenzieBusinessCache.ts` now memoises for 60 s.** Was "Intentionally NOT memoised" with a per-`/lookup` parallel HTTP fan-out — fine when there's one McKenzie business, scales linearly as more are added. 60 s memo with bypass-on-write: `portalService.{createBusiness, updateBusinessBasic, updateBusinessSettings, deactivateBusiness}` call `invalidateKnownMckenzieBusinesses()` so a `/portal` edit is reflected on the next `/lookup`.
 
+### Observability
+- **Interaction error logs now carry structured context.** Was `"Interaction error: <stack>"`; now `"Interaction error: cmd=lookup user=123 guild=456 <stack>"` — each failure includes command name / customId / context-menu name + user id + guild id. No more grepping customIds out of stack frames during triage.
+
 ### Fixed
 - **`utils/cv2.ts` was broken stub code — `sep()` / `sepLarge()` / `sepBlank()` recursed into themselves with no base case, hitting `Maximum call stack size exceeded` on every call.** Looked like an autocomplete-generated placeholder that got committed without the body. Caused `/help`, `/printinfo`, `/caked`, `/oc`, and several other commands that import `sep` to throw `RangeError` and surface as "An unexpected error occurred". Implemented for real now: each returns a fresh `SeparatorBuilder` with the spacing/divider combo the docstring describes.
 

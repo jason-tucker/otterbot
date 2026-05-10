@@ -175,7 +175,17 @@ export function registerInteractionCreate(client: Client) {
         return
       }
     } catch (err) {
-      console.error('Interaction error:', err)
+      // Structured context — without `cmd=…` / `id=…` / `user=…` / `guild=…`,
+      // tracing an "Interaction error" entry to a specific button or command
+      // meant grepping the customId out of stack frames.
+      const tag = interaction.isChatInputCommand() ? `cmd=${interaction.commandName}`
+        : interaction.isContextMenuCommand() ? `ctx=${interaction.commandName}`
+        : interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()
+          ? `id=${interaction.customId}`
+          : `type=${interaction.type}`
+      const userTag = `user=${interaction.user.id}`
+      const guildTag = interaction.guildId ? `guild=${interaction.guildId}` : 'guild=dm'
+      console.error(`Interaction error: ${tag} ${userTag} ${guildTag}`, err)
       try {
         if (interaction.isRepliable() && !interaction.replied) {
           const payload = { content: 'An unexpected error occurred.', ephemeral: true }
