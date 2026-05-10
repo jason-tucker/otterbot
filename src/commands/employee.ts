@@ -8,14 +8,13 @@ import {
   type UserContextMenuCommandInteraction,
   type GuildMember,
 } from 'discord.js'
-import { resolveBusinesses, isBusinessOwner } from '../services/permissionService'
+import { resolveBusinesses, isBusinessOwner, ownedBusinessIds } from '../services/permissionService'
 import { isSudoUser } from '../services/sudoService'
 import { cmd } from '../utils/cmdMention'
-import { getEmployeeBusinessConfig } from '../services/employeeService'
+import { getEmployeeBusinessConfig, getEmployeeBusinessConfigsForGuild } from '../services/employeeService'
 import { buildEmployeeManageEmbed } from '../embeds/employeeManageEmbed'
 import { storeEmployeeSession } from '../services/interactionCache'
 import { getTargetStatus } from '../services/employeeService'
-import { getAllBusinesses } from '../services/portalService'
 import type { ResolvedBusiness } from '../types/domain'
 
 export type EmployeeManageInteraction =
@@ -138,15 +137,16 @@ export async function showEmployeeManageEmbed(
   const isDbOwner = await isBusinessOwner(targetMember.id, resolved.business.id)
   const status = getTargetStatus(targetMember, config, isDbOwner)
 
-  // Fetch all business configs for the cross-business employment summary
-  const allBizRecords = await getAllBusinesses(interaction.guild.id)
-  const allConfigs = await Promise.all(
-    allBizRecords.map(async (b) => {
-      const cfg = await getEmployeeBusinessConfig(b.id, interaction.guild!.id)
-      const ownerCheck = cfg ? await isBusinessOwner(targetMember.id, b.id) : false
-      return { name: b.name, config: cfg!, isOwner: ownerCheck }
-    }),
-  ).then((results) => results.filter((r) => r.config !== null))
+  // Cross-business employment summary — was N businesses × (1 + 1) DB
+  // queries inside a Promise.all. Now: one query for all configs, one query
+  // for all owner records. Scales O(1) regardless of how many businesses.
+  const allConfigs = await getEmployeeBusinessConfigsForGuild(interaction.guild.id)
+  const ownedSet = await ownedBusinessIds(targetMember.id, allConfigs.map((c) => c.businessId))
+  const allConfigsWithOwnership = allConfigs.map((cfg) => ({
+    name: cfg.name,
+    config: cfg,
+    isOwner: ownedSet.has(cfg.businessId),
+  }))
 
   const sessionKey = storeEmployeeSession({
     commandUserDiscordId: interaction.user.id,
@@ -163,7 +163,7 @@ export async function showEmployeeManageEmbed(
     resolved.rank,
     sessionKey,
     isSudo,
-    allConfigs,
+    allConfigsWithOwnership,
   )
   await interaction.editReply({ ...response, content: null })
 }

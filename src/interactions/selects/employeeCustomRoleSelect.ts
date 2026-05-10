@@ -1,13 +1,14 @@
 import { type StringSelectMenuInteraction } from 'discord.js'
 import { getEmployeeSession } from '../../services/interactionCache'
 import { cmd } from '../../utils/cmdMention'
-import { resolveBusinesses, isBusinessOwner } from '../../services/permissionService'
+import { resolveBusinesses, isBusinessOwner, ownedBusinessIds } from '../../services/permissionService'
 import { isSudoUser } from '../../services/sudoService'
 import { buildEmployeeManageEmbed } from '../../embeds/employeeManageEmbed'
 import { audit } from '../../services/auditService'
-import { getAllBusinesses, getBusinessById } from '../../services/portalService'
+import { getBusinessById } from '../../services/portalService'
 import {
   getEmployeeBusinessConfig,
+  getEmployeeBusinessConfigsForGuild,
   getTargetStatus,
   assignCustomRole,
   removeCustomRole,
@@ -110,19 +111,20 @@ export async function handleEmployeeCustomRoleSelect(
     })
   }
 
-  const updatedTarget = await interaction.guild.members.fetch({ user: session.targetDiscordId, force: true })
+  // Drop force:true — the assign/remove call earlier already updated the
+  // cached GuildMember.
+  const updatedTarget = await interaction.guild.members.fetch(session.targetDiscordId)
   const updatedDbOwner = await isBusinessOwner(updatedTarget.id, session.businessId)
   const updatedStatus = getTargetStatus(updatedTarget, config, updatedDbOwner)
 
-  const allBizRecords = await getAllBusinesses(interaction.guild.id)
-  const allConfigs = await Promise.all(
-    allBizRecords.map(async (b) => {
-      const cfg = await getEmployeeBusinessConfig(b.id, interaction.guild!.id)
-      const ownerCheck = cfg ? await isBusinessOwner(updatedTarget.id, b.id) : false
-      return { name: b.name, config: cfg!, isOwner: ownerCheck }
-    }),
-  ).then((r) => r.filter((x) => x.config !== null))
+  const allConfigs = await getEmployeeBusinessConfigsForGuild(interaction.guild.id)
+  const ownedSet = await ownedBusinessIds(updatedTarget.id, allConfigs.map((c) => c.businessId))
+  const allConfigsWithOwnership = allConfigs.map((cfg) => ({
+    name: cfg.name,
+    config: cfg,
+    isOwner: ownedSet.has(cfg.businessId),
+  }))
 
-  const response = buildEmployeeManageEmbed(updatedTarget, config, updatedStatus, managedBusiness.rank, sessionKey, sudo, allConfigs)
+  const response = buildEmployeeManageEmbed(updatedTarget, config, updatedStatus, managedBusiness.rank, sessionKey, sudo, allConfigsWithOwnership)
   await interaction.editReply(response)
 }

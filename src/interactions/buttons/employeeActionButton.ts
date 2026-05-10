@@ -1,13 +1,14 @@
 import { type ButtonInteraction } from 'discord.js'
 import { getEmployeeSession } from '../../services/interactionCache'
 import { cmd } from '../../utils/cmdMention'
-import { resolveBusinesses, isBusinessOwner } from '../../services/permissionService'
+import { resolveBusinesses, isBusinessOwner, ownedBusinessIds } from '../../services/permissionService'
 import { isSudoUser } from '../../services/sudoService'
 import { buildEmployeeManageEmbed } from '../../embeds/employeeManageEmbed'
 import { audit } from '../../services/auditService'
-import { getAllBusinesses, addBusinessOwner, removeBusinessOwner } from '../../services/portalService'
+import { addBusinessOwner, removeBusinessOwner } from '../../services/portalService'
 import {
   getEmployeeBusinessConfig,
+  getEmployeeBusinessConfigsForGuild,
   getTargetStatus,
   hireEmployee,
   fireFromBusiness,
@@ -164,19 +165,22 @@ export async function handleEmployeeActionButton(interaction: ButtonInteraction)
     })
   }
 
-  const updatedTarget = await interaction.guild.members.fetch({ user: session.targetDiscordId, force: true })
+  // Drop force:true — the role mutations earlier in the handler already
+  // updated the cached GuildMember; force-refetching wastes an API call.
+  const updatedTarget = await interaction.guild.members.fetch(session.targetDiscordId)
   const updatedDbOwner = await isBusinessOwner(updatedTarget.id, session.businessId)
   const updatedStatus = getTargetStatus(updatedTarget, config, updatedDbOwner)
 
-  const allBizRecords = await getAllBusinesses(interaction.guild.id)
-  const allConfigs = await Promise.all(
-    allBizRecords.map(async (b) => {
-      const cfg = await getEmployeeBusinessConfig(b.id, interaction.guild!.id)
-      const ownerCheck = cfg ? await isBusinessOwner(updatedTarget.id, b.id) : false
-      return { name: b.name, config: cfg!, isOwner: ownerCheck }
-    }),
-  ).then((results) => results.filter((r) => r.config !== null))
+  // Batched cross-business summary — one query for all configs + one query
+  // for all owner records, instead of ~3 queries per business in a fan-out.
+  const allConfigs = await getEmployeeBusinessConfigsForGuild(interaction.guild.id)
+  const ownedSet = await ownedBusinessIds(updatedTarget.id, allConfigs.map((c) => c.businessId))
+  const allConfigsWithOwnership = allConfigs.map((cfg) => ({
+    name: cfg.name,
+    config: cfg,
+    isOwner: ownedSet.has(cfg.businessId),
+  }))
 
-  const response = buildEmployeeManageEmbed(updatedTarget, config, updatedStatus, commandRank, sessionKey, sudo, allConfigs)
+  const response = buildEmployeeManageEmbed(updatedTarget, config, updatedStatus, commandRank, sessionKey, sudo, allConfigsWithOwnership)
   await interaction.editReply(response)
 }

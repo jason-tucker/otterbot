@@ -101,3 +101,26 @@ export async function isBusinessOwner(
     .limit(1)
   return rows.length > 0
 }
+
+/**
+ * Batch variant of {@link isBusinessOwner}. One query against
+ * `business_owners` covers all businesses the caller cares about; the
+ * employee summary path (which fans out per-business in a Promise.all) was
+ * the original culprit. Returns the set of business IDs the user owns.
+ */
+export async function ownedBusinessIds(
+  discordUserId: string,
+  businessIds: readonly string[],
+): Promise<Set<string>> {
+  if (businessIds.length === 0) return new Set()
+  const rows = await db
+    .select({ businessId: businessOwners.businessId })
+    .from(businessOwners)
+    .where(
+      and(
+        eq(businessOwners.discordUserId, discordUserId),
+        inArray(businessOwners.businessId, businessIds as string[]),
+      ),
+    )
+  return new Set(rows.map((r) => r.businessId))
+}

@@ -1,4 +1,4 @@
-import { eq, and } from 'drizzle-orm'
+import { eq, and, inArray } from 'drizzle-orm'
 import type { Guild, GuildMember, Role } from 'discord.js'
 import { db } from '../db/client'
 import { businesses, businessRoleMappings } from '../db/schema'
@@ -129,6 +129,72 @@ export async function getEmployeeBusinessConfig(
       allowOwnerRoleFallback: Boolean(s.allowOwnerRoleFallback ?? false),
     },
   }
+}
+
+/**
+ * Batch variant of {@link getEmployeeBusinessConfig}. The cross-business
+ * employment summary used to call the singular form per business inside a
+ * Promise.all — that's 2 DB queries per business per `/employee` open. This
+ * collapses to two queries total: one against `businesses`, one against
+ * `business_role_mappings` with `inArray(businessId)`.
+ */
+export async function getEmployeeBusinessConfigsForGuild(
+  guildId: string,
+): Promise<DbEmployeeBusinessConfig[]> {
+  const bizRows = await db
+    .select()
+    .from(businesses)
+    .where(and(eq(businesses.guildId, guildId), eq(businesses.active, true)))
+  if (bizRows.length === 0) return []
+  const bizIds = bizRows.map((b) => b.id)
+
+  const mappingRows = await db
+    .select()
+    .from(businessRoleMappings)
+    .where(
+      and(
+        inArray(businessRoleMappings.businessId, bizIds),
+        eq(businessRoleMappings.guildId, guildId),
+      ),
+    )
+
+  const mappingsByBiz = new Map<string, typeof mappingRows>()
+  for (const m of mappingRows) {
+    const list = mappingsByBiz.get(m.businessId) ?? []
+    list.push(m)
+    mappingsByBiz.set(m.businessId, list)
+  }
+
+  const out: DbEmployeeBusinessConfig[] = []
+  for (const biz of bizRows) {
+    const mappings = mappingsByBiz.get(biz.id) ?? []
+    const s = (biz.settings ?? {}) as Record<string, unknown>
+    const empMappings = mappings.filter((m) => m.rank === 'employee')
+    const baseEmp = empMappings.find((m) => m.isBase) ?? empMappings[0] ?? null
+    const managerRow = mappings.find((m) => m.rank === 'manager') ?? null
+    const ownerRow = mappings.find((m) => m.rank === 'owner') ?? null
+    const customRows = empMappings.filter((m) => m.id !== baseEmp?.id)
+    out.push({
+      businessId: biz.id,
+      slug: biz.slug,
+      name: biz.name,
+      providerType: biz.providerType,
+      roles: {
+        employee: baseEmp ? toRoleEntry(baseEmp) : null,
+        manager: managerRow ? toRoleEntry(managerRow) : null,
+        owner: ownerRow ? toRoleEntry(ownerRow) : null,
+        custom: customRows.map(toCustomRole),
+      },
+      permissions: {
+        managersCanPromote: Boolean(s.managersCanPromote ?? false),
+        managersCanAssignCustomRoles: Boolean(s.managersCanAssignCustomRoles ?? true),
+        ownersCanManageOwners: Boolean(s.ownersCanManageOwners ?? true),
+        higherRolesAutoGrantEmployee: Boolean(s.higherRolesAutoGrantEmployee ?? true),
+        allowOwnerRoleFallback: Boolean(s.allowOwnerRoleFallback ?? false),
+      },
+    })
+  }
+  return out
 }
 
 // ---------------------------------------------------------------------------
