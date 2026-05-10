@@ -8,17 +8,17 @@ import { SeparatorBuilder, SeparatorSpacingSize } from 'discord.js'
 
 /** Default — small spacing, divider line. Most common across embeds. */
 export function sep(): SeparatorBuilder {
-  return sep()
+  return new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true)
 }
 
 /** Large spacing, divider line. Used between major sections of customer /
  *  business / portal embeds. */
 export function sepLarge(): SeparatorBuilder {
-  return sepLarge()
+  return new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large).setDivider(true)
 }
 
 /** Small spacing, NO divider line. Used for visual breathing room between
  *  field clusters inside a section. */
 export function sepBlank(): SeparatorBuilder {
-  return sepBlank()
+  return new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(false)
 }
