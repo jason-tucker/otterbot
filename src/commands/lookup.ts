@@ -21,6 +21,34 @@ import { and, eq, count } from 'drizzle-orm'
 import type { ResolvedBusiness, Character, Business } from '../types/domain'
 import { storeLookupSession } from '../services/interactionCache'
 import { refreshKnownMckenzieBusinesses, type KnownBusiness } from '../services/mckenzieBusinessCache'
+import { isSudoUser } from '../services/sudoService'
+
+/**
+ * Per-user rate limit for `/lookup` (and the right-click Lookup context
+ * menu). Keeps staff from accidentally hammering the MKE API with rapid
+ * retries — `/report` uses 5 min for DM-spam reasons, this is far lighter
+ * because /lookup is the bread-and-butter staff command. Sudo bypasses.
+ */
+const LOOKUP_COOLDOWN_MS = 30_000
+const lastLookupAt = new Map<string, number>()
+
+function sweepLookupCooldowns(): void {
+  const cutoff = Date.now() - LOOKUP_COOLDOWN_MS
+  for (const [k, t] of lastLookupAt) if (t < cutoff) lastLookupAt.delete(k)
+}
+
+export function checkLookupCooldown(
+  userId: string,
+  sudo: boolean,
+): { ok: true } | { ok: false; retrySec: number } {
+  if (sudo) return { ok: true }
+  const last = lastLookupAt.get(userId) ?? 0
+  const remaining = LOOKUP_COOLDOWN_MS - (Date.now() - last)
+  if (remaining > 0) return { ok: false, retrySec: Math.ceil(remaining / 1000) }
+  if (lastLookupAt.size > 500) sweepLookupCooldowns()
+  lastLookupAt.set(userId, Date.now())
+  return { ok: true }
+}
 
 // All three interaction types support deferReply / editReply after deferring
 export type LookupInteraction =
@@ -45,6 +73,13 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   await interaction.deferReply({ ephemeral: true })
 
   const member = await interaction.guild.members.fetch(interaction.user.id)
+
+  const cd = checkLookupCooldown(interaction.user.id, isSudoUser(member))
+  if (!cd.ok) {
+    await interaction.editReply({ content: `⏳ Slow down — try again in ${cd.retrySec}s.` })
+    return
+  }
+
   const resolved = await resolveBusinesses(member)
   const mckenzie = resolved.find((r) => r.business.providerType === 'mckenzie')
 
