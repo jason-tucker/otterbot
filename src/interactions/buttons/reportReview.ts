@@ -2,6 +2,18 @@ import type { ButtonInteraction } from 'discord.js'
 import { env } from '../../config/env'
 import { getReportSession, deleteReportSession } from '../../services/reportCache'
 
+function safeGithubErrorMessage(body: string): string {
+  if (!body) return '<non-JSON body>'
+  try {
+    const parsed = JSON.parse(body) as unknown
+    if (parsed && typeof parsed === 'object') {
+      const msg = (parsed as { message?: unknown }).message
+      if (typeof msg === 'string') return msg.slice(0, 200)
+    }
+  } catch {}
+  return '<non-JSON body>'
+}
+
 export async function handleReportReview(interaction: ButtonInteraction): Promise<void> {
   if (interaction.user.id !== env.BOT_OWNER_ID) {
     await interaction.reply({ content: '❌ Only the bot owner can review reports.', ephemeral: true })
@@ -65,8 +77,8 @@ export async function handleReportReview(interaction: ButtonInteraction): Promis
   })
 
   if (!res.ok) {
-    const errText = await res.text().catch(() => '<no body>')
-    console.error(`/report approve: GitHub API ${res.status}: ${errText}`)
+    const body = await res.text().catch(() => '')
+    console.error(`/report approve: GitHub API ${res.status}: ${safeGithubErrorMessage(body)}`)
     await interaction.editReply({
       content: `❌ Failed to file issue (HTTP ${res.status}). Session preserved — try again or reject.`,
     })

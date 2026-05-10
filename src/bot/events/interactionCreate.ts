@@ -14,7 +14,7 @@ import { execute as executePrintInfo, data as printInfoData } from '../../comman
 import { execute as executeArtSize, data as artSizeData } from '../../commands/artSize'
 import { execute as executeTcSheet, data as tcSheetData } from '../../commands/tcSheet'
 import { execute as executeCaked, data as cakedData } from '../../commands/caked'
-import { execute as executeHelp, data as helpData } from '../../commands/help'
+import { execute as executeHelp, data as helpData, executeFromBackButton } from '../../commands/help'
 import { execute as executeEmployee, data as employeeData } from '../../commands/employee'
 import { execute as executePortal, data as portalData } from '../../commands/portal'
 import { execute as executeUserLookup } from '../../commands/userLookup'
@@ -49,6 +49,12 @@ import { handleOCUrlSubmit } from '../../interactions/modals/ocUrlModal'
 import { execute as executeOC, data as ocData } from '../../commands/oc'
 import { execute as executeReport, data as reportData } from '../../commands/report'
 import { handleReportSubmit } from '../../interactions/modals/reportSubmit'
+import { handleHelpSelect } from '../../interactions/selects/helpSelect'
+import { handleReportReview } from '../../interactions/buttons/reportReview'
+import {
+  handleTicketAccountMadeButton,
+  handleTicketAccountHelpButton,
+} from '../../interactions/buttons/ticketAccountMade'
 
 const commandHandlers = new Map<string, (i: ChatInputCommandInteraction) => Promise<void>>([
   [lookupData.name, executeLookup],
@@ -106,7 +112,6 @@ export function registerInteractionCreate(client: Client) {
         } else if (id === 'oc_item_select') {
           await handleOCItemSelect(interaction as StringSelectMenuInteraction)
         } else if (id === 'help:section') {
-          const { handleHelpSelect } = await import('../../interactions/selects/helpSelect')
           await handleHelpSelect(interaction as StringSelectMenuInteraction)
         }
         return
@@ -124,7 +129,6 @@ export function registerInteractionCreate(client: Client) {
           // Use the button-specific renderer (deferUpdate path) instead of
           // re-running execute(), which deferReply'd against an already-acked
           // ButtonInteraction and crashed.
-          const { executeFromBackButton } = await import('../../commands/help')
           await executeFromBackButton(interaction as ButtonInteraction)
         } else if (id.startsWith('send_to_channel:')) {
           await handleSendToChannel(interaction as ButtonInteraction)
@@ -141,13 +145,10 @@ export function registerInteractionCreate(client: Client) {
         } else if (id.startsWith('oc_')) {
           await handleOCButton(interaction as ButtonInteraction)
         } else if (id.startsWith('report_approve_') || id.startsWith('report_reject_')) {
-          const { handleReportReview } = await import('../../interactions/buttons/reportReview')
           await handleReportReview(interaction as ButtonInteraction)
         } else if (id.startsWith('ticket_account_made:')) {
-          const { handleTicketAccountMadeButton } = await import('../../interactions/buttons/ticketAccountMade')
           await handleTicketAccountMadeButton(interaction as ButtonInteraction)
         } else if (id.startsWith('ticket_account_help:')) {
-          const { handleTicketAccountHelpButton } = await import('../../interactions/buttons/ticketAccountMade')
           await handleTicketAccountHelpButton(interaction as ButtonInteraction)
         }
         return

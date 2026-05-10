@@ -53,6 +53,8 @@ const registry = new Map<string, RegistryEntry>()
  *  /lookup, /business, /oc, /printinfo, /artsize, /tcsheet, /caked call,
  *  retaining each closure's captured payload for the bot's lifetime. */
 const SENDABLE_TTL_MS = 60 * 60_000
+const SENDABLE_MAX_ENTRIES = 200
+const SENDABLE_SWEEP_INTERVAL_MS = 30 * 60_000
 
 function sweepSendables(): void {
   const now = Date.now()
@@ -60,9 +62,27 @@ function sweepSendables(): void {
 }
 
 export function registerSendable(key: string, builder: () => SendablePayload): void {
-  // Sweep on insert when the registry has grown — cheap and bounds the Map.
-  if (registry.size > 200) sweepSendables()
+  // Sweep expired entries first — cheap and frees space before the hard-cap kicks in.
+  if (registry.size > SENDABLE_MAX_ENTRIES) sweepSendables()
   registry.set(key, { builder, expiresAt: Date.now() + SENDABLE_TTL_MS })
+  // Hard-cap regardless of TTL: drop oldest entries (Map iteration is
+  // insertion-ordered) until we're back under the limit. Belt-and-braces
+  // against a flood of new registrations within a single sweep window.
+  while (registry.size > SENDABLE_MAX_ENTRIES) {
+    const oldest = registry.keys().next().value
+    if (oldest === undefined) break
+    registry.delete(oldest)
+  }
+}
+
+// Periodic sweep so a quiet bot still trims expired entries even when no new
+// `registerSendable` calls come in to trigger the on-insert sweep. `.unref()`
+// keeps the timer from holding the event loop open at shutdown.
+const sendableSweepTimer = setInterval(sweepSendables, SENDABLE_SWEEP_INTERVAL_MS)
+sendableSweepTimer.unref()
+
+export function stopSendableSweep(): void {
+  clearInterval(sendableSweepTimer)
 }
 
 // ── V1: embed-based messages ───────────────────────────────────────────────
