@@ -7,6 +7,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Testing
+- **Vitest unit tests for core pure-function logic.** Added `vitest` + `@vitest/coverage-v8` dev deps, `pnpm test` / `pnpm test:watch` scripts, and a minimal `vitest.config.ts` (node env, `src/**/*.test.ts`). Initial suite covers `utils/escape.ts` (`safeInlineCode` / `safeMarkdown` / `safeMarkdownLinkLabel`), `services/permissionService.hasMinRank` (full 3×3 rank matrix), `services/employeeService.{canHire,canFire,canPromoteToManager,canDemoteManager,canManageOwner,canManageCustomRole}` permission gates (positive / negative / sudo-bypass for each), and `services/providers/IBusinessProvider.{markerTypeLabel,markerTypeEmoji}`. DB-coupled service files are imported with `vi.mock('../db/client')` + `vi.mock('../config/env')` so no env or postgres connection is needed. 54 tests, run in ~1.5 s.
+
 ### Security
 - **`auditService.audit()` now sanitises the `details` payload before insertion.** Callers occasionally stuff error strings or nested objects into `details`, and there was no defence against accidentally including secrets or oversized blobs. New `sanitizeDetails()` helper redacts values whose key matches `/(token|secret|password|apikey|api_key|authorization)/i` (replaced with `'[REDACTED]'`) and truncates string values longer than 500 chars (with a `…` suffix). Public `AuditParams` shape unchanged.
 - **`/lookup` and the right-click Lookup context menu are now per-user rate-limited (30 s cooldown).** Prevents staff from accidentally hammering the MKE API with rapid retries. Lighter than `/report`'s 5-minute window — `/lookup` is the staff bread-and-butter command — but enough to break a stuck-button loop. Sudo users bypass. Shared `checkLookupCooldown()` helper lives in `commands/lookup.ts` and is imported by `commands/userLookup.ts` so both entry points share one map.
