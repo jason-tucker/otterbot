@@ -1,0 +1,6 @@
+# Use the union merge driver for CHANGELOG.md so that parallel PRs adding
+# entries under `## [Unreleased]` don't conflict on every merge. Git takes
+# lines from both sides of any conflict region and concatenates them. The
+# resulting order may be jumbled — clean up under-headers in a follow-up
+# tidy commit if needed.
+CHANGELOG.md merge=union
