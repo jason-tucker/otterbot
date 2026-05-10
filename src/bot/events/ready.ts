@@ -1,7 +1,7 @@
 import type { Client } from 'discord.js'
 import { loadGuildCommandIds } from '../../utils/cmdMention'
 import { startHealthPush } from '../healthPush'
-import { initPresence } from '../../services/presence'
+import { initPresence, refreshPresence } from '../../services/presence'
 import { env } from '../../config/env'
 
 export function registerReadyEvent(client: Client) {
@@ -12,6 +12,12 @@ export function registerReadyEvent(client: Client) {
       await loadGuildCommandIds(guild)
     }
     startHealthPush()
+
+    // Discord drops the bot's activity on every gateway resume — without
+    // these the "/help • Xm" status disappears whenever the connection
+    // blips and stays gone until someone runs a command.
+    client.on('shardResume', () => { refreshPresence() })
+    client.on('shardReady', () => { refreshPresence() })
 
     // DM the owner on startup
     if (env.BOT_OWNER_ID) {

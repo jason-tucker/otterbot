@@ -70,7 +70,22 @@ async function buildHelpPayload(member: GuildMember, guildId: string) {
           `${cmd('lookup', guildId)} — Look up a Discord user's characters, standing, and notes`,
           `Right-click a user → Apps → **Lookup** for a quick shortcut`,
           `${cmd('business', guildId)} — Search a business roster; staff of that business can look up any employee directly`,
-          `**Auto-Ticket helper** — When Ticket Tool opens a ticket and pings a user, otterbot auto-runs the MKE lookup. If the user has no character, the bot posts an **Account Made** button (4-min per-user cooldown). On click, it re-runs the lookup; if still nothing, the user gets an ephemeral with **Website**, **Ask for Help**, and **Retry** buttons.`,
+        ].join('\n')
+      )
+    )
+  }
+
+  // ── Auto-Ticket helper — its own section (was previously buried inside Staff) ─
+  if (isStaff) {
+    container.addSeparatorComponents(sep())
+    container.addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        [
+          '### Auto-Ticket Helper',
+          `When Ticket Tool opens a ticket and pings a user, otterbot auto-runs the MKE lookup so staff don't have to.`,
+          `- **1 character** → posts the character embed with the usual Add Note / View Notes buttons.`,
+          `- **2+ characters** → posts a select menu so the user picks the right one.`,
+          `- **0 characters** → posts a silent message with an **Account Made** button (4-min per-user cooldown). Re-runs the lookup on click; if still nothing, an ephemeral pops up with **🌐 Website**, **🆘 Ask for Help**, and **🔁 Retry**.`,
         ].join('\n')
       )
     )
@@ -127,6 +142,7 @@ async function buildHelpPayload(member: GuildMember, guildId: string) {
   const sections = [
     { label: 'Public commands', value: 'public', emoji: '🌐', description: '/oc, /caked, /printinfo and more' },
     ...(isStaff ? [{ label: 'Staff commands', value: 'staff', emoji: '👔', description: '/lookup, /business, notes and standing' }] : []),
+    ...(isStaff ? [{ label: 'Auto-Ticket Helper', value: 'auto_ticket', emoji: '🎫', description: 'How the auto-lookup-on-ticket flow works' }] : []),
     ...(isManagerPlus ? [{ label: 'Manager commands', value: 'manager', emoji: '⚙️', description: '/employee, /movechannel, OC stock' }] : []),
     ...(admin ? [{ label: 'Admin commands', value: 'admin', emoji: '🛡️', description: '/portal and ownership controls' }] : []),
     { label: 'Your access', value: 'access', emoji: '🔑', description: 'See your business roles' },

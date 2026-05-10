@@ -19,6 +19,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **`bot/healthPush.ts` setInterval is now stoppable.** Capture the timer handle, skip if already running (defends against a future re-ready / reconnect path), and `unref()` so it doesn't block clean exit.
 - **`services/mckenzieBusinessCache.ts` now memoises for 60 s.** Was "Intentionally NOT memoised" with a per-`/lookup` parallel HTTP fan-out — fine when there's one McKenzie business, scales linearly as more are added. 60 s memo with bypass-on-write: `portalService.{createBusiness, updateBusinessBasic, updateBusinessSettings, deactivateBusiness}` call `invalidateKnownMckenzieBusinesses()` so a `/portal` edit is reflected on the next `/lookup`.
 
+### Changed
+- **Auto-Ticket Helper is now its own `/help` section** instead of buried under Staff. The overview shows it as a sibling section (🎫 Auto-Ticket Helper) and the dropdown gains a dedicated entry. Staff section keeps a one-line pointer back to the new section.
+- **Presence text now re-pushes on `shardResume` / `shardReady`.** Discord drops a bot's activity on every gateway reconnect; without re-pushing, the "/help • Xm ago" text vanished after every connection blip and stayed gone until someone ran a command. New `refreshPresence()` helper in `services/presence.ts` is wired from `registerReadyEvent`.
+
 ### Observability
 - **Interaction error logs now carry structured context.** Was `"Interaction error: <stack>"`; now `"Interaction error: cmd=lookup user=123 guild=456 <stack>"` — each failure includes command name / customId / context-menu name + user id + guild id. No more grepping customIds out of stack frames during triage.
 

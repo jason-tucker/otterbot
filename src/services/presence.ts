@@ -51,6 +51,29 @@ export function shutdownPresence(): void {
   if (_pendingRefresh) { clearTimeout(_pendingRefresh); _pendingRefresh = null }
 }
 
+/**
+ * Re-push the current presence. Discord drops a bot's activity on every
+ * gateway disconnect/resume; without re-pushing on reconnect, the "/help • Xm"
+ * text vanishes until the next user-initiated `recordActivity()`. Called from
+ * the `shardResume` / `shardReady` hooks in registerReadyEvent.
+ *
+ * Clearing `_lastPushedActivityText` first defeats the dedupe in
+ * `pushPresenceNow` (and the periodic ticker) so the same string gets
+ * re-sent — Discord side has no memory of it.
+ */
+export function refreshPresence(): void {
+  if (!_client?.user) return
+  _lastPushedActivityText = null
+  if (_currentStatus === 'dnd') return
+  if (_currentStatus === 'idle') {
+    _client.user.setPresence({ status: 'idle', activities: buildActivities() })
+  } else {
+    _client.user.setPresence({ status: 'online', activities: buildActivities() })
+  }
+  _lastPresenceUpdateAt = Date.now()
+  _lastPushedActivityText = buildActivityName()
+}
+
 function periodicTick(): void {
   if (!_client?.user) return
   if (_currentStatus === 'dnd') return  // DND text is static.

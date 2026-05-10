@@ -41,10 +41,29 @@ export async function handleHelpSelect(interaction: StringSelectMenuInteraction)
         `- **Add Note** — attach an internal note to a character\n` +
         `- **View Notes** — see all notes on record (includes McKenzie API notes — Note / Good Experience / Bad Experience)\n` +
         `- **Standing** — automatically derived from the most recent MKE Good/Bad Experience marker\n\n` +
-        `**Auto-Ticket helper** — When Ticket Tool opens a ticket channel and pings a user, otterbot automatically runs the MKE lookup so staff don't have to.\n` +
-        `- 1 character found → posts the character embed with the usual Add Note / View Notes buttons.\n` +
-        `- 2+ characters → posts a select menu so the user picks the right one.\n` +
-        `- 0 characters → posts a silent message with an **Account Made** button. The user is told to sign up at the website, then click **Account Made** to re-check (4-min per-user cooldown). If the lookup still returns nothing, an ephemeral pops up with **🌐 Website**, **🆘 Ask for Help** (silent ping to the Printing Press Operator role), and **🔁 Retry**.`
+        `_For the automatic ticket-channel lookup, see the **🎫 Auto-Ticket Helper** section in the menu._`
+      ))
+    await interaction.editReply({ flags: MessageFlags.IsComponentsV2, components: [c, backRow] } as any)
+
+  } else if (section === 'auto_ticket') {
+    const c = new ContainerBuilder().setAccentColor(0x9b59b6)
+      .addTextDisplayComponents(new TextDisplayBuilder().setContent('## 🎫 Auto-Ticket Helper'))
+      .addSeparatorComponents(sep())
+      .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+        `When Ticket Tool opens a ticket channel and pings a user, otterbot automatically runs the MKE character lookup so staff don't have to.\n\n` +
+        `**Lookup outcomes:**\n` +
+        `- **1 character found** → posts the character embed in the ticket with the usual **Add Note** / **View Notes** buttons.\n` +
+        `- **2+ characters** → posts a select menu so the user picks the right one; on selection the embed is rendered.\n` +
+        `- **0 characters** → posts a silent message with an **Account Made** button.\n\n` +
+        `**Account Made flow (no-character users):**\n` +
+        `1. User goes to the website and signs up.\n` +
+        `2. Clicks **Account Made** in the ticket — re-runs the MKE lookup (rate-limited to once per 4 min per user).\n` +
+        `3. If a character is now linked, the original message is replaced with the character embed/selector.\n` +
+        `4. If still no character, the user gets an ephemeral with three options:\n` +
+        `   - 🌐 **Website** — link to the MKE account-creation page.\n` +
+        `   - 🆘 **Ask for Help** — silent ping in the ticket to the Printing Press Operator role.\n` +
+        `   - 🔁 **Retry** — manual re-run, same 4-min rate limit.\n\n` +
+        `Restricted to the ticket creator unless the clicker has \`ManageChannels\`.`
       ))
     await interaction.editReply({ flags: MessageFlags.IsComponentsV2, components: [c, backRow] } as any)
 
