@@ -22,6 +22,7 @@ import {
   buildPortalPermsView,
 } from '../../embeds/portalEmbed'
 import { audit } from '../../services/auditService'
+import { parseSlug, parseSnowflake } from '../../utils/validators'
 
 const VALID_RANKS: StaffRank[] = ['employee', 'manager', 'owner']
 
@@ -53,9 +54,22 @@ export async function handlePortalModal(interaction: ModalSubmitInteraction): Pr
     await interaction.deferUpdate()
 
     const name = interaction.fields.getTextInputValue('name').trim()
-    const slug = interaction.fields.getTextInputValue('slug').trim().toLowerCase().replace(/\s+/g, '-')
+    const slugRaw = interaction.fields.getTextInputValue('slug').trim().toLowerCase().replace(/\s+/g, '-')
     const providerTypeRaw = interaction.fields.getTextInputValue('provider_type').trim().toLowerCase()
     const apiName = interaction.fields.getTextInputValue('api_name').trim()
+
+    const slug = parseSlug(slugRaw)
+    if (!slug) {
+      const businesses = await getAllBusinesses(session.guildId)
+      await interaction.editReply(
+        buildPortalMainMenu(
+          businesses,
+          sessionKey,
+          '❌ Invalid slug — must be lowercase letters, numbers, and hyphens',
+        ),
+      )
+      return
+    }
 
     if (!['mckenzie', 'discord-only'].includes(providerTypeRaw)) {
       const businesses = await getAllBusinesses(session.guildId)
@@ -183,11 +197,28 @@ export async function handlePortalModal(interaction: ModalSubmitInteraction): Pr
   if (action === 'portal_add_role_modal') {
     await interaction.deferUpdate()
 
-    const roleId = interaction.fields.getTextInputValue('role_id').trim()
+    const roleIdRaw = interaction.fields.getTextInputValue('role_id').trim()
     const rankRaw = interaction.fields.getTextInputValue('rank').trim().toLowerCase()
     const label = interaction.fields.getTextInputValue('label').trim()
     const isBaseRaw = interaction.fields.getTextInputValue('is_base').trim().toLowerCase()
     const minRankRaw = interaction.fields.getTextInputValue('min_rank').trim().toLowerCase()
+
+    const roleId = parseSnowflake(roleIdRaw)
+    if (!roleId) {
+      const [biz, mappings] = await Promise.all([
+        getBusinessById(businessId),
+        getRoleMappings(businessId, session.guildId),
+      ])
+      if (!biz) {
+        await interaction.editReply({ content: 'Business not found.', components: [], embeds: [] })
+        return
+      }
+      await interaction.editReply({
+        ...buildPortalRolesView(biz, mappings, sessionKey),
+        content: '❌ Invalid role ID — must be a Discord snowflake (17-20 digits)',
+      })
+      return
+    }
 
     if (!VALID_RANKS.includes(rankRaw as StaffRank)) {
       const [biz, mappings] = await Promise.all([
@@ -281,7 +312,24 @@ export async function handlePortalModal(interaction: ModalSubmitInteraction): Pr
   if (action === 'portal_add_owner_modal') {
     await interaction.deferUpdate()
 
-    const discordUserId = interaction.fields.getTextInputValue('discord_user_id').trim()
+    const discordUserIdRaw = interaction.fields.getTextInputValue('discord_user_id').trim()
+
+    const discordUserId = parseSnowflake(discordUserIdRaw)
+    if (!discordUserId) {
+      const [biz, owners] = await Promise.all([
+        getBusinessById(businessId),
+        getBusinessOwners(businessId),
+      ])
+      if (!biz) {
+        await interaction.editReply({ content: 'Business not found.', components: [], embeds: [] })
+        return
+      }
+      await interaction.editReply({
+        ...buildPortalOwnersView(biz, owners, sessionKey),
+        content: '❌ Invalid user ID — must be a Discord snowflake (17-20 digits)',
+      })
+      return
+    }
 
     try {
       await interaction.guild!.members.fetch(discordUserId)
