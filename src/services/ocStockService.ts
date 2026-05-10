@@ -1,6 +1,6 @@
 import { db } from '../db/client'
 import { ocStock } from '../db/schema'
-import { eq, asc } from 'drizzle-orm'
+import { eq, asc, sql } from 'drizzle-orm'
 
 export type OcStockStatus = 'in_stock' | 'low_stock' | 'out_of_stock'
 
@@ -38,9 +38,15 @@ export async function updateStockUrl(id: string, url: string | null, actorDiscor
 }
 
 export async function addStockItem(name: string, actorDiscordId: string): Promise<void> {
-  const all = await getAllStock()
-  const maxOrder = all.length > 0 ? Math.max(...all.map((i) => i.sortOrder)) : 0
-  await db.insert(ocStock).values({ name: name.trim(), status: 'in_stock', sortOrder: maxOrder + 1, updatedByDiscordId: actorDiscordId })
+  // Derive next sortOrder atomically inside the INSERT so two concurrent adds
+  // can't both read the same MAX and produce duplicate sort orders. COALESCE
+  // handles the empty-table case.
+  await db.insert(ocStock).values({
+    name: name.trim(),
+    status: 'in_stock',
+    sortOrder: sql<number>`COALESCE((SELECT MAX(${ocStock.sortOrder}) FROM ${ocStock}), 0) + 1`,
+    updatedByDiscordId: actorDiscordId,
+  })
 }
 
 export async function removeStockItem(id: string): Promise<void> {
