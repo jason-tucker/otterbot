@@ -8,9 +8,21 @@ import { lookupSessions } from '../db/schema'
 
 const TTL_MS = 60 * 60 * 1000 // 1 hour
 const LOOKUP_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours — survives bot restarts via DB
+const MAX_ENTRIES = 200
+const SWEEP_INTERVAL_MS = 30 * 60 * 1000 // 30 minutes
 
 function makeKey(): string {
   return randomBytes(16).toString('hex')
+}
+
+// Map iteration is insertion-ordered, so dropping `keys().next().value` gives
+// a poor-man's LRU. Refresh-on-read isn't needed — sessions are short-lived.
+function trimToMax<V>(cache: Map<string, V>): void {
+  while (cache.size > MAX_ENTRIES) {
+    const oldest = cache.keys().next().value
+    if (oldest === undefined) break
+    cache.delete(oldest)
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -68,7 +80,7 @@ const rosterCache = new Map<string, RosterCacheEntry>()
 export function storeBusinessRosterSession(data: BusinessRosterSession): string {
   const key = makeKey()
   rosterCache.set(key, { data, expiresAt: Date.now() + TTL_MS })
-  evictRoster()
+  trimToMax(rosterCache)
   return key
 }
 
@@ -102,7 +114,7 @@ const employeeCache = new Map<string, EmployeeCacheEntry>()
 export function storeEmployeeSession(data: EmployeeSession): string {
   const key = makeKey()
   employeeCache.set(key, { data, expiresAt: Date.now() + TTL_MS })
-  evictEmployee()
+  trimToMax(employeeCache)
   return key
 }
 
@@ -135,7 +147,7 @@ const portalCache = new Map<string, PortalCacheEntry>()
 export function storePortalSession(data: PortalSession): string {
   const key = makeKey()
   portalCache.set(key, { data, expiresAt: Date.now() + TTL_MS })
-  evictPortal()
+  trimToMax(portalCache)
   return key
 }
 
@@ -154,4 +166,17 @@ export function updatePortalSession(key: string, patch: Partial<PortalSession>):
 function evictPortal() {
   const now = Date.now()
   for (const [k, e] of portalCache) if (e.expiresAt < now) portalCache.delete(k)
+}
+
+// Without a periodic sweep, expired entries linger on an idle bot until
+// someone calls a storeX/getX. `.unref()` so the timer doesn't block exit.
+const sweepTimer = setInterval(() => {
+  evictRoster()
+  evictEmployee()
+  evictPortal()
+}, SWEEP_INTERVAL_MS)
+sweepTimer.unref()
+
+export function stopInteractionCacheSweep(): void {
+  clearInterval(sweepTimer)
 }
