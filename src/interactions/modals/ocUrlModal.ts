@@ -2,6 +2,7 @@ import { type ModalSubmitInteraction } from 'discord.js'
 import { resolveBusinesses, hasMinRank } from '../../services/permissionService'
 import { getStockById, updateStockUrl } from '../../services/ocStockService'
 import { buildOCEditItemEmbed } from '../../embeds/ocEmbed'
+import { parseHttpUrlDetailed } from '../../utils/url'
 
 export async function handleOCUrlSubmit(interaction: ModalSubmitInteraction): Promise<void> {
   if (!interaction.guild) return
@@ -24,17 +25,15 @@ export async function handleOCUrlSubmit(interaction: ModalSubmitInteraction): Pr
   // into the channel for everyone to click.
   let url: string | null = null
   if (rawUrl.length > 0) {
-    try {
-      const parsed = new URL(rawUrl)
-      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-        await interaction.reply({ content: `❌ URL must use http:// or https://. Got: \`${parsed.protocol}\``, ephemeral: true })
-        return
-      }
-      url = parsed.toString()
-    } catch {
-      await interaction.reply({ content: `❌ Not a valid URL: \`${rawUrl.slice(0, 80)}\``, ephemeral: true })
+    const result = parseHttpUrlDetailed(rawUrl)
+    if (!result.ok) {
+      const content = result.reason === 'wrong-protocol'
+        ? `❌ URL must use http:// or https://. Got: \`${result.protocol}\``
+        : `❌ Not a valid URL: \`${rawUrl.slice(0, 80)}\``
+      await interaction.reply({ content, ephemeral: true })
       return
     }
+    url = result.url.toString()
   }
 
   await updateStockUrl(itemId, url, interaction.user.id)
