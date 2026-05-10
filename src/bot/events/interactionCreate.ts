@@ -121,9 +121,11 @@ export function registerInteractionCreate(client: Client) {
         } else if (id.startsWith('print_info:')) {
           await handlePrintInfoButton(interaction as ButtonInteraction)
         } else if (id === 'help:back') {
-          // Re-run the /help command to show the overview panel
-          const { execute: helpExecute } = await import('../../commands/help')
-          await helpExecute(interaction as any)
+          // Use the button-specific renderer (deferUpdate path) instead of
+          // re-running execute(), which deferReply'd against an already-acked
+          // ButtonInteraction and crashed.
+          const { executeFromBackButton } = await import('../../commands/help')
+          await executeFromBackButton(interaction as ButtonInteraction)
         } else if (id.startsWith('send_to_channel:')) {
           await handleSendToChannel(interaction as ButtonInteraction)
         } else if (id.startsWith('caked:')) {

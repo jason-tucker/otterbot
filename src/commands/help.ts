@@ -1,11 +1,13 @@
 import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
+  ButtonInteraction,
   ContainerBuilder,
   TextDisplayBuilder,
   ActionRowBuilder,
   StringSelectMenuBuilder,
   MessageFlags,
+  type GuildMember,
 } from 'discord.js'
 import { resolveBusinesses } from '../services/permissionService'
 import { isSudoUser } from '../services/sudoService'
@@ -18,18 +20,16 @@ export const data = new SlashCommandBuilder()
   .setDescription('Show available commands based on your role')
   .setDMPermission(false)
 
-export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  if (!interaction.inGuild() || !interaction.guild) {
-    await interaction.reply({ content: 'This command can only be used in a server.', ephemeral: true })
-    return
-  }
-
-  await interaction.deferReply({ ephemeral: true })
-
-  const member = await interaction.guild.members.fetch(interaction.user.id)
+/**
+ * Build the help-overview payload. Pure render — both `/help` (chat command,
+ * deferReply path) and the `help:back` button (deferUpdate path) call this
+ * and ack the interaction in their own type-appropriate way. Without this
+ * split the back button used to call `execute()` against a ButtonInteraction
+ * and crash on `deferReply` since the interaction was already acked.
+ */
+async function buildHelpPayload(member: GuildMember, guildId: string) {
   const resolved = await resolveBusinesses(member)
   const admin = isSudoUser(member)
-  const guildId = interaction.guildId!
 
   const isStaff = resolved.length > 0
   const isManagerPlus = resolved.some((r) => r.rank === 'manager' || r.rank === 'owner')
@@ -139,7 +139,50 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       .addOptions(sections)
   )
 
-  await interaction.editReply({ flags: MessageFlags.IsComponentsV2, components: [container, selectRow], content: null })
+  return { flags: MessageFlags.IsComponentsV2, components: [container, selectRow], content: null }
+}
+
+export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+  if (!interaction.inGuild() || !interaction.guild) {
+    await interaction.reply({ content: 'This command can only be used in a server.', ephemeral: true })
+    return
+  }
+
+  // Discord gives us 3 s to ack. If we miss it (network blip, bot was
+  // momentarily unresponsive), `deferReply` throws "Unknown interaction"
+  // (code 10062). Catch and bail — there's nothing useful we can do; the
+  // user's client will show "interaction failed" briefly. Keeps a future
+  // hung handler from getting double-replied to via uncaughtException.
+  try {
+    await interaction.deferReply({ ephemeral: true })
+  } catch (err: unknown) {
+    if (err && typeof err === 'object' && (err as { code?: number }).code === 10062) {
+      console.warn('[help] deferReply lost the 3-second ack window — bailing')
+      return
+    }
+    throw err
+  }
+
+  const member = await interaction.guild.members.fetch(interaction.user.id)
+  const payload = await buildHelpPayload(member, interaction.guildId!)
+  await interaction.editReply(payload as any)
+}
+
+/**
+ * `help:back` button — re-render the overview panel in place. Use deferUpdate
+ * (not deferReply) since this is a button on an already-acked ephemeral.
+ */
+export async function executeFromBackButton(interaction: ButtonInteraction): Promise<void> {
+  if (!interaction.inGuild() || !interaction.guild) return
+  try {
+    await interaction.deferUpdate()
+  } catch (err: unknown) {
+    if (err && typeof err === 'object' && (err as { code?: number }).code === 10062) return
+    throw err
+  }
+  const member = await interaction.guild.members.fetch(interaction.user.id)
+  const payload = await buildHelpPayload(member, interaction.guildId!)
+  await interaction.editReply(payload as any)
 }
 
 function capitalize(s: string): string {

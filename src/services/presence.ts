@@ -28,11 +28,40 @@ let _currentStatus: 'online' | 'idle' | 'dnd' = 'online'
 let _lastUsedAt: Date | null = null
 let _lastPresenceUpdateAt = 0
 let _pendingRefresh: ReturnType<typeof setTimeout> | null = null
+let _periodicTicker: ReturnType<typeof setInterval> | null = null
+let _lastPushedActivityText: string | null = null
 
 export function initPresence(client: Client): void {
   _client = client
   _lastUsedAt = readPersistedLastUsedAt()
   setOnline()
+  // Without a periodic re-push the rendered "Xm ago" string freezes — Discord
+  // does NOT recompute relative-time strings client-side. Tick at the throttle
+  // interval and only re-push when the bucketed string would actually change.
+  if (!_periodicTicker) {
+    _periodicTicker = setInterval(periodicTick, MIN_PRESENCE_INTERVAL_MS)
+    _periodicTicker.unref?.()
+  }
+}
+
+/** Stop the periodic ticker — called from the SIGTERM graceful-shutdown path. */
+export function shutdownPresence(): void {
+  if (_periodicTicker) { clearInterval(_periodicTicker); _periodicTicker = null }
+  if (_idleTimer) { clearTimeout(_idleTimer); _idleTimer = null }
+  if (_pendingRefresh) { clearTimeout(_pendingRefresh); _pendingRefresh = null }
+}
+
+function periodicTick(): void {
+  if (!_client?.user) return
+  if (_currentStatus === 'dnd') return  // DND text is static.
+  const next = buildActivityName()
+  if (next === _lastPushedActivityText) return
+  _client.user.setPresence({
+    status: _currentStatus === 'idle' ? 'idle' : 'online',
+    activities: buildActivities(),
+  })
+  _lastPresenceUpdateAt = Date.now()
+  _lastPushedActivityText = next
 }
 
 export function setOnline(): void {
@@ -45,13 +74,14 @@ export function setOnline(): void {
 export function setIdle(): void {
   if (!_client?.user) return
   _currentStatus = 'idle'
-  // Idle status keeps the "last used X ago" stamp visible so anyone glancing
+  // Idle status keeps the relative-time stamp visible so anyone glancing
   // at the bot's profile sees the freshness even when it's gone idle.
   _client.user.setPresence({
     status: 'idle',
     activities: buildActivities(),
   })
   _lastPresenceUpdateAt = Date.now()
+  _lastPushedActivityText = buildActivityName()
   persistLastUsedAt()
 }
 
@@ -99,6 +129,7 @@ function pushPresenceNow(status: 'online'): void {
     status,
     activities: buildActivities(),
   })
+  _lastPushedActivityText = buildActivityName()
   persistLastUsedAt()
 }
 
@@ -112,8 +143,11 @@ function buildActivities() {
 }
 
 function buildActivityName(): string {
-  if (!_lastUsedAt) return ''
-  return formatRelative(_lastUsedAt)
+  // Match squishybot's format: "/help • Xm ago" — surfaces the discoverability
+  // hook even before the first command, and gives anyone glancing at the bot
+  // profile a clear way in. Falls back to plain "/help" until first activity.
+  if (!_lastUsedAt) return '/help'
+  return `/help • ${formatRelative(_lastUsedAt)}`
 }
 
 function readPersistedLastUsedAt(): Date | null {

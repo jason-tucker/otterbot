@@ -20,8 +20,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **`services/mckenzieBusinessCache.ts` now memoises for 60 s.** Was "Intentionally NOT memoised" with a per-`/lookup` parallel HTTP fan-out — fine when there's one McKenzie business, scales linearly as more are added. 60 s memo with bypass-on-write: `portalService.{createBusiness, updateBusinessBasic, updateBusinessSettings, deactivateBusiness}` call `invalidateKnownMckenzieBusinesses()` so a `/portal` edit is reflected on the next `/lookup`.
 
 ### Reliability
-- **Graceful shutdown on SIGTERM / SIGINT.** systemd sends SIGTERM on `systemctl restart`; without a handler the gateway connection drops abruptly + the health-push interval keeps spinning until the kill timeout. Now: stop the health push, `client.destroy()`, hard-exit after a 2 s drain window. Cleaner deploys, no more "RECONNECTING" tail.
+- **Graceful shutdown on SIGTERM / SIGINT.** systemd sends SIGTERM on `systemctl restart`; without a handler the gateway connection drops abruptly + the health-push interval keeps spinning until the kill timeout. Now: stop the health push, stop the presence ticker, `client.destroy()`, hard-exit after a 2 s drain window. Cleaner deploys, no more "RECONNECTING" tail.
 - **`MckenzieProvider.lookupByDiscordId` no longer trusts an `as`-cast.** Wraps `res.json()` in `.catch(() => null)` and filters items with a runtime `typeof p === 'object'` check, so a malformed MKE response can't crash the calling interaction handler.
+- **`/help` defends against the 3-second ack-window expiry.** `deferReply` now wraps "Unknown interaction" (10062) in a try/catch and bails cleanly instead of throwing through the global handler. Real fix for the user-reported "/help doesn't work" was the `help:back` button — it was calling `execute()` against a ButtonInteraction, which triggered `deferReply` on an already-acked interaction. Refactored so `execute()` (chat path, deferReply) and `executeFromBackButton()` (button path, deferUpdate) share a `buildHelpPayload()` renderer.
+
+### Changed
+- **Bot presence text now matches squishybot — `/help • Xm ago`.** Was just `Xm ago`. Surfacing `/help` directly in the activity gives anyone hovering the bot a clear entry point — important especially for new staff on a busy server. Also adds a 5-minute periodic ticker so the relative-time string doesn't freeze on an idle bot (bug: the previous status would stick at whatever was last pushed, e.g. "4m" for hours).
 
 ### Security
 - **`/report` is now per-user rate-limited (5 min cooldown).** Was a DM-spam vector — anyone could fire `/report` repeatedly and each submission DMs the bot owner. In-memory map keyed by user id, lazy sweep past size 200.
