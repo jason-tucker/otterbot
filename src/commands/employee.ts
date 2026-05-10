@@ -85,6 +85,11 @@ export async function runEmployeeManage(
     return
   }
 
+  if (targetDiscordId === interaction.client.user?.id) {
+    await interaction.editReply("You cannot manage the bot's own roles.")
+    return
+  }
+
   let targetMember: GuildMember
   try {
     targetMember = await interaction.guild.members.fetch(targetDiscordId)

@@ -95,6 +95,20 @@ export async function handleEmployeeActionButton(interaction: ButtonInteraction)
     return
   }
 
+  if (targetMember.id === interaction.client.user?.id) {
+    await audit({
+      actorDiscordId: interaction.user.id,
+      actorName: interaction.user.username,
+      businessId: session.businessId,
+      action: 'block_self_manage_bot',
+      targetType: 'discord_user',
+      targetId: targetMember.id,
+      success: false,
+    })
+    await interaction.editReply({ content: "You cannot manage the bot's own roles.", components: [] })
+    return
+  }
+
   const commandRank = managedBusiness?.rank ?? 'owner'
   const isDbOwner = await isBusinessOwner(targetMember.id, session.businessId)
   const currentStatus = getTargetStatus(targetMember, config, isDbOwner)

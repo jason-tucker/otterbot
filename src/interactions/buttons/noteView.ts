@@ -11,6 +11,7 @@ import {
   markerTypeLabel,
   markerTypeEmoji,
 } from '../../services/providers/IBusinessProvider'
+import { safeMarkdown } from '../../utils/escape'
 
 export async function handleNoteViewButton(interaction: ButtonInteraction): Promise<void> {
   const sessionKey = interaction.customId.split(':')[1]
@@ -84,7 +85,7 @@ export async function handleNoteViewButton(interaction: ButtonInteraction): Prom
     const date = new Date(note.created).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
     embed.addFields({
       name: `${markerTypeEmoji(note.type)} ${markerTypeLabel(note.type)} — Employee #${note.employeeId} — ${date}`,
-      value: note.content || '*(empty)*',
+      value: note.content ? safeMarkdown(note.content) : '*(empty)*',
       inline: false,
     })
   }
@@ -94,8 +95,8 @@ export async function handleNoteViewButton(interaction: ButtonInteraction): Prom
     const date = note.createdAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
     const label = note.visibility !== 'staff' ? ` [${note.visibility}]` : ''
     embed.addFields({
-      name: `${note.authorName} — ${date}${label}`,
-      value: note.content,
+      name: `${safeMarkdown(note.authorName)} — ${date}${label}`,
+      value: safeMarkdown(note.content),
       inline: false,
     })
   }
