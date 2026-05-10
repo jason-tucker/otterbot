@@ -88,6 +88,10 @@ export async function createBusiness(params: {
       createdBy: params.createdBy,
     })
     .returning()
+  if (params.providerType === 'mckenzie') {
+    const { invalidateKnownMckenzieBusinesses } = await import('./mckenzieBusinessCache')
+    invalidateKnownMckenzieBusinesses()
+  }
   return toBusinessRecord(rows[0])
 }
 
@@ -110,6 +114,10 @@ export async function updateBusinessBasic(
       updatedBy: params.updatedBy,
     })
     .where(eq(businesses.id, id))
+  // The MKE business cache derives its keys from name/providerType — bust it
+  // so a rename is reflected on the next /lookup instead of waiting up to 60 s.
+  const { invalidateKnownMckenzieBusinesses } = await import('./mckenzieBusinessCache')
+  invalidateKnownMckenzieBusinesses()
 }
 
 export async function updateBusinessSettings(
@@ -123,6 +131,10 @@ export async function updateBusinessSettings(
     .update(businesses)
     .set({ settings: merged as Record<string, unknown>, updatedAt: new Date(), updatedBy })
     .where(eq(businesses.id, id))
+  // settings.apiBusinessName feeds the MKE cache lookup — bust on every
+  // settings write to be safe (cheap; cache rebuilds on next /lookup).
+  const { invalidateKnownMckenzieBusinesses } = await import('./mckenzieBusinessCache')
+  invalidateKnownMckenzieBusinesses()
 }
 
 export async function toggleBusinessSetting(
@@ -142,6 +154,8 @@ export async function deactivateBusiness(id: string, deactivatedBy: string): Pro
     .update(businesses)
     .set({ active: false, deactivatedAt: new Date(), deactivatedBy, updatedAt: new Date(), updatedBy: deactivatedBy })
     .where(eq(businesses.id, id))
+  const { invalidateKnownMckenzieBusinesses } = await import('./mckenzieBusinessCache')
+  invalidateKnownMckenzieBusinesses()
 }
 
 export async function reactivateBusiness(id: string, reactivatedBy: string): Promise<void> {

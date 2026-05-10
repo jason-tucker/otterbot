@@ -42,10 +42,27 @@ export interface SendablePayload {
  */
 const NO_PING_ALLOWED_MENTIONS = { parse: [] as const }
 
-const registry = new Map<string, () => SendablePayload>()
+interface RegistryEntry {
+  builder: () => SendablePayload
+  expiresAt: number
+}
+
+const registry = new Map<string, RegistryEntry>()
+/** Send-to-channel is hit immediately after the ephemeral arrives — 1 h is
+ *  plenty. Without this the registry was monotonically growing for every
+ *  /lookup, /business, /oc, /printinfo, /artsize, /tcsheet, /caked call,
+ *  retaining each closure's captured payload for the bot's lifetime. */
+const SENDABLE_TTL_MS = 60 * 60_000
+
+function sweepSendables(): void {
+  const now = Date.now()
+  for (const [k, e] of registry) if (e.expiresAt < now) registry.delete(k)
+}
 
 export function registerSendable(key: string, builder: () => SendablePayload): void {
-  registry.set(key, builder)
+  // Sweep on insert when the registry has grown — cheap and bounds the Map.
+  if (registry.size > 200) sweepSendables()
+  registry.set(key, { builder, expiresAt: Date.now() + SENDABLE_TTL_MS })
 }
 
 // ── V1: embed-based messages ───────────────────────────────────────────────
@@ -98,14 +115,15 @@ export function withSendButtonV2(
 // ── Handler ────────────────────────────────────────────────────────────────
 export async function handleSendToChannel(interaction: ButtonInteraction): Promise<void> {
   const key = interaction.customId.slice('send_to_channel:'.length)
-  const builder = registry.get(key)
+  const entry = registry.get(key)
 
-  if (!builder) {
-    await interaction.reply({ content: 'This section is no longer available.', ephemeral: true })
+  if (!entry || entry.expiresAt < Date.now()) {
+    if (entry) registry.delete(key)  // expired — clean up while we're here
+    await interaction.reply({ content: 'This section is no longer available — re-run the command and try again.', ephemeral: true })
     return
   }
 
-  const payload = builder()
+  const payload = entry.builder()
   const isV2 = !!(payload.flags && payload.flags & MessageFlags.IsComponentsV2)
 
   if (isV2) {

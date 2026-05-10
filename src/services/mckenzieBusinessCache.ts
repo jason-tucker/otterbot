@@ -11,16 +11,33 @@ export interface KnownBusiness {
 }
 
 /**
- * Refresh and return a UUID -> business map for every active McKenzie-providered
+ * Refresh-and-return a UUID -> business map for every active McKenzie-providered
  * business in our local DB. Calls `business-accounts/find?name={name}` for each
- * to resolve its MKE UUID. Intentionally NOT memoised — refreshes on every call
- * so /lookup always reflects the current set of known businesses.
+ * to resolve its MKE UUID.
+ *
+ * Memoised for 60 s — the underlying data only changes when sudo edits
+ * `/portal`, but every `/lookup` invocation calls this. Without a memo, a
+ * burst of staff using `/lookup` simultaneously fans out N×staff parallel
+ * HTTP requests to the MKE API. Pass `force` to bypass the cache after a
+ * /portal edit if you want the change visible immediately.
  *
  * The MKE API has no UUID-by-id endpoint, so this name-resolve dance is the
  * only way to map the `__businessAccounts__` UUIDs on a character profile to
  * human-readable names.
  */
-export async function refreshKnownMckenzieBusinesses(): Promise<Map<string, KnownBusiness>> {
+const MEMO_TTL_MS = 60_000
+let memoAt = 0
+let memoValue: Map<string, KnownBusiness> | null = null
+
+export function invalidateKnownMckenzieBusinesses(): void {
+  memoAt = 0
+  memoValue = null
+}
+
+export async function refreshKnownMckenzieBusinesses(opts?: { force?: boolean }): Promise<Map<string, KnownBusiness>> {
+  if (!opts?.force && memoValue && (Date.now() - memoAt) < MEMO_TTL_MS) {
+    return memoValue
+  }
   const rows = await db
     .select({
       id: businesses.id,
@@ -54,5 +71,7 @@ export async function refreshKnownMckenzieBusinesses(): Promise<Map<string, Know
     })
   )
 
+  memoValue = result
+  memoAt = Date.now()
   return result
 }
