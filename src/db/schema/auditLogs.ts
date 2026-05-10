@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, boolean, jsonb, timestamp } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, text, boolean, jsonb, timestamp, index } from 'drizzle-orm/pg-core'
 
 export const auditLogs = pgTable('audit_logs', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -11,4 +11,8 @@ export const auditLogs = pgTable('audit_logs', {
   details: jsonb('details').$type<Record<string, unknown>>(),
   success: boolean('success').notNull().default(true),
   createdAt: timestamp('created_at').notNull().defaultNow(),
-})
+}, (table) => [
+  // Audit reads scan by business or actor, ordered newest-first.
+  index('idx_audit_biz_created').on(table.businessId, table.createdAt.desc()),
+  index('idx_audit_actor_created').on(table.actorDiscordId, table.createdAt.desc()),
+])

@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, unique } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, text, timestamp, unique, index } from 'drizzle-orm/pg-core'
 import { businesses } from './businesses'
 
 /**
@@ -16,4 +16,7 @@ export const businessOwners = pgTable('business_owners', {
   addedAt: timestamp('added_at').notNull().defaultNow(),
 }, (table) => [
   unique('uq_owner_per_business').on(table.businessId, table.discordUserId),
+  // permissionService.isBusinessOwner / resolveBusinesses filter by
+  // discord_user_id on every interaction — hot path with no covering index.
+  index('idx_business_owners_user').on(table.discordUserId),
 ])

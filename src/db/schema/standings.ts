@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, unique } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, text, timestamp, unique, index } from 'drizzle-orm/pg-core'
 import { businesses } from './businesses'
 
 export const standings = pgTable('standings', {
@@ -14,4 +14,7 @@ export const standings = pgTable('standings', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 }, (table) => [
   unique('uq_standing_per_business_char').on(table.businessId, table.characterId),
+  // "All bad/blacklisted in this business" filters by (business, standing).
+  // The unique covers (business, character) but not standing as 2nd key.
+  index('idx_standings_biz_standing').on(table.businessId, table.standing),
 ])

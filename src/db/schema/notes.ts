@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, text, timestamp, index } from 'drizzle-orm/pg-core'
 import { businesses } from './businesses'
 
 export const notes = pgTable('notes', {
@@ -13,4 +13,8 @@ export const notes = pgTable('notes', {
   authorName: text('author_name').notNull(),
   visibility: text('visibility').$type<'staff' | 'manager' | 'owner'>().notNull().default('staff'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
-})
+}, (table) => [
+  // noteView + lookup filter notes by (businessId, characterId) and order by
+  // created_at desc. Single composite covers both the WHERE and ORDER BY.
+  index('idx_notes_biz_char_created').on(table.businessId, table.characterId, table.createdAt.desc()),
+])

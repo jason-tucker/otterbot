@@ -1,4 +1,4 @@
-import { pgTable, text, uuid, timestamp } from 'drizzle-orm/pg-core'
+import { pgTable, text, uuid, timestamp, index } from 'drizzle-orm/pg-core'
 
 // DB-backed lookup session — survives bot restarts unlike the in-memory Map.
 // Keyed by random hex (set via storeLookupSession). Rows expire by `expiresAt`
@@ -13,4 +13,8 @@ export const lookupSessions = pgTable('lookup_sessions', {
   rank: text('rank').notNull(),
   expiresAt: timestamp('expires_at').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
-})
+}, (table) => [
+  // Sweep on insert deletes WHERE expires_at < now(). Without this it becomes
+  // a seqscan that grows with every session ever created.
+  index('idx_lookup_sessions_expires').on(table.expiresAt),
+])

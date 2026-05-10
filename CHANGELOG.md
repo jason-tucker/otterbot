@@ -7,6 +7,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Performance
+- **Schema indexes for hot lookup paths.** `notes(business_id, character_id, created_at desc)`, `audit_logs(business_id, created_at desc)`, `audit_logs(actor_discord_id, created_at desc)`, `business_owners(discord_user_id)`, `lookup_sessions(expires_at)`, and `standings(business_id, standing)`. These were all sequential scans before — `permissionService.isBusinessOwner` runs on every interaction; the lookup-session sweep on every store does `WHERE expires_at < now()`; note + audit reads scan-then-sort. Migration `0003_perf_indexes.sql`.
+
 ### Changed
 - **Bot presence is now a Custom Status — no "Watching staff requests · " prefix, just the relative-time stamp.** Activity type flipped from `Watching` to `Custom` and the `staff requests · last used ` prefix dropped, so Discord renders the status as plain text (e.g. `12m ago` / `just now`). `_lastUsedAt` is now persisted to `.presence-state.json` (gitignored) and re-read on boot, so the stamp survives systemd restarts and deploys — the bot doesn't show up "fresh" right after a restart anymore. DND status text also uses Custom now for the same prefix-free look.
 
