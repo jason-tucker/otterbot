@@ -7,6 +7,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Testing
+- **Vitest unit tests for core pure-function logic.** Added `vitest` + `@vitest/coverage-v8` dev deps, `pnpm test` / `pnpm test:watch` scripts, and a minimal `vitest.config.ts` (node env, `src/**/*.test.ts`). Initial suite covers `utils/escape.ts` (`safeInlineCode` / `safeMarkdown` / `safeMarkdownLinkLabel`), `services/permissionService.hasMinRank` (full 3×3 rank matrix), `services/employeeService.{canHire,canFire,canPromoteToManager,canDemoteManager,canManageOwner,canManageCustomRole}` permission gates (positive / negative / sudo-bypass for each), and `services/providers/IBusinessProvider.{markerTypeLabel,markerTypeEmoji}`. DB-coupled service files are imported with `vi.mock('../db/client')` + `vi.mock('../config/env')` so no env or postgres connection is needed. 54 tests, run in ~1.5 s.
+
 ### Security
 - **`/movechannel` permission gate tightened from "any business member" to "Manager+ or sudo".** Previous gate accepted `resolved.length > 0` — meaning any employee of any business could move arbitrary channels, even ones for unrelated businesses. CLAUDE.md says this is Manager+; the implementation now matches.
 - **`emp_*` action buttons verify `business.guildId === interaction.guild.id` before treating sudo as owner.** A sudo who clicked through a session referring to a business attached to a different guild would previously have its synthetic-owner ResolvedBusiness fabricated with the *caller's* `guild.id`, allowing role mutations against the wrong server. Now we look up the actual business record and bail with "this management session belongs to a different server" if the guild doesn't match.
