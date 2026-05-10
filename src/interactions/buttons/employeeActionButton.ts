@@ -5,7 +5,7 @@ import { resolveBusinesses, isBusinessOwner, ownedBusinessIds } from '../../serv
 import { isSudoUser } from '../../services/sudoService'
 import { buildEmployeeManageEmbed } from '../../embeds/employeeManageEmbed'
 import { audit } from '../../services/auditService'
-import { addBusinessOwner, removeBusinessOwner } from '../../services/portalService'
+import { addBusinessOwner, removeBusinessOwner, getBusinessById } from '../../services/portalService'
 import {
   getEmployeeBusinessConfig,
   getEmployeeBusinessConfigsForGuild,
@@ -55,12 +55,28 @@ export async function handleEmployeeActionButton(interaction: ButtonInteraction)
   const sudo = isSudoUser(commandMember)
   const resolved = await resolveBusinesses(commandMember)
 
-  const managedBusiness = sudo
-    ? resolved.find((r) => r.business.id === session.businessId) ??
-      { business: { id: session.businessId, name: '', slug: '', providerType: 'discord-only' as const, guildId: interaction.guild.id, active: true, settings: null, createdAt: new Date() }, rank: 'owner' as const }
-    : resolved.find((r) => r.business.id === session.businessId && (r.rank === 'manager' || r.rank === 'owner'))
+  // For sudo, verify the business actually belongs to this guild before
+  // synthesizing an "owner" ResolvedBusiness — otherwise a sudo in guild A
+  // could click a session referring to a business attached to guild B and
+  // we'd mutate roles in the wrong server.
+  let managedBusiness
+  if (sudo) {
+    const fromCallerGuild = resolved.find((r) => r.business.id === session.businessId)
+    if (fromCallerGuild) {
+      managedBusiness = fromCallerGuild
+    } else {
+      const bizRecord = await getBusinessById(session.businessId)
+      if (!bizRecord || bizRecord.guildId !== interaction.guild.id) {
+        await interaction.editReply({ content: 'This management session belongs to a different server.', components: [] })
+        return
+      }
+      managedBusiness = { business: bizRecord, rank: 'owner' as const }
+    }
+  } else {
+    managedBusiness = resolved.find((r) => r.business.id === session.businessId && (r.rank === 'manager' || r.rank === 'owner'))
+  }
 
-  if (!managedBusiness && !sudo) {
+  if (!managedBusiness) {
     await interaction.editReply({ content: 'You no longer have management access to this business.', components: [] })
     return
   }

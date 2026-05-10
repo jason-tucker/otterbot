@@ -6,7 +6,7 @@ import {
   GuildChannel,
   PermissionFlagsBits,
 } from 'discord.js'
-import { resolveBusinesses } from '../services/permissionService'
+import { resolveBusinesses, hasMinRank } from '../services/permissionService'
 import { isSudoUser } from '../services/sudoService'
 
 export const data = new SlashCommandBuilder()
@@ -51,11 +51,18 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   await interaction.deferReply({ ephemeral: true })
 
   const member = await interaction.guild.members.fetch(interaction.user.id)
-  const resolved = await resolveBusinesses(member)
+  const sudo = isSudoUser(member)
 
-  if (resolved.length === 0 && !isSudoUser(member)) {
-    await interaction.editReply('You do not have permission to use this command.')
-    return
+  if (!sudo) {
+    // CLAUDE.md says this is "Manager+" — but the previous gate accepted any
+    // employee of any business, including unrelated ones. Tighten to "manager
+    // of at least one business OR sudo".
+    const resolved = await resolveBusinesses(member)
+    const isManagerSomewhere = resolved.some(r => hasMinRank(r.rank, 'manager'))
+    if (!isManagerSomewhere) {
+      await interaction.editReply('You need to be a Manager of at least one business (or sudo) to move channels.')
+      return
+    }
   }
 
   const targetChannel = interaction.options.getChannel('channel', true) as GuildChannel

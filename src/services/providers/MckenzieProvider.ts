@@ -25,6 +25,21 @@ interface MkBusinessAccount {
 }
 
 
+/**
+ * Map an HTTP status to a generic error category. Avoids exposing MKE
+ * response bodies — which can contain PII for the affected character — in
+ * any user-facing string or log line.
+ */
+function errorCategoryFromStatus(status: number): string {
+  if (status === 401 || status === 403) return 'authentication / permission'
+  if (status === 404) return 'not found'
+  if (status === 409) return 'conflict'
+  if (status === 422) return 'validation'
+  if (status === 429) return 'rate-limited'
+  if (status >= 500) return 'upstream error'
+  return `http ${status}`
+}
+
 export class MckenzieProvider implements IBusinessProvider {
   private readonly baseUrl = env.EUPHORIC_API_BASE_URL
   private readonly apiKey = env.EUPHORIC_API_KEY
@@ -117,8 +132,10 @@ export class MckenzieProvider implements IBusinessProvider {
         signal: AbortSignal.timeout(8000),
       })
       if (!res.ok) {
-        const body = await res.text().catch(() => '')
-        console.warn(`[MKE] getNotes ${res.status} ${url} body=${body.slice(0, 200)}`)
+        // Don't log the response body — MKE error payloads can echo back
+        // PII (CSN / phone / bank fields) and journald retains otterbot logs.
+        // Status + URL is enough to triage without exposing PII.
+        console.warn(`[MKE] getNotes ${res.status} ${url}`)
         return []
       }
       const data = await res.json()
@@ -165,7 +182,10 @@ export class MckenzieProvider implements IBusinessProvider {
       })
       const text = await res.text().catch(() => '')
       if (!res.ok) {
-        return { ok: false, status: res.status, error: text.slice(0, 500) }
+        // Sanitize the error: surface only a category to the caller so
+        // downstream user-facing strings never carry MKE PII. Full body is
+        // not retained anywhere.
+        return { ok: false, status: res.status, error: errorCategoryFromStatus(res.status) }
       }
       let marker: ApiNote | undefined
       try { marker = text ? JSON.parse(text) as ApiNote : undefined } catch { /* non-JSON success */ }

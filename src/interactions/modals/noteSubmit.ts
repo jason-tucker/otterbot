@@ -47,7 +47,11 @@ export async function handleNoteSubmit(interaction: ModalSubmitInteraction): Pro
     apiOk = result.ok
     apiError = result.error
     if (!result.ok) {
-      console.warn(`[MKE] createMarker failed status=${result.status ?? 'n/a'} error=${result.error?.slice(0, 200)}`)
+      // Don't log result.error — it can be the raw MKE response body which
+      // may include PII for the affected character. Status code is enough
+      // to route the failure; the user-facing message in `apiError` carries
+      // the same hint without ending up in journald.
+      console.warn(`[MKE] createMarker failed status=${result.status ?? 'n/a'}`)
     }
   }
 
