@@ -21,6 +21,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Reliability
 - **Graceful shutdown on SIGTERM / SIGINT.** systemd sends SIGTERM on `systemctl restart`; without a handler the gateway connection drops abruptly + the health-push interval keeps spinning until the kill timeout. Now: stop the health push, `client.destroy()`, hard-exit after a 2 s drain window. Cleaner deploys, no more "RECONNECTING" tail.
+- **`MckenzieProvider.lookupByDiscordId` no longer trusts an `as`-cast.** Wraps `res.json()` in `.catch(() => null)` and filters items with a runtime `typeof p === 'object'` check, so a malformed MKE response can't crash the calling interaction handler.
+
+### Security
+- **`/report` is now per-user rate-limited (5 min cooldown).** Was a DM-spam vector — anyone could fire `/report` repeatedly and each submission DMs the bot owner. In-memory map keyed by user id, lazy sweep past size 200.
+- **Caked Up modal echoes are now markdown-safe.** `cakedContactSubmit.ts` and `cakedEventSubmit.ts` echo user input into channel messages wrapped in backtick code-spans; a backtick in the input would close the span early and let the rest render as markdown. New `utils/escape.ts` helpers (`safeInlineCode`, `safeMarkdownLinkLabel`, `safeMarkdown`) strip / escape the relevant characters.
+- **OC item names are now markdown-link-safe.** `embeds/ocEmbed.ts` interpolated `item.name` directly into `[label](url)` syntax. A manager could put `]` and `(...)` in a name to break out of the brackets and inject a different URL into the public OC embed. `safeMarkdownLinkLabel()` escapes the four problem characters (`\` `]` `[` `(` `)`).
 
 ### Changed
 - **Bot presence is now a Custom Status — no "Watching staff requests · " prefix, just the relative-time stamp.** Activity type flipped from `Watching` to `Custom` and the `staff requests · last used ` prefix dropped, so Discord renders the status as plain text (e.g. `12m ago` / `just now`). `_lastUsedAt` is now persisted to `.presence-state.json` (gitignored) and re-read on boot, so the stamp survives systemd restarts and deploys — the bot doesn't show up "fresh" right after a restart anymore. DND status text also uses Custom now for the same prefix-free look.

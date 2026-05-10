@@ -1,13 +1,15 @@
 import { type ModalSubmitInteraction, MessageFlags } from 'discord.js'
 import { ContainerBuilder, TextDisplayBuilder } from 'discord.js'
 import { CAKED_COLOR } from '../../commands/caked'
+import { safeInlineCode } from '../../utils/escape'
 
 export async function handleCakedContactSubmit(
   interaction: ModalSubmitInteraction
 ): Promise<void> {
-  const name = interaction.fields.getTextInputValue('name')
-  const phone = interaction.fields.getTextInputValue('phone') || '*Not provided*'
-  const bank = interaction.fields.getTextInputValue('bank')
+  const name = safeInlineCode(interaction.fields.getTextInputValue('name'))
+  const phoneRaw = interaction.fields.getTextInputValue('phone')
+  const phone = phoneRaw ? safeInlineCode(phoneRaw) : '*Not provided*'
+  const bank = safeInlineCode(interaction.fields.getTextInputValue('bank'))
 
   const container = new ContainerBuilder()
     .setAccentColor(CAKED_COLOR)

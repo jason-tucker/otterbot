@@ -63,11 +63,15 @@ export class MckenzieProvider implements IBusinessProvider {
 
     if (!res.ok) return []
 
-    const data = await res.json() as MkCharacterProfile[]
+    // Defensive parse — if MKE ever returns malformed JSON or a non-array
+    // shape, swallow the error and return [] rather than crashing the
+    // calling handler. Existing shape was an `as`-cast that would let bad
+    // data through silently.
+    const data = await res.json().catch(() => null) as MkCharacterProfile[] | null
     if (!Array.isArray(data)) return []
 
     return data
-      .filter((p) => p.status)
+      .filter((p) => p && typeof p === 'object' && p.status)
       .map(MckenzieProvider.mapToCharacter)
   }
 

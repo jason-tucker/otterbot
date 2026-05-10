@@ -15,6 +15,7 @@ import {
   type MessageActionRowComponentBuilder,
 } from 'discord.js'
 import type { OcStockItem, OcStockStatus } from '../services/ocStockService'
+import { safeMarkdownLinkLabel } from '../utils/escape'
 
 const OC_WEBSITE = 'https://ruubzz.wixsite.com/mysite/shop?sort=price_descending&OC+Orders=OC&page=2'
 
@@ -41,7 +42,13 @@ function sep(divider = true) {
 }
 
 function itemLine(item: OcStockItem): string {
-  const label = item.url ? `[${item.name}](${item.url})` : item.name
+  // Escape `]`, `(`, `)`, `\` in the item name when it goes inside a markdown
+  // link — otherwise a manager could put `]` and `(...)` characters in `name`
+  // to break out of the brackets and inject a different URL into the public
+  // OC embed. URL is already validated to http/https in ocUrlModal.
+  const label = item.url
+    ? `[${safeMarkdownLinkLabel(item.name)}](${item.url})`
+    : item.name
   return `${STATUS_EMOJI[item.status]} ${label}`
 }
 
