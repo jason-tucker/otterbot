@@ -15,6 +15,7 @@ import { getEmployeeBusinessConfig, getEmployeeBusinessConfigsForGuild } from '.
 import { buildEmployeeManageEmbed } from '../embeds/employeeManageEmbed'
 import { storeEmployeeSession } from '../services/interactionCache'
 import { getTargetStatus } from '../services/employeeService'
+import { getAllBusinesses } from '../services/portalService'
 import type { ResolvedBusiness } from '../types/domain'
 
 export type EmployeeManageInteraction =

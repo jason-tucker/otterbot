@@ -27,6 +27,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Interaction error logs now carry structured context.** Was `"Interaction error: <stack>"`; now `"Interaction error: cmd=lookup user=123 guild=456 <stack>"` — each failure includes command name / customId / context-menu name + user id + guild id. No more grepping customIds out of stack frames during triage.
 
 ### Fixed
+- **`commands/employee.ts` lost the `getAllBusinesses` import in the N+1 batching commit (485c07a) — TypeScript build failed and broke the CI pipeline for every otter deploy since.** The sudo-sees-all-businesses branch (line 57) still calls `getAllBusinesses`; only the cross-business summary fan-out moved to `getEmployeeBusinessConfigsForGuild`. Re-import. (Production was running stale code from before the batching commit until this lands; my local nohup process was newer than CI.)
 - **`utils/cv2.ts` was broken stub code — `sep()` / `sepLarge()` / `sepBlank()` recursed into themselves with no base case, hitting `Maximum call stack size exceeded` on every call.** Looked like an autocomplete-generated placeholder that got committed without the body. Caused `/help`, `/printinfo`, `/caked`, `/oc`, and several other commands that import `sep` to throw `RangeError` and surface as "An unexpected error occurred". Implemented for real now: each returns a fresh `SeparatorBuilder` with the spacing/divider combo the docstring describes.
 
 ### Reliability
