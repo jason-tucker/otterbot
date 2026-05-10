@@ -10,6 +10,9 @@ instructions.txt
 *.tsbuildinfo
 .presence-state.json
 
+# Claude Code agent worktrees + ephemeral plan files
+.claude/
+
 # Migration SQL files are never committed — schema is managed via drizzle-kit push
 src/db/migrations/*.sql
 src/db/migrations/meta

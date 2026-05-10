@@ -6,6 +6,7 @@ import { registerInteractionCreate } from './bot/events/interactionCreate'
 import { registerTicketChannelCreate } from './bot/events/ticketChannelCreate'
 import { setDnd, shutdownPresence } from './services/presence'
 import { stopHealthPush } from './bot/healthPush'
+import { closeDb } from './db/client'
 
 registerReadyEvent(client)
 registerInteractionCreate(client)
@@ -42,6 +43,7 @@ async function gracefulShutdown(signal: NodeJS.Signals): Promise<void> {
   shutdownPresence()
   stopHealthPush()
   try { await client.destroy() } catch (err) { console.warn('client.destroy failed', err) }
+  try { await closeDb() } catch (err) { console.warn('closeDb failed', err) }
   // SIGTERM → mimic the natural "unhandled signal" exit code (128 + 15 = 143)
   // so systemd's Restart=on-failure still triggers. SIGINT → clean exit.
   const code = signal === 'SIGTERM' ? 143 : 0
