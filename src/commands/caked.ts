@@ -3,51 +3,22 @@ import {
   ChatInputCommandInteraction,
   ButtonBuilder,
   ButtonStyle,
-} from 'discord.js'
-import { sepLarge } from '../utils/cv2'
-import {
-  ContainerBuilder,
-  TextDisplayBuilder,
-
-
   MessageFlags,
 } from 'discord.js'
 import { registerSendable, withSendButtonV2 } from '../utils/sendable'
+import {
+  CAKED_COLOR,
+  cakedMainContainer,
+} from '../services/cakedRenderers'
 
-export const CAKED_COLOR = 0xbf889d
+// Re-exported so existing button / modal handlers that import
+// `CAKED_COLOR` / `cakedMainContainer` from this module keep working.
+export { CAKED_COLOR, cakedMainContainer }
 
 export const data = new SlashCommandBuilder()
   .setName('caked')
   .setDescription('Caked Up order and event information')
   .setDMPermission(false)
-
-export function cakedMainContainer(): ContainerBuilder {
-  return new ContainerBuilder()
-    .setAccentColor(CAKED_COLOR)
-    .addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(
-        [
-          '# Please have the following information ready',
-          '',
-          '### Contact Information',
-          '- Name',
-          '- Phone Number',
-          '- Bank Number for Order',
-          '',
-          '### Event Information',
-          '- Event Date and Time',
-          '- Total people',
-          '- Dietary Restrictions',
-          '- Items you would like',
-          '',
-          '> 💰 Use the **Pricing** button below to view our rates.',
-        ].join('\n')
-      )
-    )
-    .addSeparatorComponents(
-      sepLarge()
-    )
-}
 
 registerSendable('caked:main', () => ({
   components: [cakedMainContainer()],
