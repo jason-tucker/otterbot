@@ -7,7 +7,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+- **Startup DM upgraded from plain text to a Components V2 card.** Bot tag with booted-relative timestamp, version + git SHA, full guild list rendered as a bullet section, footer hint about `/portal` + `/employee`. Wrapped in an orange-accented `ContainerBuilder` with separators, sent silently (`SuppressNotifications`) to `BOT_OWNER_ID`. CLAUDE.md's "all responses use Components V2" rule now extends to the startup DM.
+
 ### Security
+- **Postgres host port closed.** `5433` is no longer bound to `0.0.0.0`; the DB is reachable only over the new shared `botpanel-net` external docker network (alias `db-otter`) and via `docker exec` from the VPS host. External port scans now show `5433/tcp` as closed/filtered.
 - **`auditService.audit()` now sanitises the `details` payload before insertion.** Callers occasionally stuff error strings or nested objects into `details`, and there was no defence against accidentally including secrets or oversized blobs. New `sanitizeDetails()` helper redacts values whose key matches `/(token|secret|password|apikey|api_key|authorization)/i` (replaced with `'[REDACTED]'`) and truncates string values longer than 500 chars (with a `…` suffix). Public `AuditParams` shape unchanged.
 - **`/lookup` and the right-click Lookup context menu are now per-user rate-limited (30 s cooldown).** Prevents staff from accidentally hammering the MKE API with rapid retries. Lighter than `/report`'s 5-minute window — `/lookup` is the staff bread-and-butter command — but enough to break a stuck-button loop. Sudo users bypass. Shared `checkLookupCooldown()` helper lives in `commands/lookup.ts` and is imported by `commands/userLookup.ts` so both entry points share one map.
 - **`/report` GitHub API error logging is now sanitized.** `interactions/buttons/reportReview.ts` previously dumped the raw response body verbatim into journald on a non-OK response — when GitHub rate-limits / auths-fail / etc. the body can include HTML, PAT scope hints, or other diagnostic strings we don't want in plaintext logs. Now we parse the body as JSON and log `.message` truncated to 200 chars (falling back to `<non-JSON body>` otherwise). Status code is still logged.
