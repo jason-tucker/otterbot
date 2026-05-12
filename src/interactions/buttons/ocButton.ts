@@ -79,7 +79,7 @@ export async function handleOCButton(interaction: ButtonInteraction): Promise<vo
       return
     }
     const itemId = id.split(':')[1]
-    await removeStockItem(itemId)
+    await removeStockItem(itemId, interaction.user.id)
     const items = await getAllStock()
     await interaction.editReply({ ...buildOCManageEmbed(items), content: null } as any)
     return
