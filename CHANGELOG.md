@@ -8,6 +8,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- **`business.sync_roles` RPC verb** — panel can request a Discord-side role reconciliation for one business after editing role-mappings or owners. Walks `business_owners` + `business_role_mappings`, grants the expected Discord role per member's rank, removes any mismatched ranks. Returns `{added, removed, skipped[]}` for audit.
+
+### Added
 - **`users.resolve` RPC verb** — batch lookup of `[{id, username, displayName, avatarUrl}]` for up to 100 snowflakes. Pure cache read; returns null fields for users the bot doesn't have cached so the panel can fall back to displaying the raw id.
 
 - **`oc.stock_post` RPC verb** — posts the live OC stock card to a Discord channel. Reuses the same renderer as the `/oc → Send to Channel` button (`buildOCPublicContainer` in `embeds/ocEmbed.ts`, the single source of truth — imported by both the slash-command path and the new verb handler in `src/services/rpc/handlers/oc.ts`). Params `{channelId}` snowflake-validated; resolves via `client.channels.fetch().catch(() => null)` and returns `{ok:false, error:'channel-not-found'}` / `'not-text-based'` / handler error message; on success returns `{messageId, channelId}`.
