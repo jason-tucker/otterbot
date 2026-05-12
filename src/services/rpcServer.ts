@@ -38,6 +38,8 @@ import { getVerb } from './rpc/registry'
 // Side-effect imports — registering verbs at module-load is how the registry
 // gets populated. Add new verbs here.
 import './rpc/handlers/echo'
+// Wave 7c-B — employee hire/fire/promote/demote verbs.
+import './rpc/handlers/employee'
 
 const logger = createLogger('rpcServer')
 
