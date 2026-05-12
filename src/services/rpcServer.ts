@@ -40,6 +40,10 @@ import { getVerb } from './rpc/registry'
 import './rpc/handlers/echo'
 // Wave 7c-A — business.sync_roles verb (post-write Discord role reconciliation).
 import './rpc/handlers/business'
+// Wave 7d — users.resolve verb (snowflake→@username for panel display).
+import './rpc/handlers/users'
+// Wave 7c-C — oc.stock_post verb (publish stock card to a channel).
+import './rpc/handlers/oc'
 
 const logger = createLogger('rpcServer')
 
