@@ -8,6 +8,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- **`business.sync_roles` RPC verb** — panel can request a Discord-side role reconciliation for one business after editing role-mappings or owners. Walks `business_owners` + `business_role_mappings`, grants the expected Discord role per member's rank, removes any mismatched ranks. Returns `{added, removed, skipped[]}` for audit.
+
+### Added
 - **Bot-side Redis command-bus subscriber for the botpanel integration (`src/services/rpcServer.ts`).** New `ioredis`-backed lazy-singleton subscriber on `REDIS_URL` (kept separate from the publisher in `eventBus.ts` because a connection in subscribe mode can't publish) that `psubscribe`s `cmd.otter.*`. Each envelope (`{requestId, ts, hmac, params}`) is HMAC-SHA256-verified against `BOTPANEL_RPC_SECRET` over `${channel}|${requestId}|${ts}|${JSON.stringify(params)}` with a constant-time compare (`src/utils/hmac.ts`), replay-checked against a 30-second window plus an in-memory insertion-ordered LRU `Map` capped at 5000 `requestId`s, then dispatched to a verb registry (`src/services/rpc/registry.ts`). Replies publish on `res.<requestId>` via the existing event-bus publisher so we don't keep a third Redis client around. Unknown verbs reply `{ok:false, error:'unknown-verb'}`; HMAC mismatches drop silently with a warn (no information leak). Subscriber is non-blocking — if Redis is unreachable or `BOTPANEL_RPC_SECRET` is unset, the bot logs a warning and keeps running. Ships with one proof verb: `echo` (`src/services/rpc/handlers/echo.ts`) returns `{you_said: params, server_ts: Date.now()}`. Wired into `src/index.ts` after `client.login()` resolves, and into the graceful-shutdown path via `closeRpcServer()`. New optional env var: `BOTPANEL_RPC_SECRET`.
 
 ### Changed
