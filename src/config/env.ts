@@ -34,6 +34,12 @@ const envSchema = z.object({
   // /report — files GitHub issues from inside Discord
   GITHUB_TOKEN: z.string().optional(),
   GITHUB_REPO: z.string().regex(REPO_RE, 'must be in `owner/name` form').optional(),
+
+  // botpanel RPC command-bus — shared HMAC secret used to verify inbound
+  // `cmd.otter.*` envelopes from the panel. Optional: if unset, the RPC
+  // subscriber logs a warning at startup and never connects, so the bot
+  // continues to function as a publish-only client.
+  BOTPANEL_RPC_SECRET: z.string().min(1).optional(),
 })
 
 const parsed = envSchema.safeParse(process.env)
