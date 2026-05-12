@@ -1,5 +1,7 @@
 /**
- * `business.sync_roles` RPC verb — post-write Discord-role reconciliation.
+ * Business-domain RPC verbs.
+ *
+ * ── `business.sync_roles` — post-write Discord-role reconciliation ──
  *
  * The panel edits `business_role_mappings` + `business_owners` from
  * `/otter/businesses/[slug]`. Those edits change the DB but leave actual
@@ -27,6 +29,24 @@
  *
  * Params: `{ businessSlug: string }` — kebab-case, ≤64 chars.
  * Reply:  `{ok:true, data:{added, removed, skipped[]}} | {ok:false, error}`.
+ *
+ * ── `business.roster` — read-only member listing grouped by rank ──
+ *
+ * Powers the panel's per-business Members card. Walks
+ * `guild.members.cache` and groups each member into 'owner' / 'manager'
+ * / 'employee' based on the `business_role_mappings` role IDs for this
+ * business (plus `business_owners` rows for owners). Members holding
+ * none of the mapped roles are excluded.
+ *
+ * Pure cache read on the Discord side — never `.fetch()`s. The bot's
+ * GUILD_MEMBERS intent keeps the member cache warm; an empty cache
+ * means an empty roster rather than a 1000-member fetch storm.
+ *
+ * Params: `{ businessSlug: string }` — kebab-case, ≤64 chars. The
+ *   McKenzie slug (`mckenzie`) returns `mke-not-supported` because MKE
+ *   staff management lives on the external mke.euphoric.gg portal.
+ * Reply:  `{ok:true, data:{members:[{userId, username, displayName,
+ *   avatarUrl, rank}], counts:{owner, manager, employee}}}`.
  */
 import { eq, and } from 'drizzle-orm'
 import { db } from '../../../db/client'
@@ -208,4 +228,148 @@ registerVerb('business.sync_roles', async (params, ctx: VerbContext): Promise<Ve
   }
 
   return { ok: true, data: { added, removed, skipped } }
+})
+
+// ─── business.roster ──────────────────────────────────────────────────
+// Read-only member listing for one business, grouped by rank. The panel's
+// per-business Members card hits this on render so the operator sees the
+// whole staff list (owners + managers + employees) instead of only
+// DB-recorded owners.
+//
+// MKE is explicitly refused — its staff are managed on the external
+// mke.euphoric.gg portal, and surfacing a parallel roster here would
+// invite divergence. Slug check is the seeded `mckenzie` slug; the older
+// `mke` alias is also refused defensively.
+
+type RankedMember = {
+  userId: string
+  username: string
+  displayName: string
+  avatarUrl: string | null
+  rank: Rank
+}
+
+const RANK_ORDER: Record<Rank, number> = { owner: 0, manager: 1, employee: 2 }
+
+registerVerb('business.roster', async (params, ctx: VerbContext): Promise<VerbResult> => {
+  // ── Param validation ───────────────────────────────────────────────
+  if (!params || typeof params !== 'object') {
+    return { ok: false, error: 'bad-params' }
+  }
+  const slug = (params as { businessSlug?: unknown }).businessSlug
+  if (!isValidSlug(slug)) {
+    return { ok: false, error: 'bad-slug' }
+  }
+
+  // MKE / McKenzie is managed externally — no panel roster surface.
+  if (slug === 'mckenzie' || slug === 'mke') {
+    return { ok: false, error: 'mke-not-supported' }
+  }
+
+  // ── Load business by slug ──────────────────────────────────────────
+  const bizRows = await db
+    .select()
+    .from(businesses)
+    .where(eq(businesses.slug, slug))
+    .limit(1)
+  if (bizRows.length === 0) {
+    return { ok: false, error: 'business-not-found' }
+  }
+  const biz = bizRows[0]
+
+  // ── Load mappings + owner rows in parallel ─────────────────────────
+  const [ownerRows, mappingRows] = await Promise.all([
+    db
+      .select()
+      .from(businessOwners)
+      .where(eq(businessOwners.businessId, biz.id)),
+    db
+      .select()
+      .from(businessRoleMappings)
+      .where(
+        and(
+          eq(businessRoleMappings.businessId, biz.id),
+          eq(businessRoleMappings.guildId, biz.guildId),
+        ),
+      ),
+  ])
+
+  // Build per-rank role-id sets. Multiple mappings per rank are allowed
+  // (e.g. OC has three employee-rank roles), and any one of them counts
+  // as "in this rank" for the read-only roster.
+  const ownerRoleIds = new Set<string>()
+  const managerRoleIds = new Set<string>()
+  const employeeRoleIds = new Set<string>()
+  for (const m of mappingRows) {
+    if (m.rank === 'owner') ownerRoleIds.add(m.roleId)
+    else if (m.rank === 'manager') managerRoleIds.add(m.roleId)
+    else if (m.rank === 'employee') employeeRoleIds.add(m.roleId)
+  }
+  const dbOwnerSet = new Set(ownerRows.map((o) => o.discordUserId))
+
+  // ── Resolve the guild ──────────────────────────────────────────────
+  const guild = ctx.client.guilds.cache.get(biz.guildId)
+  if (!guild) {
+    return { ok: false, error: 'guild-not-found' }
+  }
+
+  // ── Walk the member cache + classify ───────────────────────────────
+  // Pure cache read; no .fetch() — see the verb-level comment for why.
+  // We also explicitly union in the DB-owner snowflakes so an owner who
+  // somehow doesn't have the owner role (data drift) still shows up.
+  const seen = new Set<string>()
+  const out: RankedMember[] = []
+
+  function classify(memberRoleIds: Set<string>, userId: string): Rank | null {
+    if (dbOwnerSet.has(userId)) return 'owner'
+    for (const rid of ownerRoleIds) if (memberRoleIds.has(rid)) return 'owner'
+    for (const rid of managerRoleIds) if (memberRoleIds.has(rid)) return 'manager'
+    for (const rid of employeeRoleIds) if (memberRoleIds.has(rid)) return 'employee'
+    return null
+  }
+
+  for (const member of guild.members.cache.values()) {
+    if (seen.has(member.id)) continue
+    const memberRoleIds = new Set(member.roles.cache.keys())
+    const rank = classify(memberRoleIds, member.id)
+    if (!rank) continue
+    seen.add(member.id)
+    out.push({
+      userId: member.id,
+      username: member.user.username,
+      displayName: member.displayName ?? member.user.username,
+      avatarUrl: (member ?? member.user).displayAvatarURL({ size: 64 }),
+      rank,
+    })
+  }
+
+  // Pick up DB owners not in the member cache (rare — they left the
+  // guild but the `business_owners` row wasn't cleaned up). They render
+  // with the raw snowflake as displayName so operators can still see +
+  // act on them.
+  for (const userId of dbOwnerSet) {
+    if (seen.has(userId)) continue
+    seen.add(userId)
+    const user = ctx.client.users.cache.get(userId)
+    out.push({
+      userId,
+      username: user?.username ?? userId,
+      displayName: user?.username ?? userId,
+      avatarUrl: user ? user.displayAvatarURL({ size: 64 }) : null,
+      rank: 'owner',
+    })
+  }
+
+  // Sort by (rank, displayName). Stable within rank groups so consecutive
+  // renders don't shuffle rows.
+  out.sort((a, b) => {
+    const r = RANK_ORDER[a.rank] - RANK_ORDER[b.rank]
+    if (r !== 0) return r
+    return a.displayName.localeCompare(b.displayName, undefined, { sensitivity: 'base' })
+  })
+
+  const counts = { owner: 0, manager: 0, employee: 0 }
+  for (const m of out) counts[m.rank] += 1
+
+  return { ok: true, data: { members: out, counts } }
 })
