@@ -1,5 +1,6 @@
 import { db } from '../db/client'
 import { auditLogs } from '../db/schema'
+import { publish, auditCh } from './eventBus'
 
 interface AuditParams {
   actorDiscordId: string
@@ -35,6 +36,8 @@ function sanitizeDetails(
 }
 
 export async function audit(params: AuditParams): Promise<void> {
+  const sanitizedDetails = sanitizeDetails(params.details)
+  const success = params.success ?? true
   await db.insert(auditLogs).values({
     actorDiscordId: params.actorDiscordId,
     actorName: params.actorName,
@@ -42,7 +45,20 @@ export async function audit(params: AuditParams): Promise<void> {
     action: params.action,
     targetType: params.targetType ?? null,
     targetId: params.targetId ?? null,
-    details: sanitizeDetails(params.details),
-    success: params.success ?? true,
+    details: sanitizedDetails,
+    success,
+  })
+  // Mirror every audit row to Redis — this is the firehose the panel
+  // subscribes to for the live audit-log tail. Non-blocking; never throws.
+  void publish(auditCh('written'), {
+    actorDiscordId: params.actorDiscordId,
+    actorName: params.actorName,
+    businessId: params.businessId ?? null,
+    action: params.action,
+    targetType: params.targetType ?? null,
+    targetId: params.targetId ?? null,
+    success,
+    details: sanitizedDetails,
+    ts: new Date().toISOString(),
   })
 }
