@@ -6,6 +6,7 @@ import { isSudoUser } from '../../services/sudoService'
 import { buildEmployeeManageEmbed } from '../../embeds/employeeManageEmbed'
 import { audit } from '../../services/auditService'
 import { getBusinessById } from '../../services/portalService'
+import { publish, employeeCh } from '../../services/eventBus'
 import {
   getEmployeeBusinessConfig,
   getEmployeeBusinessConfigsForGuild,
@@ -88,6 +89,14 @@ export async function handleEmployeeCustomRoleSelect(
       await removeCustomRole(interaction.guild, targetMember, customRole)
     }
     success = true
+    void publish(employeeCh(actionPart === 'assign' ? 'role_added' : 'role_removed'), {
+      businessId: session.businessId,
+      targetId: session.targetDiscordId,
+      action: auditAction,
+      by: interaction.user.id,
+      ts: new Date().toISOString(),
+      details: { role: customRole.label, roleId: customRole.roleId, businessSlug: config.slug },
+    })
   } catch (err) {
     if (err instanceof RoleMissingError) {
       await interaction.editReply({ content: `**Role not found:** \`${err.roleName}\`\nCheck role config in ${cmd('portal', interaction.guildId!)}.`, components: [] })

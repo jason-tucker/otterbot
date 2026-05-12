@@ -6,6 +6,7 @@ import { isSudoUser } from '../../services/sudoService'
 import { buildEmployeeManageEmbed } from '../../embeds/employeeManageEmbed'
 import { audit } from '../../services/auditService'
 import { addBusinessOwner, removeBusinessOwner, getBusinessById } from '../../services/portalService'
+import { publish, employeeCh, type EmployeeEvent } from '../../services/eventBus'
 import {
   getEmployeeBusinessConfig,
   getEmployeeBusinessConfigsForGuild,
@@ -172,6 +173,20 @@ export async function handleEmployeeActionButton(interaction: ButtonInteraction)
       }
     }
     success = true
+    // Mirror to Redis after the role mutation succeeded — the panel listens
+    // for these to update its employee-card view live. `audit_logs` is the
+    // authoritative record, this is just the live-tail.
+    const evt = mapAuditToEmployeeEvent(auditAction)
+    if (evt) {
+      void publish(employeeCh(evt), {
+        businessId: session.businessId,
+        targetId: session.targetDiscordId,
+        action: auditAction,
+        by: interaction.user.id,
+        ts: new Date().toISOString(),
+        details: { businessSlug: config.slug },
+      })
+    }
   } catch (err) {
     if (err instanceof RoleMissingError) {
       await interaction.editReply({ content: `**Role not found:** \`${err.roleName}\`\nCheck the business role config in ${cmd('portal', interaction.guildId!)}.`, components: [] })
@@ -213,4 +228,24 @@ export async function handleEmployeeActionButton(interaction: ButtonInteraction)
 
   const response = buildEmployeeManageEmbed(updatedTarget, config, updatedStatus, commandRank, sessionKey, sudo, allConfigsWithOwnership)
   await interaction.editReply(response)
+}
+
+/**
+ * Map an internal `audit_logs.action` string to the panel-facing employee
+ * event name. Returns `null` for actions that don't have a corresponding
+ * event (e.g. `block_self_manage_bot` audit lines, DB-owner-only changes).
+ */
+function mapAuditToEmployeeEvent(auditAction: string): EmployeeEvent | null {
+  switch (auditAction) {
+    case 'hire_employee':              return 'hired'
+    case 'fire_from_business':         return 'fired'
+    case 'promote_to_manager':         return 'promoted'
+    case 'promote_to_owner':           return 'promoted'
+    case 'demote_to_employee':         return 'demoted'
+    case 'demote_owner_to_manager':    return 'demoted'
+    case 'demote_owner_to_employee':   return 'demoted'
+    case 'make_db_owner':              return 'promoted'
+    case 'revoke_db_owner':            return 'demoted'
+    default: return null
+  }
 }

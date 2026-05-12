@@ -7,6 +7,7 @@ import { notes } from '../../db/schema'
 import { audit } from '../../services/auditService'
 import { getProvider } from '../../services/businessService'
 import { markerTypeLabel } from '../../services/providers/IBusinessProvider'
+import { publish, notesCh } from '../../services/eventBus'
 
 export async function handleNoteSubmit(interaction: ModalSubmitInteraction): Promise<void> {
   const parts = interaction.customId.split(':')
@@ -63,6 +64,13 @@ export async function handleNoteSubmit(interaction: ModalSubmitInteraction): Pro
     content: apiOk ? content : `[${typeLabel}] ${content}`,
     authorDiscordId: interaction.user.id,
     authorName: interaction.user.username,
+    visibility: 'staff',
+  })
+  void publish(notesCh('added'), {
+    businessId: session.businessId,
+    characterId: session.characterId,
+    by: interaction.user.id,
+    ts: new Date().toISOString(),
     visibility: 'staff',
   })
 
