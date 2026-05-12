@@ -8,6 +8,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- **`caked.message_post` RPC verb** — posts Caked contact/event/pricing/announcement cards to a Discord channel from the panel. Renderers extracted to `src/services/cakedRenderers.ts` if previously inline in `/caked`. Returns `{messageId, channelId, kind}`.
 - **`business.sync_roles` RPC verb** — panel can request a Discord-side role reconciliation for one business after editing role-mappings or owners. Walks `business_owners` + `business_role_mappings`, grants the expected Discord role per member's rank, removes any mismatched ranks. Returns `{added, removed, skipped[]}` for audit.
 
 ### Added

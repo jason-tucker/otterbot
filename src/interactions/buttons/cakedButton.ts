@@ -4,56 +4,17 @@ import {
   TextInputBuilder,
   TextInputStyle,
   ActionRowBuilder,
-} from 'discord.js'
-import { sepBlank } from '../../utils/cv2'
-import {
-  ContainerBuilder,
-  TextDisplayBuilder,
-
-  MediaGalleryBuilder,
-
   MessageFlags,
 } from 'discord.js'
-import { CAKED_COLOR } from '../../commands/caked'
+import { cakedPricingContainer } from '../../services/cakedRenderers'
 import { registerSendable, withSendButtonV2 } from '../../utils/sendable'
 
-// ── Pricing ────────────────────────────────────────────────────────────────
-
-function pricingContainer(): ContainerBuilder {
-  return new ContainerBuilder()
-    .setAccentColor(CAKED_COLOR)
-    .addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(
-        [
-          'Below is our base pricing for Custom Cakes! If you have any questions, or you\'d like something not listed, please let us know! You don\'t have to pay extra to have your cake picked up or delivered, but you will need to pay extra to have your event catered by us!',
-          '',
-          '# Custom Cake Prices',
-          '• **$3,500** — Custom Cake Design *(30 Slices/Cupcakes included)*',
-          '• **$2,000** — Rush Order Fee *(Less than 72 hours notice)*',
-          '',
-          '# Catering Pricing and Fees',
-          '• **$500** — 1 Employee for the __First Hour__',
-          '• **$1,000** — 1 Employee per additional hour',
-          '• **$1,000** — Per Additional Employee',
-          '',
-          '## Add Ons',
-          '• **$300** — Per 20 Slices/Cupcakes',
-          '• **$600** — Per 30 Drinks',
-        ].join('\n')
-      )
-    )
-    .addSeparatorComponents(
-      sepBlank()
-    )
-    .addMediaGalleryComponents(
-      new MediaGalleryBuilder().addItems([
-        { media: { url: 'http://i.jasontucker.me/1685847590-Illustrator_TUCKERPC_10_.png' } },
-      ])
-    )
-}
-
+// Pricing container lives in `services/cakedRenderers.ts` so the panel-side
+// `caked.message_post` verb can post the exact same card. Register the
+// sendable here at module load so Send-to-Channel still works for the
+// slash-command flow.
 registerSendable('caked:pricing', () => ({
-  components: [pricingContainer()],
+  components: [cakedPricingContainer()],
   flags: MessageFlags.IsComponentsV2,
 }))
 
@@ -151,6 +112,6 @@ export async function handleCakedButton(interaction: ButtonInteraction): Promise
   }
 
   if (action === 'pricing') {
-    await interaction.reply(withSendButtonV2('caked:pricing', pricingContainer()))
+    await interaction.reply(withSendButtonV2('caked:pricing', cakedPricingContainer()))
   }
 }
