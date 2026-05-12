@@ -2,6 +2,7 @@ import { eq, and } from 'drizzle-orm'
 import { db } from '../db/client'
 import { businesses, businessRoleMappings, businessOwners } from '../db/schema'
 import type { StaffRank } from '../types/domain'
+import { publish, businessCh } from './eventBus'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -96,7 +97,19 @@ export async function createBusiness(params: {
     const { invalidateKnownMckenzieBusinesses } = await import('./mckenzieBusinessCache')
     invalidateKnownMckenzieBusinesses()
   }
-  return toBusinessRecord(rows[0])
+  const record = toBusinessRecord(rows[0])
+  void publish(businessCh('created'), {
+    businessId: record.id,
+    by: params.createdBy,
+    ts: new Date().toISOString(),
+    delta: {
+      name: record.name,
+      slug: record.slug,
+      providerType: record.providerType,
+      guildId: record.guildId,
+    },
+  })
+  return record
 }
 
 export async function updateBusinessBasic(
@@ -122,6 +135,16 @@ export async function updateBusinessBasic(
   // so a rename is reflected on the next /lookup instead of waiting up to 60 s.
   const { invalidateKnownMckenzieBusinesses } = await import('./mckenzieBusinessCache')
   invalidateKnownMckenzieBusinesses()
+  void publish(businessCh('updated'), {
+    businessId: id,
+    by: params.updatedBy,
+    ts: new Date().toISOString(),
+    delta: {
+      ...(params.name !== undefined && { name: params.name }),
+      ...(params.slug !== undefined && { slug: params.slug }),
+      ...(params.providerType !== undefined && { providerType: params.providerType }),
+    },
+  })
 }
 
 export async function updateBusinessSettings(
@@ -139,6 +162,12 @@ export async function updateBusinessSettings(
   // settings write to be safe (cheap; cache rebuilds on next /lookup).
   const { invalidateKnownMckenzieBusinesses } = await import('./mckenzieBusinessCache')
   invalidateKnownMckenzieBusinesses()
+  void publish(businessCh('updated'), {
+    businessId: id,
+    by: updatedBy,
+    ts: new Date().toISOString(),
+    delta: { settings },
+  })
 }
 
 export async function toggleBusinessSetting(
@@ -160,6 +189,11 @@ export async function deactivateBusiness(id: string, deactivatedBy: string): Pro
     .where(eq(businesses.id, id))
   const { invalidateKnownMckenzieBusinesses } = await import('./mckenzieBusinessCache')
   invalidateKnownMckenzieBusinesses()
+  void publish(businessCh('deactivated'), {
+    businessId: id,
+    by: deactivatedBy,
+    ts: new Date().toISOString(),
+  })
 }
 
 export async function reactivateBusiness(id: string, reactivatedBy: string): Promise<void> {
@@ -173,6 +207,11 @@ export async function reactivateBusiness(id: string, reactivatedBy: string): Pro
       updatedBy: reactivatedBy,
     })
     .where(eq(businesses.id, id))
+  void publish(businessCh('reactivated'), {
+    businessId: id,
+    by: reactivatedBy,
+    ts: new Date().toISOString(),
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -219,7 +258,22 @@ export async function addRoleMapping(params: {
       },
     })
     .returning()
-  return toRoleMappingRecord(rows[0])
+  const record = toRoleMappingRecord(rows[0])
+  void publish(businessCh('role_mapping_added'), {
+    businessId: record.businessId,
+    roleId: record.roleId,
+    mappingId: record.id,
+    ts: new Date().toISOString(),
+    delta: {
+      roleName: record.roleName,
+      rank: record.rank,
+      label: record.label,
+      isBase: record.isBase,
+      autoGrantEmployee: record.autoGrantEmployee,
+      minRankToAssign: record.minRankToAssign,
+    },
+  })
+  return record
 }
 
 export async function updateRoleMapping(
@@ -237,10 +291,41 @@ export async function updateRoleMapping(
     .update(businessRoleMappings)
     .set(params)
     .where(eq(businessRoleMappings.id, mappingId))
+  // Re-read the row so the panel has the new businessId/roleId without
+  // making it derive them from the partial delta. Cheap — primary-key lookup.
+  const rows = await db
+    .select()
+    .from(businessRoleMappings)
+    .where(eq(businessRoleMappings.id, mappingId))
+    .limit(1)
+  if (rows.length > 0) {
+    void publish(businessCh('role_mapping_updated'), {
+      businessId: rows[0].businessId,
+      roleId: rows[0].roleId,
+      mappingId,
+      ts: new Date().toISOString(),
+      delta: params as Record<string, unknown>,
+    })
+  }
 }
 
 export async function removeRoleMapping(mappingId: string): Promise<void> {
+  // Capture businessId/roleId before delete so the published event carries
+  // the routing keys the panel needs to update its view.
+  const rows = await db
+    .select()
+    .from(businessRoleMappings)
+    .where(eq(businessRoleMappings.id, mappingId))
+    .limit(1)
   await db.delete(businessRoleMappings).where(eq(businessRoleMappings.id, mappingId))
+  if (rows.length > 0) {
+    void publish(businessCh('role_mapping_removed'), {
+      businessId: rows[0].businessId,
+      roleId: rows[0].roleId,
+      mappingId,
+      ts: new Date().toISOString(),
+    })
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -265,6 +350,12 @@ export async function addBusinessOwner(
     .insert(businessOwners)
     .values({ businessId, discordUserId, addedByDiscordId: addedBy })
     .onConflictDoNothing()
+  void publish(businessCh('owner_added'), {
+    businessId,
+    userId: discordUserId,
+    by: addedBy,
+    ts: new Date().toISOString(),
+  })
 }
 
 export async function removeBusinessOwner(
@@ -279,6 +370,11 @@ export async function removeBusinessOwner(
         eq(businessOwners.discordUserId, discordUserId),
       ),
     )
+  void publish(businessCh('owner_removed'), {
+    businessId,
+    userId: discordUserId,
+    ts: new Date().toISOString(),
+  })
 }
 
 // ---------------------------------------------------------------------------
