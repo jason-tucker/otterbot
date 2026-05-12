@@ -10,8 +10,18 @@ import { loadGuildCommandIds } from '../../utils/cmdMention'
 import { startHealthPush } from '../healthPush'
 import { initPresence, refreshPresence } from '../../services/presence'
 import { env } from '../../config/env'
+import { publishHeartbeat, publishReady } from '../../services/eventBus'
 
 const SUPPRESS_NOTIFICATIONS = 1 << 12  // MessageFlags.SuppressNotifications
+
+// Heartbeat cadence — must match what the panel expects on
+// `bot.otter.bot.heartbeat`. Botpanel marks a bot "stale" if it doesn't
+// see a heartbeat within ~2× this interval.
+const HEARTBEAT_INTERVAL_MS = 60_000
+
+// Module-level handle so a future reconnect / re-ready path doesn't double
+// the ticker. `unref()` so it doesn't block clean exit on SIGTERM.
+let heartbeatTimer: NodeJS.Timeout | null = null
 
 function sep() {
   return new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true)
@@ -21,6 +31,15 @@ export function registerReadyEvent(client: Client) {
   client.once('clientReady', async (c) => {
     console.log(`Logged in as ${c.user.tag}`)
     initPresence(c)
+
+    // Botpanel integration: one-shot `bot.ready` event + 60 s heartbeat
+    // ticker on `bot.otter.bot.heartbeat`. Both are fire-and-forget — Redis
+    // hiccups are logged inside `publish()` and never crash the bot.
+    void publishReady(c)
+    if (heartbeatTimer) clearInterval(heartbeatTimer)
+    heartbeatTimer = setInterval(() => { void publishHeartbeat(c) }, HEARTBEAT_INTERVAL_MS)
+    heartbeatTimer.unref()
+
     for (const [, guild] of c.guilds.cache) {
       await loadGuildCommandIds(guild)
     }
