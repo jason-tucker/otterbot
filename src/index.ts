@@ -7,6 +7,7 @@ import { registerTicketChannelCreate } from './bot/events/ticketChannelCreate'
 import { setDnd, shutdownPresence } from './services/presence'
 import { stopHealthPush } from './bot/healthPush'
 import { closeDb } from './db/client'
+import { startRpcServer, closeRpcServer } from './services/rpcServer'
 
 registerReadyEvent(client)
 registerInteractionCreate(client)
@@ -43,6 +44,7 @@ async function gracefulShutdown(signal: NodeJS.Signals): Promise<void> {
   shutdownPresence()
   stopHealthPush()
   try { await client.destroy() } catch (err) { console.warn('client.destroy failed', err) }
+  try { await closeRpcServer() } catch (err) { console.warn('closeRpcServer failed', err) }
   try { await closeDb() } catch (err) { console.warn('closeDb failed', err) }
   // SIGTERM → mimic the natural "unhandled signal" exit code (128 + 15 = 143)
   // so systemd's Restart=on-failure still triggers. SIGINT → clean exit.
@@ -52,4 +54,15 @@ async function gracefulShutdown(signal: NodeJS.Signals): Promise<void> {
 process.on('SIGTERM', () => { void gracefulShutdown('SIGTERM') })
 process.on('SIGINT',  () => { void gracefulShutdown('SIGINT') })
 
-client.login(env.DISCORD_BOT_TOKEN)
+client
+  .login(env.DISCORD_BOT_TOKEN)
+  .then(() => {
+    // Wire the botpanel RPC subscriber once the gateway login resolves so
+    // handlers always have a logged-in client to dispatch against. The
+    // subscriber itself is non-blocking — if Redis is down or the secret
+    // isn't set, it logs and returns without throwing.
+    startRpcServer(client)
+  })
+  .catch((err) => {
+    console.error('client.login failed', err)
+  })
