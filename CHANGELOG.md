@@ -7,6 +7,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **`business.roster` TS narrowing on `avatarUrl`.** Builder used `(member ?? member.user).displayAvatarURL(...)` which the type system narrowed to `never` (member is always defined in the cache iterator, so the right side is unreachable). `GuildMember.displayAvatarURL` exists already; the fallback was dead code.
+
 ### Added
 - **`business.roster` RPC verb** — read-only member listing for a business, grouped by rank (owner / manager / employee). Walks the guild's member cache + `business_role_mappings` role IDs + `business_owners` rows. Returns `{members[], counts}`. Refuses MKE (returns `mke-not-supported`) since MKE staff management lives on the external site.
 - **Four RPC verbs for employee management** (`employee.hire`, `employee.fire`, `employee.promote`, `employee.demote`). All delegate to `employeeService` — no duplicated logic. Returns `{before, after}` for the audit row.

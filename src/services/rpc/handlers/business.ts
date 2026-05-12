@@ -338,7 +338,7 @@ registerVerb('business.roster', async (params, ctx: VerbContext): Promise<VerbRe
       userId: member.id,
       username: member.user.username,
       displayName: member.displayName ?? member.user.username,
-      avatarUrl: (member ?? member.user).displayAvatarURL({ size: 64 }),
+      avatarUrl: member.displayAvatarURL({ size: 64 }),
       rank,
     })
   }
