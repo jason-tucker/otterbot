@@ -40,6 +40,10 @@ import { getVerb } from './rpc/registry'
 import './rpc/handlers/echo'
 // Wave 7c-D — caked.message_post verb.
 import './rpc/handlers/caked'
+// Wave 7d — users.resolve verb (snowflake→@username for panel display).
+import './rpc/handlers/users'
+// Wave 7c-C — oc.stock_post verb (publish stock card to a channel).
+import './rpc/handlers/oc'
 
 const logger = createLogger('rpcServer')
 
