@@ -8,6 +8,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- **`business.roster` RPC verb** — read-only member listing for a business, grouped by rank (owner / manager / employee). Walks the guild's member cache + `business_role_mappings` role IDs + `business_owners` rows. Returns `{members[], counts}`. Refuses MKE (returns `mke-not-supported`) since MKE staff management lives on the external site.
 - **Four RPC verbs for employee management** (`employee.hire`, `employee.fire`, `employee.promote`, `employee.demote`). All delegate to `employeeService` — no duplicated logic. Returns `{before, after}` for the audit row.
 - **`caked.message_post` RPC verb** — posts Caked contact/event/pricing/announcement cards to a Discord channel from the panel. Renderers extracted to `src/services/cakedRenderers.ts` if previously inline in `/caked`. Returns `{messageId, channelId, kind}`.
 - **`business.sync_roles` RPC verb** — panel can request a Discord-side role reconciliation for one business after editing role-mappings or owners. Walks `business_owners` + `business_role_mappings`, grants the expected Discord role per member's rank, removes any mismatched ranks. Returns `{added, removed, skipped[]}` for audit.
