@@ -38,6 +38,8 @@ import { getVerb } from './rpc/registry'
 // Side-effect imports — registering verbs at module-load is how the registry
 // gets populated. Add new verbs here.
 import './rpc/handlers/echo'
+// Wave 7d — users.resolve verb (snowflake→@username for panel display).
+import './rpc/handlers/users'
 // Wave 7c-C — oc.stock_post verb (publish stock card to a channel).
 import './rpc/handlers/oc'
 
