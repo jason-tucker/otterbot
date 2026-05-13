@@ -7,6 +7,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **`rpcServer` re-issues `psubscribe(cmd.otter.*)` on every Redis `ready` event** instead of only at startup. Previously, the initial psubscribe could fire before the TCP connection was up — ioredis returned "Stream isn't writeable and enableOfflineQueue options is false" and the bot ran for the rest of its lifetime without an active subscription. Every panel `callBot('otter', ...)` then timed out. The panel side hit this on every page render via `business.user_ranks` and added a flat 3s to TTFB. Reconnect cases are now also covered (the auto-resub built into ioredis is suppressed by `enableOfflineQueue: false`). Squishybot's rpcServer already had this pattern; otter's didn't.
+
+
 ### Added
 
 - **Three `meta.list_*` RPC verbs** (`meta.list_roles`, `meta.list_channels`, `meta.list_members`) — read-only listings of guild metadata for panel pickers. Mirrors squishybot's verbs from Wave 7d-A so `<RolePicker bot="otter">`, `<ChannelPicker bot="otter">`, and `<MemberPicker bot="otter">` work against the otter command bus with the same response shapes. Reads from `client.guilds.cache.first()` since otter is in a single guild today; future multi-guild support would add a `?guildId=` query.
