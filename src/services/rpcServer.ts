@@ -295,7 +295,25 @@ async function handleMessage(
     await sendReply(requestId, result)
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
-    logger.warn('rpc handler threw', { verb, requestId, error: msg })
+    // postgres-js wraps the underlying pg error as "Failed query: ..." which
+    // hides the actual SQLSTATE / detail. Unwrap any cause + pluck the
+    // properties postgres-js attaches (code, severity, detail, hint, where)
+    // so we have something actionable to diagnose with.
+    const pgFields: Record<string, unknown> = {}
+    const e = err as Record<string, unknown> | null
+    if (e && typeof e === 'object') {
+      for (const k of ['code', 'severity', 'detail', 'hint', 'where', 'schema', 'table', 'column', 'constraint']) {
+        if (e[k] !== undefined) pgFields[k] = e[k]
+      }
+      if (e.cause && typeof e.cause === 'object') {
+        const c = e.cause as Record<string, unknown>
+        if (c.message !== undefined) pgFields.causeMessage = c.message
+        for (const k of ['code', 'errno', 'syscall']) {
+          if (c[k] !== undefined) pgFields[`cause_${k}`] = c[k]
+        }
+      }
+    }
+    logger.warn('rpc handler threw', { verb, requestId, error: msg, ...pgFields })
     await sendReply(requestId, { ok: false, error: 'handler-threw', details: msg })
   }
 }
