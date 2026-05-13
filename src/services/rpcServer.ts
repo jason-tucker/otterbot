@@ -185,15 +185,35 @@ export function startRpcServer(client: Client): void {
     void handleMessage(client, secret, channel, message)
   })
 
-  subscriber
-    .psubscribe(CHANNEL_PATTERN)
-    .then((count) => {
-      logger.info('rpc subscriber psubscribed', { pattern: CHANNEL_PATTERN, count })
-    })
-    .catch((err: unknown) => {
-      const msg = err instanceof Error ? err.message : String(err)
-      logger.warn('psubscribe failed', { pattern: CHANNEL_PATTERN, error: msg })
-    })
+  // Idempotent psubscribe — call on initial start AND on every `ready` event
+  // (covers the original cold-start race where the eager psubscribe fired
+  // before the TCP connection was up, and reconnect cases where ioredis's
+  // auto-resub doesn't fire because `enableOfflineQueue: false` dropped the
+  // in-flight subscribe). ioredis dedups identical psubscribes server-side,
+  // so re-issuing on every ready is safe.
+  const doSubscribe = (label: string) => {
+    if (!subscriber) return
+    subscriber
+      .psubscribe(CHANNEL_PATTERN)
+      .then((count) => {
+        logger.info('rpc subscriber psubscribed', {
+          pattern: CHANNEL_PATTERN,
+          count,
+          label,
+        })
+      })
+      .catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : String(err)
+        logger.warn('psubscribe failed', {
+          pattern: CHANNEL_PATTERN,
+          error: msg,
+          label,
+        })
+      })
+  }
+
+  subscriber.on('ready', () => doSubscribe('on-ready'))
+  doSubscribe('initial')
 }
 
 /**
