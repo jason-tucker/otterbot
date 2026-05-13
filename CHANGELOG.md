@@ -7,6 +7,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Ops
+
+- **Schema-change → botpanel dispatch.** New `.github/workflows/notify-panel-schema-change.yml` fires a `repository_dispatch` (`bot-schema-changed`) at `jason-tucker/botpanel` whenever a push to `main` touches `src/db/schema/**`. Botpanel's companion `sync-bot-schema` workflow opens or updates a PR with the re-vendored Drizzle schemas. Closes the race that put botpanel's `main` into a red `verify-schemas` state for ~4 minutes after the `business_messages` merge on 2026-05-12. Auth: `BOTPANEL_DISPATCH_PAT` repo secret.
+
 ### Added
 - **Editable `/caked` and `/oc` card text via `business_messages` DB table.** New table maps `(business_id, message_key)` → body. The `/caked` Contact Info / Event Info / Pricing buttons and the `/oc` Requirements button now read overrides from this table; fall back to hardcoded defaults when no row exists. Three new RPC verbs (`business_messages.list`, `.update`, `.reset`) wrap the table, gated on manager+ rank for the matching business. Renderer-side LRU cache (60s) keeps the slash-command hot path fast.
 
