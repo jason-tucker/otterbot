@@ -131,7 +131,7 @@ export async function submitReport(input: SubmitReportInput): Promise<SubmitRepo
 
     await owner.send({ content: truncated, components: [row] })
   } catch (err) {
-    logger.error('Failed to DM bot owner about /report:', err)
+    logger.error('Failed to DM bot owner about /report', { error: err instanceof Error ? err.message : String(err) })
     return { ok: false, error: 'owner-dm-failed', details: (err as Error).message }
   }
 
