@@ -8,6 +8,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- **Editable `/caked` and `/oc` card text via `business_messages` DB table.** New table maps `(business_id, message_key)` → body. The `/caked` Contact Info / Event Info / Pricing buttons and the `/oc` Requirements button now read overrides from this table; fall back to hardcoded defaults when no row exists. Three new RPC verbs (`business_messages.list`, `.update`, `.reset`) wrap the table, gated on manager+ rank for the matching business. Renderer-side LRU cache (60s) keeps the slash-command hot path fast.
+
+### Database
+- New table `business_messages` with unique index on `(business_id, message_key)` and a per-business lookup index. Migration in `src/db/migrations/`.
+
+### Added
 - **`business.user_ranks` RPC verb** — given `{userId}`, returns `{ranks: {slug: 'owner'|'manager'|'employee'}}` covering every active business. Used by the panel's `resolveAccess()` to derive otter rank capabilities (manager/employee rank lives only as Discord roles, so the panel can't derive it from DB queries — `business_role_mappings` has no `user_id` column). DB-owner from `business_owners` wins over Discord role.
 
 ### Fixed
