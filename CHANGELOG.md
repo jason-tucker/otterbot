@@ -10,6 +10,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Fixed
 - **`rpcServer` re-issues `psubscribe(cmd.otter.*)` on every Redis `ready` event** instead of only at startup. Previously, the initial psubscribe could fire before the TCP connection was up — ioredis returned "Stream isn't writeable and enableOfflineQueue options is false" and the bot ran for the rest of its lifetime without an active subscription. Every panel `callBot('otter', ...)` then timed out. The panel side hit this on every page render via `business.user_ranks` and added a flat 3s to TTFB. Reconnect cases are now also covered (the auto-resub built into ioredis is suppressed by `enableOfflineQueue: false`). Squishybot's rpcServer already had this pattern; otter's didn't.
 
+### Changed
+- **`rpcServer` handler-threw catch block now logs the underlying postgres-js error fields** (`code`, `severity`, `detail`, `hint`, `where`, `cause.message`, etc.) instead of just the wrapped `"Failed query: …"` line. The panel surfaces `handler-threw` to the user but the bot-side log had no SQLSTATE or cause, making transient pool / role / schema failures undiagnosable. Hit by the OC stock manager today — bot reported `business_messages.list` threw with nothing more than the query text. The next time it throws we'll see why.
+
 
 ### Added
 
