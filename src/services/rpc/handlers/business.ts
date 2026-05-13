@@ -373,3 +373,101 @@ registerVerb('business.roster', async (params, ctx: VerbContext): Promise<VerbRe
 
   return { ok: true, data: { members: out, counts } }
 })
+
+// ────────────────────────────────────────────────────────────────────
+// business.user_ranks — given a userId, return their rank in every
+// business they hold a role in.
+//
+// Panel calls this from `loadOtterBusinesses` in lib/auth/perms.ts.
+// Manager/employee ranks live exclusively as Discord roles (the
+// `business_role_mappings` table has role_id → rank but no user_id),
+// so the panel can't derive them from DB alone. Owners are pulled
+// from `business_owners` (DB) since they may not always hold the
+// Discord owner role.
+//
+// Pure cache read — zero Discord API hits. The bot keeps guild
+// members cached via the GUILD_MEMBERS intent.
+// ────────────────────────────────────────────────────────────────────
+registerVerb('business.user_ranks', async (params, ctx: VerbContext): Promise<VerbResult> => {
+  const p = params as { userId?: unknown } | null
+  if (!p || typeof p !== 'object' || typeof p.userId !== 'string' || !/^\d{15,25}$/.test(p.userId)) {
+    return { ok: false, error: 'bad-user-id' }
+  }
+  const userId = p.userId
+
+  let allBusinesses: Array<{ id: string; slug: string; guildId: string }>
+  let allMappings: Array<{ businessId: string; roleId: string; rank: string }>
+  let dbOwners: Array<{ businessId: string }>
+  try {
+    allBusinesses = await db
+      .select({ id: businesses.id, slug: businesses.slug, guildId: businesses.guildId })
+      .from(businesses)
+      .where(eq(businesses.active, true))
+    allMappings = await db
+      .select({
+        businessId: businessRoleMappings.businessId,
+        roleId: businessRoleMappings.roleId,
+        rank: businessRoleMappings.rank,
+      })
+      .from(businessRoleMappings)
+    dbOwners = await db
+      .select({ businessId: businessOwners.businessId })
+      .from(businessOwners)
+      .where(eq(businessOwners.discordUserId, userId))
+  } catch (err) {
+    return { ok: false, error: 'db-error', details: err instanceof Error ? err.message : String(err) }
+  }
+
+  // Index mappings by businessId → {ownerRoles, managerRoles, employeeRoles}
+  const mapsByBusiness = new Map<string, { owner: Set<string>; manager: Set<string>; employee: Set<string> }>()
+  for (const m of allMappings) {
+    let entry = mapsByBusiness.get(m.businessId)
+    if (!entry) {
+      entry = { owner: new Set(), manager: new Set(), employee: new Set() }
+      mapsByBusiness.set(m.businessId, entry)
+    }
+    if (m.rank === 'owner') entry.owner.add(m.roleId)
+    else if (m.rank === 'manager') entry.manager.add(m.roleId)
+    else if (m.rank === 'employee') entry.employee.add(m.roleId)
+  }
+
+  const dbOwnerBusinessIds = new Set(dbOwners.map((o) => o.businessId))
+
+  // Group businesses by guild so we minimize member-cache lookups.
+  const guildIds = new Set(allBusinesses.map((b) => b.guildId))
+  const memberRolesByGuild = new Map<string, Set<string>>()
+  for (const gid of guildIds) {
+    const guild = ctx.client.guilds.cache.get(gid)
+    if (!guild) continue
+    const member = guild.members.cache.get(userId)
+    if (!member) continue
+    memberRolesByGuild.set(gid, new Set(member.roles.cache.keys()))
+  }
+
+  const ranks: Record<string, 'owner' | 'manager' | 'employee'> = {}
+
+  for (const b of allBusinesses) {
+    // DB-owner is the strongest signal — wins over Discord role check.
+    if (dbOwnerBusinessIds.has(b.id)) {
+      ranks[b.slug] = 'owner'
+      continue
+    }
+    const memberRoleIds = memberRolesByGuild.get(b.guildId)
+    if (!memberRoleIds) continue
+    const m = mapsByBusiness.get(b.id)
+    if (!m) continue
+
+    let rank: 'owner' | 'manager' | 'employee' | null = null
+    for (const rid of memberRoleIds) {
+      if (m.owner.has(rid)) {
+        rank = 'owner'
+        break
+      }
+      if (m.manager.has(rid) && rank !== 'owner') rank = 'manager'
+      else if (m.employee.has(rid) && rank === null) rank = 'employee'
+    }
+    if (rank) ranks[b.slug] = rank
+  }
+
+  return { ok: true, data: { ranks } }
+})
