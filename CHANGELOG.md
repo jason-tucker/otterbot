@@ -8,6 +8,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Fixed
+- **`business_messages.list` / `.update` / `.reset` now treat the bot owner as implicit owner-rank for every business, and fall back to `.fetch()` on member-cache miss.** The panel's `/otter/caked` and `/otter/oc-stock` "Edit message content" cards were returning `Couldn't load editor — The bot returned forbidden` for the bot owner because `actorRankForBusiness` only checked DB-owner + Discord role mappings (a pure cache read). Bot-owner doesn't typically hold a per-business manager role explicitly, and quiet members miss the in-process member cache. Both cases now resolve: `BOT_OWNER_ID` env match short-circuits to `'owner'`, and a cache-miss triggers a `guild.members.fetch()` (best-effort) which both authorizes the request AND primes the cache for next time. Matches the cache-miss fix that landed for `users.resolve` and the panel's bot-owner posture.
+
 - **`rpcServer` re-issues `psubscribe(cmd.otter.*)` on every Redis `ready` event** instead of only at startup. Previously, the initial psubscribe could fire before the TCP connection was up — ioredis returned "Stream isn't writeable and enableOfflineQueue options is false" and the bot ran for the rest of its lifetime without an active subscription. Every panel `callBot('otter', ...)` then timed out. The panel side hit this on every page render via `business.user_ranks` and added a flat 3s to TTFB. Reconnect cases are now also covered (the auto-resub built into ioredis is suppressed by `enableOfflineQueue: false`). Squishybot's rpcServer already had this pattern; otter's didn't.
 
 

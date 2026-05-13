@@ -31,6 +31,7 @@
 import { and, eq, inArray } from 'drizzle-orm'
 import { db } from '../../../db/client'
 import { businesses, businessRoleMappings, businessOwners } from '../../../db/schema'
+import { env } from '../../../config/env'
 import { registerVerb, type VerbContext, type VerbResult } from '../registry'
 import {
   deleteBusinessMessage,
@@ -68,18 +69,28 @@ async function loadBusinessBySlug(slug: string): Promise<ResolvedBiz | null> {
 }
 
 /**
- * Check `actorUserId` has manager-or-owner rank for `biz`. Two signals:
- *   1. `business_owners` row → 'owner'.
- *   2. Discord role in `biz.guildId` mapped to manager/owner rank.
+ * Check `actorUserId` has manager-or-owner rank for `biz`. Three signals:
+ *   1. `BOT_OWNER_ID` env match → implicit 'owner' (mirrors how the panel
+ *      treats bot-owner as authorized for every business — without this
+ *      the bot would refuse manager+ verbs from the bot-owner unless they
+ *      happen to hold the right Discord role, which surprised users on
+ *      `/otter/caked` and `/otter/oc-stock`).
+ *   2. `business_owners` row → 'owner'.
+ *   3. Discord role in `biz.guildId` mapped to manager/owner rank. Member
+ *      cache lookup with a `.fetch()` fallback for members the bot hasn't
+ *      seen recently (mirrors the cache-miss fix on `users.resolve`).
  *
- * Returns the rank, or null if the actor has neither. Pure cache read on
- * the Discord side — never `.fetch()`s, mirroring `business.user_ranks`.
+ * Returns the rank, or null if the actor has none of the above.
  */
 async function actorRankForBusiness(
   ctx: VerbContext,
   biz: ResolvedBiz,
   actorUserId: string,
 ): Promise<Rank | null> {
+  // Bot-owner short-circuit. Matches the panel's `access.botOwner` gate on
+  // every page that calls this verb.
+  if (env.BOT_OWNER_ID && actorUserId === env.BOT_OWNER_ID) return 'owner'
+
   // DB-owner wins regardless of role state.
   const ownerRows = await db
     .select({ id: businessOwners.id })
@@ -95,7 +106,15 @@ async function actorRankForBusiness(
 
   const guild = ctx.client.guilds.cache.get(biz.guildId)
   if (!guild) return null
-  const member = guild.members.cache.get(actorUserId)
+
+  // Try cache first, fall back to API fetch. The bot has GUILD_MEMBERS
+  // intent but doesn't pre-warm the cache at boot — quiet members (no
+  // recent typing/voice/reaction activity) miss the cache and used to
+  // get a spurious `forbidden`. .fetch() primes the cache for next time.
+  let member = guild.members.cache.get(actorUserId)
+  if (!member) {
+    member = await guild.members.fetch(actorUserId).catch(() => undefined)
+  }
   if (!member) return null
 
   const memberRoleIds = [...member.roles.cache.keys()]
