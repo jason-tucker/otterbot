@@ -7,6 +7,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- **`business.user_ranks` RPC verb** — given `{userId}`, returns `{ranks: {slug: 'owner'|'manager'|'employee'}}` covering every active business. Used by the panel's `resolveAccess()` to derive otter rank capabilities (manager/employee rank lives only as Discord roles, so the panel can't derive it from DB queries — `business_role_mappings` has no `user_id` column). DB-owner from `business_owners` wins over Discord role.
+
 ### Fixed
 - **`business.roster` TS narrowing on `avatarUrl`.** Builder used `(member ?? member.user).displayAvatarURL(...)` which the type system narrowed to `never` (member is always defined in the cache iterator, so the right side is unreachable). `GuildMember.displayAvatarURL` exists already; the fallback was dead code.
 
