@@ -52,6 +52,9 @@ import './rpc/handlers/oc'
 import './rpc/handlers/business_messages'
 // report.submit verb — panel /report page mirrors the slash modal.
 import './rpc/handlers/report'
+// meta.list_{roles,channels,members} — read-only listings for panel pickers
+// (<RolePicker bot="otter">, <ChannelPicker bot="otter">, <MemberPicker bot="otter">).
+import './rpc/handlers/meta'
 
 const logger = createLogger('rpcServer')
 
