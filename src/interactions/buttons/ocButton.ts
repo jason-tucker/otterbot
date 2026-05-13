@@ -3,6 +3,11 @@ import { resolveBusinesses, hasMinRank } from '../../services/permissionService'
 import { getAllStock, getStockById, updateStockStatus, removeStockItem } from '../../services/ocStockService'
 import { buildOCManageEmbed, buildOCEditItemEmbed, buildOCAddModal, buildOCUrlModal, buildOCRequirementsEmbed } from '../../embeds/ocEmbed'
 import type { OcStockStatus } from '../../services/ocStockService'
+import {
+  OC_EDITABLE_KEYS,
+  getBusinessMessageOverrides,
+  resolveBusinessIdBySlug,
+} from '../../services/businessMessagesService'
 
 async function requireOCManager(interaction: ButtonInteraction) {
   if (!interaction.guild) return null
@@ -18,7 +23,11 @@ export async function handleOCButton(interaction: ButtonInteraction): Promise<vo
   // ── Requirements ────────────────────────────────────────────────────────
   if (id === 'oc_requirements') {
     await interaction.deferReply({ ephemeral: true })
-    await interaction.editReply({ ...buildOCRequirementsEmbed(), content: null } as any)
+    const businessId = await resolveBusinessIdBySlug('original-clothing')
+    const overrides = businessId
+      ? await getBusinessMessageOverrides(businessId, OC_EDITABLE_KEYS)
+      : {}
+    await interaction.editReply({ ...buildOCRequirementsEmbed(overrides), content: null } as any)
     return
   }
 

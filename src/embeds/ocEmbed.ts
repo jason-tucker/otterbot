@@ -16,6 +16,7 @@ import {
 } from 'discord.js'
 import type { OcStockItem, OcStockStatus } from '../services/ocStockService'
 import { safeMarkdownLinkLabel } from '../utils/escape'
+import { OC_DEFAULTS } from '../services/businessMessagesService'
 
 const OC_WEBSITE = 'https://ruubzz.wixsite.com/mysite/shop?sort=price_descending&OC+Orders=OC&page=2'
 
@@ -236,9 +237,19 @@ export function buildOCEditItemEmbed(item: OcStockItem) {
   }
 }
 
-const FORUMS_URL = 'https://newdayrp.com/forums/gangs-criminal-organizations.67/'
+/**
+ * OC Requirements embed. Each body section reads from the optional
+ * `overrides` map (keyed by `OC_*` keys defined in
+ * `businessMessagesService.OC_DEFAULTS`) and falls back to the hardcoded
+ * default body when no override is set. Layout, header and separators
+ * stay hardcoded — only section bodies are editable.
+ */
+export function buildOCRequirementsEmbed(overrides?: Record<string, string>) {
+  const body = (key: keyof typeof OC_DEFAULTS): string => {
+    if (overrides && overrides[key]) return overrides[key]
+    return OC_DEFAULTS[key].body
+  }
 
-export function buildOCRequirementsEmbed() {
   const container = new ContainerBuilder().setAccentColor(0x1a1a2e)
 
   container.addTextDisplayComponents(
@@ -247,51 +258,27 @@ export function buildOCRequirementsEmbed() {
 
   container.addSeparatorComponents(sep())
   container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent(
-      `**Eligibility**\n` +
-      `- Businesses require at least **5 active staff members**; MC/Groups require **8 active members**\n` +
-      `- A valid **Social Club license** and **Business & Premises license** are required\n` +
-      `- Gangs/organizations must have been active for at least **30 days**\n` +
-      `- Recommended: maintain an [active forum post](${FORUMS_URL}) for your gang or organization`
-    )
+    new TextDisplayBuilder().setContent(body('oc.requirements.eligibility'))
   )
 
   container.addSeparatorComponents(sep())
   container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent(
-      `**Item Limits**\n` +
-      `- Each group starts with a maximum of **3 clothing items** — this is a hard limit\n` +
-      `- Groups earn **+1 item per year of activity**, up to a maximum of **5 items total**`
-    )
+    new TextDisplayBuilder().setContent(body('oc.requirements.item_limits'))
   )
 
   container.addSeparatorComponents(sep())
   container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent(
-      `**Communication & Vetting**\n` +
-      `- OC requires direct communication with the **owner or leader** of your group\n` +
-      `- We work with the Department of Commerce and Labor and run **background checks** on every order to verify activity`
-    )
+    new TextDisplayBuilder().setContent(body('oc.requirements.communication'))
   )
 
   container.addSeparatorComponents(sep())
   container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent(
-      `**Activity & Removal**\n` +
-      `- Activity checks are conducted **weekly or bi-weekly**\n` +
-      `- If your activity or member count falls below requirements, you'll be given a **2-week deadline** to recover\n` +
-      `- **1 month of inactivity** will result in clothing removal — contact us beforehand if inactivity is planned\n` +
-      `- If your Social Club/Business & Premises license is **terminated**, clothing is removed immediately\n` +
-      `- OC reserves the right to remove clothing **with or without notice** for valid reasons (activity, licensing, federal)`
-    )
+    new TextDisplayBuilder().setContent(body('oc.requirements.activity'))
   )
 
   container.addSeparatorComponents(sep())
   container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent(
-      `**Licensing**\n` +
-      `-# By authorizing use of your assets on NewDayRP, you permanently and irrevocably waive your copyright and related rights for use on NewDayRP. Asset removal may be requested and will be honoured at OC's discretion.`
-    )
+    new TextDisplayBuilder().setContent(body('oc.requirements.licensing'))
   )
 
   return { flags: MessageFlags.IsComponentsV2, components: [container] as any[] }

@@ -20,6 +20,11 @@ import {
   cakedAnnouncementContainer,
 } from '../../cakedRenderers'
 import { parseSnowflake } from '../../../utils/validators'
+import {
+  CAKED_EDITABLE_KEYS,
+  getBusinessMessageOverrides,
+  resolveBusinessIdBySlug,
+} from '../../businessMessagesService'
 
 const KINDS = ['contact', 'event', 'pricing', 'announcement'] as const
 type CakedKind = (typeof KINDS)[number]
@@ -88,14 +93,25 @@ registerVerb('caked.message_post', async (params, ctx) => {
     return { ok: false, error: 'not-text-based' }
   }
 
+  // Pull the latest panel-edited overrides so a card posted from the panel
+  // mirrors what the slash-command flow renders (single source of truth).
+  // Announcements skip this — their body is per-call freeform text.
+  let overrides: Record<string, string> = {}
+  if (parsed.kind !== 'announcement') {
+    const businessId = await resolveBusinessIdBySlug('caked-up')
+    if (businessId) {
+      overrides = await getBusinessMessageOverrides(businessId, CAKED_EDITABLE_KEYS)
+    }
+  }
+
   const container = (() => {
     switch (parsed.kind) {
       case 'contact':
-        return cakedContactInfoContainer()
+        return cakedContactInfoContainer(overrides)
       case 'event':
-        return cakedEventInfoContainer()
+        return cakedEventInfoContainer(overrides)
       case 'pricing':
-        return cakedPricingContainer()
+        return cakedPricingContainer(overrides)
       case 'announcement':
         return cakedAnnouncementContainer(parsed.body!)
     }

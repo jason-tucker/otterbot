@@ -48,6 +48,8 @@ import './rpc/handlers/business'
 import './rpc/handlers/users'
 // Wave 7c-C — oc.stock_post verb (publish stock card to a channel).
 import './rpc/handlers/oc'
+// business_messages.* verbs (panel-editable /caked + /oc card bodies).
+import './rpc/handlers/business_messages'
 
 const logger = createLogger('rpcServer')
 
