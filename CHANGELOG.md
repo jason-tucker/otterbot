@@ -7,6 +7,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **`report.submit` RPC verb** — panel mirrors the `/report` slash modal: same fields, same DM-owner approval, same GitHub issue creation. Verb delegates to a shared `reportRequestService` helper.
+
 ### Ops
 
 - **Schema-change → botpanel dispatch.** New `.github/workflows/notify-panel-schema-change.yml` fires a `repository_dispatch` (`bot-schema-changed`) at `jason-tucker/botpanel` whenever a push to `main` touches `src/db/schema/**`. Botpanel's companion `sync-bot-schema` workflow opens or updates a PR with the re-vendored Drizzle schemas. Closes the race that put botpanel's `main` into a red `verify-schemas` state for ~4 minutes after the `business_messages` merge on 2026-05-12. Auth: `BOTPANEL_DISPATCH_PAT` repo secret.

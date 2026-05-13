@@ -50,6 +50,8 @@ import './rpc/handlers/users'
 import './rpc/handlers/oc'
 // business_messages.* verbs (panel-editable /caked + /oc card bodies).
 import './rpc/handlers/business_messages'
+// report.submit verb — panel /report page mirrors the slash modal.
+import './rpc/handlers/report'
 
 const logger = createLogger('rpcServer')
 
