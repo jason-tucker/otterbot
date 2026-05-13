@@ -10,6 +10,11 @@ import {
   CAKED_COLOR,
   cakedMainContainer,
 } from '../services/cakedRenderers'
+import {
+  CAKED_EDITABLE_KEYS,
+  getBusinessMessageOverrides,
+  resolveBusinessIdBySlug,
+} from '../services/businessMessagesService'
 
 // Re-exported so existing button / modal handlers that import
 // `CAKED_COLOR` / `cakedMainContainer` from this module keep working.
@@ -20,6 +25,11 @@ export const data = new SlashCommandBuilder()
   .setDescription('Caked Up order and event information')
   .setDMPermission(false)
 
+// The "caked:main" send key is re-registered inside `execute()` so the
+// Send-to-Channel button posts exactly what the user is currently looking
+// at — overrides included. (The /oc command uses the same pattern.) We
+// keep the static registration here as a safety net for older ephemeral
+// embeds that might still have the button pointing at this key.
 registerSendable('caked:main', () => ({
   components: [cakedMainContainer()],
   flags: MessageFlags.IsComponentsV2,
@@ -44,5 +54,17 @@ const cakedNavButtons = [
 ]
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  await interaction.reply(withSendButtonV2('caked:main', cakedMainContainer(), cakedNavButtons))
+  const businessId = await resolveBusinessIdBySlug('caked-up')
+  const overrides = businessId
+    ? await getBusinessMessageOverrides(businessId, CAKED_EDITABLE_KEYS)
+    : {}
+  const container = cakedMainContainer(overrides)
+  // Re-register the send key against this exact override snapshot so
+  // Send-to-Channel posts what the user is reading right now, not the
+  // static default. Same trick `/oc` uses with a per-interaction key.
+  registerSendable('caked:main', () => ({
+    components: [cakedMainContainer(overrides)],
+    flags: MessageFlags.IsComponentsV2,
+  }))
+  await interaction.reply(withSendButtonV2('caked:main', container, cakedNavButtons))
 }

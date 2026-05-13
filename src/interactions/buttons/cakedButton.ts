@@ -8,11 +8,18 @@ import {
 } from 'discord.js'
 import { cakedPricingContainer } from '../../services/cakedRenderers'
 import { registerSendable, withSendButtonV2 } from '../../utils/sendable'
+import {
+  CAKED_EDITABLE_KEYS,
+  getBusinessMessageOverrides,
+  resolveBusinessIdBySlug,
+} from '../../services/businessMessagesService'
 
 // Pricing container lives in `services/cakedRenderers.ts` so the panel-side
 // `caked.message_post` verb can post the exact same card. Register the
 // sendable here at module load so Send-to-Channel still works for the
-// slash-command flow.
+// slash-command flow even when the user hasn't actually clicked the button
+// in this process yet. The button handler re-registers it with the latest
+// overrides applied right before the user sees the ephemeral.
 registerSendable('caked:pricing', () => ({
   components: [cakedPricingContainer()],
   flags: MessageFlags.IsComponentsV2,
@@ -112,6 +119,15 @@ export async function handleCakedButton(interaction: ButtonInteraction): Promise
   }
 
   if (action === 'pricing') {
-    await interaction.reply(withSendButtonV2('caked:pricing', cakedPricingContainer()))
+    const businessId = await resolveBusinessIdBySlug('caked-up')
+    const overrides = businessId
+      ? await getBusinessMessageOverrides(businessId, CAKED_EDITABLE_KEYS)
+      : {}
+    const container = cakedPricingContainer(overrides)
+    registerSendable('caked:pricing', () => ({
+      components: [cakedPricingContainer(overrides)],
+      flags: MessageFlags.IsComponentsV2,
+    }))
+    await interaction.reply(withSendButtonV2('caked:pricing', container))
   }
 }
