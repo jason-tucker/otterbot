@@ -463,7 +463,9 @@ registerVerb('business.user_ranks', async (params, ctx: VerbContext): Promise<Ve
         rank = 'owner'
         break
       }
-      if (m.manager.has(rid) && rank !== 'owner') rank = 'manager'
+      // owner branch above always `break`s, so `rank` here is narrowed
+      // to 'manager' | 'employee' | null — no need to recheck != 'owner'.
+      if (m.manager.has(rid)) rank = 'manager'
       else if (m.employee.has(rid) && rank === null) rank = 'employee'
     }
     if (rank) ranks[b.slug] = rank
