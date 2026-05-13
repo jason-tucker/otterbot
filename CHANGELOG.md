@@ -9,6 +9,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **Three `meta.list_*` RPC verbs** (`meta.list_roles`, `meta.list_channels`, `meta.list_members`) — read-only listings of guild metadata for panel pickers. Mirrors squishybot's verbs from Wave 7d-A so `<RolePicker bot="otter">`, `<ChannelPicker bot="otter">`, and `<MemberPicker bot="otter">` work against the otter command bus with the same response shapes. Reads from `client.guilds.cache.first()` since otter is in a single guild today; future multi-guild support would add a `?guildId=` query.
+
 - **`report.submit` RPC verb** — panel mirrors the `/report` slash modal: same fields, same DM-owner approval, same GitHub issue creation. Verb delegates to a shared `reportRequestService` helper.
 
 ### Ops
