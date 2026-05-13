@@ -55,6 +55,8 @@ import './rpc/handlers/report'
 // meta.list_{roles,channels,members} — read-only listings for panel pickers
 // (<RolePicker bot="otter">, <ChannelPicker bot="otter">, <MemberPicker bot="otter">).
 import './rpc/handlers/meta'
+// discord.move_channel verb — panel /otter/move-channel mirrors /movechannel.
+import './rpc/handlers/move_channel'
 
 const logger = createLogger('rpcServer')
 
