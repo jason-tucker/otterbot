@@ -295,8 +295,20 @@ async function handleMessage(
     await sendReply(requestId, result)
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
-    logger.warn('rpc handler threw', { verb, requestId, error: msg })
-    await sendReply(requestId, { ok: false, error: 'handler-threw', details: msg })
+    // Drizzle wraps the postgres-js error on `.cause` and replaces `.message`
+    // with a generic "Failed query: ...". Surface the cause so the actual
+    // PG error (relation missing, NOT NULL violation, connection terminated,
+    // etc.) reaches the logs instead of being swallowed.
+    const cause =
+      err instanceof Error && err.cause instanceof Error
+        ? err.cause.message
+        : undefined
+    logger.warn('rpc handler threw', { verb, requestId, error: msg, cause })
+    await sendReply(requestId, {
+      ok: false,
+      error: 'handler-threw',
+      details: cause ?? msg,
+    })
   }
 }
 

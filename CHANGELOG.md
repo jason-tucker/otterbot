@@ -8,6 +8,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Fixed
+- **`rpcServer` handler-threw replies now carry the underlying postgres-js cause.** Drizzle wraps every query error in a `DrizzleQueryError` whose `.message` is the generic `Failed query: …` template and whose `.cause` holds the real PG error (relation missing, NOT NULL violation, connection terminated, etc.). The catch block in `rpcServer.ts` only stringified `.message`, so the panel UI got `handler-threw` with no actionable detail and the bot's own log line had the same hole. Both the `logger.warn(...)` call and the `details` field on the `{ok:false}` reply now prefer `err.cause.message` when present.
 - **`rpcServer` re-issues `psubscribe(cmd.otter.*)` on every Redis `ready` event** instead of only at startup. Previously, the initial psubscribe could fire before the TCP connection was up — ioredis returned "Stream isn't writeable and enableOfflineQueue options is false" and the bot ran for the rest of its lifetime without an active subscription. Every panel `callBot('otter', ...)` then timed out. The panel side hit this on every page render via `business.user_ranks` and added a flat 3s to TTFB. Reconnect cases are now also covered (the auto-resub built into ioredis is suppressed by `enableOfflineQueue: false`). Squishybot's rpcServer already had this pattern; otter's didn't.
 
 
