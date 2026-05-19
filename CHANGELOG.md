@@ -7,6 +7,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- **Cache-invalidate subscriber — bot drops `business_messages` / `mckenzie_businesses` cache without a restart.** New service `src/services/cacheInvalidator.ts` lazy-subscribes to `bot.otter.settings.invalidate`; on HMAC-verified events from botpanel it dispatches by `params.table`: `business_messages` (with `key`=businessId) → `invalidateBusinessMessageCache`; `mckenzie_businesses` / `business_owners` / `business_role_mappings` → `invalidateKnownMckenzieBusinesses`. Bad HMAC drops silently with a warn. Missing `BOTPANEL_RPC_SECRET` disables the subscriber entirely (with one warn at boot) — bot still runs fine. Wired into `src/index.ts` next to `startRpcServer` so it comes up after login. Pairs with botpanel #33 / V3-1 (publisher in botpanel PR #206) and the squishybot counterpart.
+
 ### Fixed
 - **`rpcServer` re-issues `psubscribe(cmd.otter.*)` on every Redis `ready` event** instead of only at startup. Previously, the initial psubscribe could fire before the TCP connection was up — ioredis returned "Stream isn't writeable and enableOfflineQueue options is false" and the bot ran for the rest of its lifetime without an active subscription. Every panel `callBot('otter', ...)` then timed out. The panel side hit this on every page render via `business.user_ranks` and added a flat 3s to TTFB. Reconnect cases are now also covered (the auto-resub built into ioredis is suppressed by `enableOfflineQueue: false`). Squishybot's rpcServer already had this pattern; otter's didn't.
 
