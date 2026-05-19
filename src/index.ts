@@ -8,6 +8,7 @@ import { setDnd, shutdownPresence } from './services/presence'
 import { stopHealthPush } from './bot/healthPush'
 import { closeDb } from './db/client'
 import { startRpcServer, closeRpcServer } from './services/rpcServer'
+import { startCacheInvalidator } from './services/cacheInvalidator'
 
 registerReadyEvent(client)
 registerInteractionCreate(client)
@@ -62,6 +63,10 @@ client
     // subscriber itself is non-blocking — if Redis is down or the secret
     // isn't set, it logs and returns without throwing.
     startRpcServer(client)
+    // V3-1 cache-invalidate subscriber — reload in-memory business and
+    // mckenzie caches on HMAC-signed events from botpanel. Non-blocking.
+    // Tracks botpanel #33 / V3-1.
+    startCacheInvalidator()
   })
   .catch((err) => {
     console.error('client.login failed', err)
