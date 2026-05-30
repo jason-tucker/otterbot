@@ -72,8 +72,10 @@ async function loadBusinessBySlug(slug: string): Promise<ResolvedBiz | null> {
  *   1. `business_owners` row → 'owner'.
  *   2. Discord role in `biz.guildId` mapped to manager/owner rank.
  *
- * Returns the rank, or null if the actor has neither. Pure cache read on
- * the Discord side — never `.fetch()`s, mirroring `business.user_ranks`.
+ * Returns the rank, or null if the actor has neither. Falls back to
+ * `members.fetch()` on cache miss so a panel RPC right after a bot
+ * restart (cold member cache) doesn't spuriously return 'forbidden'.
+ * Matches the pattern in `business.ts` / `employee.ts`.
  */
 async function actorRankForBusiness(
   ctx: VerbContext,
@@ -95,7 +97,9 @@ async function actorRankForBusiness(
 
   const guild = ctx.client.guilds.cache.get(biz.guildId)
   if (!guild) return null
-  const member = guild.members.cache.get(actorUserId)
+  const member =
+    guild.members.cache.get(actorUserId) ??
+    (await guild.members.fetch(actorUserId).catch(() => null))
   if (!member) return null
 
   const memberRoleIds = [...member.roles.cache.keys()]

@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.10.3] — 2026-05-30
+
+### Fixed
+- **`/oc` and every other DB-dependent slash command intermittently failed with `PostgresError 28P01 password authentication failed for user "otterbot"`.** Root cause was a docker DNS alias collision on the shared `botpanel-net` network — both `otterbot-db-1` and `squishybot-db-1` auto-claimed the unqualified `db` alias (compose-default for service name), and docker round-robined the bot's connections between them. Roughly half hit squishybot's postgres, which rejected the otterbot credentials. The legitimate per-stack alias `db-otter` was already defined for cross-stack access in `botpanel-net` (line 50) but the bot's own `DATABASE_URL` was still pointing at `db:5432`. Switched the bot's `DATABASE_URL` (compose env override) to `db-otter:5432`. `getent hosts db-otter` from inside the bot now returns a single IP (172.20.0.3) every time, and a 10-attempt `postgres-js` connection probe is 10/10 successful where it was previously OK/OK/FAIL/FAIL/OK. Note: this also surfaced (and fixed by side-effect) a duplicate-runner footgun — a leftover `otterbot.service` systemd unit had been racing the docker container for interaction acknowledgement for 4 days; that unit has been stopped + disabled, and `CLAUDE.md` updated separately to remove the stale "runs as systemd" instructions.
+- **Panel `/otter/oc-stock` editor returned "The bot returned `forbidden`" after a bot restart, even for the bot owner.** The `business_messages.list` RPC handler's `actorRankForBusiness` did a pure cache read (`guild.members.cache.get(actorUserId)`) with no `.fetch()` fallback — so a cold member cache (every restart, until the actor triggers an interaction that populates them) caused every editor open to be denied. Replaced with `cache.get(...) ?? await members.fetch(...).catch(() => null)`, matching the pattern already used in `employee.ts:106` / `business.ts:175`. The `GuildMembers` intent is set so the fetch resolves cleanly. Reset / update flows in the same file hit the same helper so they're covered by the single change.
+
+---
+
 ## [Unreleased]
 
 ### Added
