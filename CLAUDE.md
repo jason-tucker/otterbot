@@ -14,16 +14,17 @@ Add entries under `## [Unreleased]` for any meaningful change: new feature, beha
 **Never run** `pnpm typecheck`, `tsc`, `npx tsc`, `pnpm build` automatically. These OOM the VPS. If you suspect a type error, describe it in text instead. Only run if the user explicitly asks.
 
 ### 3. Bot restart (production)
-The bot runs as systemd service `otterbot.service`. It has no watch mode. After code changes:
+The bot runs as the docker compose service `otterbot-otterbot-1` (image `ghcr.io/jason-tucker/otterbot:latest`, auto-updated by watchtower on GHCR push). DB and Redis hostnames (`db`, `redis`) only resolve inside the docker network — never run the bot from the host (no systemd, no `tsx src/index.ts` directly), it will hijack interactions from the docker bot and fail every DB call.
+
+After code changes, push to main → CI builds → watchtower pulls. To force-restart manually:
 ```bash
-kill -TERM $(ps aux | grep "tsx.*src/index.ts" | grep -v grep | awk '{print $2}' | head -1)
-# systemd auto-restarts it via Restart=on-failure
-sleep 5 && journalctl -u otterbot -n 10 --no-pager
+cd /home/botuser/projects/otterbot && docker compose restart otterbot
+sleep 5 && docker logs otterbot-otterbot-1 --tail 20
 ```
 
 ### 4. Check logs for errors
 ```bash
-journalctl -u otterbot -n 30 --no-pager
+docker logs otterbot-otterbot-1 --tail 30
 ```
 
 ### 5. Deploy slash commands after adding/removing commands
