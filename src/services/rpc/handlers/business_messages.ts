@@ -31,6 +31,7 @@
 import { and, eq, inArray } from 'drizzle-orm'
 import { db } from '../../../db/client'
 import { businesses, businessRoleMappings, businessOwners } from '../../../db/schema'
+import { env } from '../../../config/env'
 import { registerVerb, type VerbContext, type VerbResult } from '../registry'
 import {
   deleteBusinessMessage,
@@ -82,6 +83,13 @@ async function actorRankForBusiness(
   biz: ResolvedBiz,
   actorUserId: string,
 ): Promise<Rank | null> {
+  // Bot owner (env `BOT_OWNER_ID`) is the panel's super-admin and bypasses
+  // every per-business rank check on the panel side via `access.botOwner`.
+  // Mirror that here so the bot returns the same answer the panel would —
+  // otherwise the panel renders the editor (canEdit=true) but every
+  // `business_messages.*` call comes back forbidden.
+  if (env.BOT_OWNER_ID && actorUserId === env.BOT_OWNER_ID) return 'owner'
+
   // DB-owner wins regardless of role state.
   const ownerRows = await db
     .select({ id: businessOwners.id })
