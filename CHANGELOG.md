@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.10.4] — 2026-06-05
+
+### Documentation
+- **README restructured to the shared bot-repo layout** (Overview → Architecture → Stack → Quick start → Configuration → Usage → Deployment → Conventions). Documents the provider model and permission resolution up front, adds the previously-undocumented `/info` command, manager custom buttons, and editable `business_messages` cards, and corrects the env table (`BOTPANEL_RPC_SECRET`, the `EUPHORIC_API_BASE_URL` default, `NODE_ENV=test`).
+- **`docs/DEPLOYMENT.md` refreshed** — documents Watchtower as a second delivery path, the `db-otter` alias, host psql via `docker exec`, and `docker compose up -d` (not `restart`) after editing `.env`.
+- **Wiki overhauled** to match current code (presence idle window, `business_messages` / `business_buttons` tables, `/info` + custom buttons, OC item count, removal of the stale host Postgres port).
+
+---
+
 ## [0.10.3] — 2026-05-30
 
 ### Fixed

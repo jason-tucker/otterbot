@@ -7,10 +7,17 @@
 | **Local dev** | `pnpm dev` (tsx, hot reload, local Postgres) |
 | **Any server** | `docker compose up -d` (one command, pulls from GHCR) |
 | **CI/CD** | Push to `main` → GitHub Actions builds image → pushes to GHCR → VPS pulls |
+| **Watchtower** | Polls GHCR (~30 s) and restarts the container when `:latest` changes — a redundant path to the CI SSH deploy |
 
 > **Why Docker?** The VPS has ~900 MB free RAM and cannot compile TypeScript.
 > The GitHub Actions runner has 7 GB RAM and builds the image there.
 > The VPS only pulls and runs a pre-built image — zero compilation on the server.
+
+> **Two delivery paths.** A push to `main` triggers the CI SSH deploy below.
+> Independently, Watchtower (label `com.centurylinklabs.watchtower.enable=true`
+> on the `otterbot` service) watches the `ghcr.io/jason-tucker/otterbot:latest`
+> digest and restarts the container when CI pushes a new one. Either one alone
+> keeps the VPS current.
 
 ---
 
@@ -105,3 +112,25 @@ BOT_IMAGE=ghcr.io/YOUR_USERNAME/otterbot:sha-<previous_sha> docker compose up -d
 - **Discord webhook**: Update `DISCORD_DEPLOY_WEBHOOK` GitHub secret — no code changes
 - **Bot token**: Update `DISCORD_BOT_TOKEN` GitHub secret AND the VPS `.env`, then `docker compose up -d`
 - **Euphoric API key**: Update VPS `.env`, then `docker compose up -d`
+
+> After editing `.env`, always run `docker compose up -d` — **not**
+> `docker compose restart`. A plain `restart` does not re-read `.env`, so the
+> container keeps the old values.
+
+---
+
+## Database Access
+
+The Postgres container deliberately has **no host port mapping** (security). To
+get a `psql` shell from the VPS host:
+
+```bash
+docker exec -it otterbot-db-1 psql -U otterbot
+# or via the management CLI:
+otterbot db:shell
+```
+
+The bot reaches its own DB at `db-otter:5432` over the compose network (the
+unqualified `db` alias is avoided because multiple stacks on the shared
+`botpanel-net` network claim it and docker round-robins between them). botpanel
+reaches the same DB at `db-otter:5432` over `botpanel-net`.
