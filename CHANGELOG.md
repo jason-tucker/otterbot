@@ -5,24 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [0.10.4] — 2026-06-05
+## [0.11.1] — 2026-06-05
 
-### Documentation
-- **README restructured to the shared bot-repo layout** (Overview → Architecture → Stack → Quick start → Configuration → Usage → Deployment → Conventions). Documents the provider model and permission resolution up front, adds the previously-undocumented `/info` command, manager custom buttons, and editable `business_messages` cards, and corrects the env table (`BOTPANEL_RPC_SECRET`, the `EUPHORIC_API_BASE_URL` default, `NODE_ENV=test`).
-- **`docs/DEPLOYMENT.md` refreshed** — documents Watchtower as a second delivery path, the `db-otter` alias, host psql via `docker exec`, and `docker compose up -d` (not `restart`) after editing `.env`.
-- **Wiki overhauled** to match current code (presence idle window, `business_messages` / `business_buttons` tables, `/info` + custom buttons, OC item count, removal of the stale host Postgres port).
+### Ops
+- **CI `Deploy Otterbot` workflow now also runs on `pull_request`, so non-code PRs can satisfy branch protection.** `main` requires the `Build, Push & Deploy` status check, but the workflow only triggered on `push` to `main` — meaning docs / config-only PRs (which never push to main) could never produce that check and could only be merged via admin override. Added `pull_request` to the `on:` triggers (alongside the existing `push` / `workflow_dispatch`). The push-to-GHCR, GHCR login, slash-command registration, VPS deploy, and Discord-notify steps are now guarded with `if: github.event_name == 'push' && github.ref == 'refs/heads/main'`, so PR runs build and validate the Docker image (reporting the green `Build, Push & Deploy` check that protection requires) **without** pushing an image or touching the VPS. Deploys remain main-push-only. No rename of the workflow or job — the protected check context name is unchanged.
 
 ---
 
-## [0.10.3] — 2026-05-30
-
-### Fixed
-- **`/oc` and every other DB-dependent slash command intermittently failed with `PostgresError 28P01 password authentication failed for user "otterbot"`.** Root cause was a docker DNS alias collision on the shared `botpanel-net` network — both `otterbot-db-1` and `squishybot-db-1` auto-claimed the unqualified `db` alias (compose-default for service name), and docker round-robined the bot's connections between them. Roughly half hit squishybot's postgres, which rejected the otterbot credentials. The legitimate per-stack alias `db-otter` was already defined for cross-stack access in `botpanel-net` (line 50) but the bot's own `DATABASE_URL` was still pointing at `db:5432`. Switched the bot's `DATABASE_URL` (compose env override) to `db-otter:5432`. `getent hosts db-otter` from inside the bot now returns a single IP (172.20.0.3) every time, and a 10-attempt `postgres-js` connection probe is 10/10 successful where it was previously OK/OK/FAIL/FAIL/OK. Note: this also surfaced (and fixed by side-effect) a duplicate-runner footgun — a leftover `otterbot.service` systemd unit had been racing the docker container for interaction acknowledgement for 4 days; that unit has been stopped + disabled, and `CLAUDE.md` updated separately to remove the stale "runs as systemd" instructions.
-- **Panel `/otter/oc-stock` editor returned "The bot returned `forbidden`" after a bot restart, even for the bot owner.** The `business_messages.list` RPC handler's `actorRankForBusiness` did a pure cache read (`guild.members.cache.get(actorUserId)`) with no `.fetch()` fallback — so a cold member cache (every restart, until the actor triggers an interaction that populates them) caused every editor open to be denied. Replaced with `cache.get(...) ?? await members.fetch(...).catch(() => null)`, matching the pattern already used in `employee.ts:106` / `business.ts:175`. The `GuildMembers` intent is set so the fetch resolves cleanly. Reset / update flows in the same file hit the same helper so they're covered by the single change.
-
----
-
-## [Unreleased]
+## [0.11.0] — 2026-06-05
 
 ### Added
 - **Manager-configurable custom buttons on business commands.** Managers (and sudo) can add their own buttons to `/oc`, `/caked`, and the new generic `/info` command — either **Link** buttons (open a URL) or **Info** buttons (reveal an editable Components V2 card, with Send-to-Channel, like `/caked` Pricing). Buttons are managed two ways, both gated to manager+: a **Manage Buttons** panel in Discord (add/edit/reorder/enable/disable/colour/remove, mirroring the `/oc` Manage Stock flow) and a buttons editor on botpanel `/otter/businesses/[slug]` driven by new `business_buttons.*` RPC verbs. New `business_buttons` table (migration `0005_business_buttons`) + `businessButtonsService.ts` (30 s read cache, per-business cap of 10). Custom buttons are appended to the command embed and included in the Send-to-Channel post so customers can use them publicly.
@@ -135,6 +125,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **`ocStockService.addStockItem` race-safe sortOrder.** Was `SELECT * → Math.max(...) + 1 → INSERT` — two concurrent Add Item submissions read the same max and produced duplicate `sort_order` values, breaking the deterministic ordering used by `/oc` and the manage panel. Replaced with a single `INSERT ... VALUES (..., COALESCE((SELECT MAX(sort_order) FROM oc_stock), 0) + 1, ...)` so the next sortOrder is derived atomically inside the same statement.
 - **`commands/employee.ts` lost the `getAllBusinesses` import in the N+1 batching commit (485c07a) — TypeScript build failed and broke the CI pipeline for every otter deploy since.** The sudo-sees-all-businesses branch (line 57) still calls `getAllBusinesses`; only the cross-business summary fan-out moved to `getEmployeeBusinessConfigsForGuild`. Re-import. (Production was running stale code from before the batching commit until this lands; my local nohup process was newer than CI.)
 - **`utils/cv2.ts` was broken stub code — `sep()` / `sepLarge()` / `sepBlank()` recursed into themselves with no base case, hitting `Maximum call stack size exceeded` on every call.** Looked like an autocomplete-generated placeholder that got committed without the body. Caused `/help`, `/printinfo`, `/caked`, `/oc`, and several other commands that import `sep` to throw `RangeError` and surface as "An unexpected error occurred". Implemented for real now: each returns a fresh `SeparatorBuilder` with the spacing/divider combo the docstring describes.
+
+---
+
+## [0.10.4] — 2026-06-05
+
+### Documentation
+- **README restructured to the shared bot-repo layout** (Overview → Architecture → Stack → Quick start → Configuration → Usage → Deployment → Conventions). Documents the provider model and permission resolution up front, adds the previously-undocumented `/info` command, manager custom buttons, and editable `business_messages` cards, and corrects the env table (`BOTPANEL_RPC_SECRET`, the `EUPHORIC_API_BASE_URL` default, `NODE_ENV=test`).
+- **`docs/DEPLOYMENT.md` refreshed** — documents Watchtower as a second delivery path, the `db-otter` alias, host psql via `docker exec`, and `docker compose up -d` (not `restart`) after editing `.env`.
+- **Wiki overhauled** to match current code (presence idle window, `business_messages` / `business_buttons` tables, `/info` + custom buttons, OC item count, removal of the stale host Postgres port).
+
+---
+
+## [0.10.3] — 2026-05-30
+
+### Fixed
+- **`/oc` and every other DB-dependent slash command intermittently failed with `PostgresError 28P01 password authentication failed for user "otterbot"`.** Root cause was a docker DNS alias collision on the shared `botpanel-net` network — both `otterbot-db-1` and `squishybot-db-1` auto-claimed the unqualified `db` alias (compose-default for service name), and docker round-robined the bot's connections between them. Roughly half hit squishybot's postgres, which rejected the otterbot credentials. The legitimate per-stack alias `db-otter` was already defined for cross-stack access in `botpanel-net` (line 50) but the bot's own `DATABASE_URL` was still pointing at `db:5432`. Switched the bot's `DATABASE_URL` (compose env override) to `db-otter:5432`. `getent hosts db-otter` from inside the bot now returns a single IP (172.20.0.3) every time, and a 10-attempt `postgres-js` connection probe is 10/10 successful where it was previously OK/OK/FAIL/FAIL/OK. Note: this also surfaced (and fixed by side-effect) a duplicate-runner footgun — a leftover `otterbot.service` systemd unit had been racing the docker container for interaction acknowledgement for 4 days; that unit has been stopped + disabled, and `CLAUDE.md` updated separately to remove the stale "runs as systemd" instructions.
+- **Panel `/otter/oc-stock` editor returned "The bot returned `forbidden`" after a bot restart, even for the bot owner.** The `business_messages.list` RPC handler's `actorRankForBusiness` did a pure cache read (`guild.members.cache.get(actorUserId)`) with no `.fetch()` fallback — so a cold member cache (every restart, until the actor triggers an interaction that populates them) caused every editor open to be denied. Replaced with `cache.get(...) ?? await members.fetch(...).catch(() => null)`, matching the pattern already used in `employee.ts:106` / `business.ts:175`. The `GuildMembers` intent is set so the fetch resolves cleanly. Reset / update flows in the same file hit the same helper so they're covered by the single change.
+
+---
 
 ## [0.10.2] — 2026-05-08
 
