@@ -50,6 +50,8 @@ import './rpc/handlers/users'
 import './rpc/handlers/oc'
 // business_messages.* verbs (panel-editable /caked + /oc card bodies).
 import './rpc/handlers/business_messages'
+// business_buttons.* verbs (panel-editable custom command buttons).
+import './rpc/handlers/business_buttons'
 // report.submit verb — panel /report page mirrors the slash modal.
 import './rpc/handlers/report'
 // meta.list_{roles,channels,members} — read-only listings for panel pickers

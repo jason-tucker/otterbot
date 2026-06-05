@@ -47,6 +47,9 @@ Register in both `src/bot/registerCommands.ts` AND `src/bot/events/interactionCr
 | `/portal` | `commands/portal.ts` | Sudo only | Create/edit/deactivate businesses. Manage role mappings, owners, and permission flags — all in DB. |
 | `/oc` | `commands/oc.ts` | Anyone | OC stock view (🟢/🟠/🔴) with clickable product links. Buttons: Requirements (ephemeral), Send to Channel, Manage Stock (manager+). Ephemeral by default. |
 | `/caked` | `commands/caked.ts` | Anyone | Caked Up info. Buttons: Contact Info form, Event Info form, Pricing. Color: `#BF889D`. |
+| `/info` | `commands/info.ts` | Anyone | Generic per-business launcher (autocompleted `business` picker) for discord-only businesses without a dedicated command (Backside, EXTRA, …). Shows the business name + optional `settings.description` + its custom buttons. Send to Channel. |
+
+**Custom command buttons:** `/oc`, `/caked`, and `/info` all render manager-configurable custom buttons (`business_buttons` table) below their built-in buttons — **Link** (open a URL) or **Info** (reveal an editable card). Managers (+ sudo) get a **Manage Buttons** panel (`bizbtn:*`) mirroring `/oc` Manage Stock; also editable from botpanel `/otter/businesses/[slug]` via the `business_buttons.*` RPC verbs. See `services/businessButtonsService.ts` + `embeds/businessButtons.ts`.
 | `/printinfo` | `commands/printInfo.ts` | Anyone | MKE printing reference with pricing. Button navigation. |
 | `/artsize` | `commands/artSize.ts` | Anyone | Art size reference. |
 | `/tcsheet` | `commands/tcSheet.ts` | Anyone | Trading card sheet reference. |
@@ -102,6 +105,7 @@ const isManager = oc ? hasMinRank(oc.rank, 'manager') : false
 | `audit_logs` | actorDiscordId, businessId, action, targetType, targetId, success, details | All staff action logs |
 | `oc_stock` | name, status (in_stock/low_stock/out_of_stock), sortOrder, url, updatedByDiscordId | OC clothing items with product links |
 | `lookup_sessions` | key (random hex), characterId, characterName, characterCsn, businessId, targetDiscordId, rank, expiresAt | DB-backed `/lookup` sessions so Add Note / View Notes buttons survive bot restarts. 24 h TTL, swept on insert. |
+| `business_buttons` | businessId, type (link/info), label, emoji, style, url, body, sortOrder, enabled | Manager-configurable custom buttons on `/oc` `/caked` `/info`. 30 s read cache; cap 10/business. UUIDs encoded directly in customIds (OC exception). |
 
 **Migrations:** `src/db/migrations/*.sql` + `src/db/migrations/meta/_journal.json`
 When adding a migration manually, the `when` timestamp must be higher than all existing entries. Run `pnpm db:migrate` to apply. If it doesn't apply (already marked done in `__drizzle_migrations` table), run the SQL directly via a temp `tsx` script in `scripts/`, then delete the script.
@@ -141,6 +145,7 @@ All routing is in `src/bot/events/interactionCreate.ts`.
 | `oc_status:{itemId}:{status}` | `buttons/ocButton.ts` | Update item status — `deferUpdate()` |
 | `oc_remove:{itemId}` | `buttons/ocButton.ts` | Delete item — `deferUpdate()` |
 | `oc_add_modal` | `buttons/ocButton.ts` | Show add-item modal — `showModal()`, no defer |
+| `bizbtn:{action}:{...}` | `buttons/businessButtonsButton.ts` | Custom buttons. `show:{id}` public reveal; `manage_open:{businessId}` / `manage:{businessId}` panel; `add:{businessId}:{type}`, `edit:{id}` → modal; `style`/`toggle`/`up`/`down`/`remove:{id}`. Re-validates manager+ on every click. |
 | `oc_url:{itemId}` | `buttons/ocButton.ts` | Show set-URL modal — `showModal()`, no defer |
 
 ### Select menus
@@ -157,6 +162,7 @@ All routing is in `src/bot/events/interactionCreate.ts`.
 | `portal_rm_owner:{sessionKey}` | `selects/portalSelect.ts` | |
 | `ticket_char_select:{targetDiscordId}` | `selects/ticketCharSelect.ts` | |
 | `oc_item_select` | `selects/ocItemSelect.ts` | `deferUpdate()` — edits existing ephemeral |
+| `bizbtn_select:{businessId}` | `selects/businessButtonSelect.ts` | Pick a custom button to edit — `deferUpdate()` |
 
 ### Modals
 | CustomId | Handler | Notes |
@@ -168,6 +174,7 @@ All routing is in `src/bot/events/interactionCreate.ts`.
 | `portal_{type}_modal:{sessionKey}` | `modals/portalModal.ts` | |
 | `oc_add_submit` | `modals/ocAddModal.ts` | Uses `isFromMessage()` → `deferUpdate()` to edit triggering message |
 | `oc_url_submit:{itemId}` | `modals/ocUrlModal.ts` | Uses `isFromMessage()` → `update()` |
+| `bizbtn_add_submit:{businessId}:{type}` / `bizbtn_edit_submit:{id}` | `modals/businessButtonModal.ts` | Create / edit a custom button; `isFromMessage()` → `deferUpdate()` back to the manage list |
 
 ---
 
@@ -223,6 +230,7 @@ await interaction.editReply({ ...withSendButtonV2(sendKey, container, extraButto
 | `auditService.ts` | `audit({actorDiscordId, businessId, action, ...})` | Call on every meaningful staff action |
 | `interactionCache.ts` | `storeLookupSession()`, `getLookupSession()`, `storePortalSession()`, etc. | 1-hour in-memory TTL sessions |
 | `ocStockService.ts` | `getAllStock()`, `getStockById()`, `updateStockStatus()`, `updateStockUrl()`, `addStockItem()`, `removeStockItem()` | OC stock DB operations |
+| `businessButtonsService.ts` | `listButtons()`, `listEnabledButtons()`, `getButton()`, `addButton()`, `updateButton()`, `removeButton()`, `moveButton()`, `reorderButtons()` | Custom command buttons (`business_buttons`). 30 s cache, cap 10/business. |
 | `sudoService.ts` | `isSudoUser(member)` | Checks `SUDO_ROLE_IDS` env var |
 | `employeeService.ts` | `getEmployeeBusinessConfig()`, role add/remove | DB-backed employee role management |
 | `portalService.ts` | Business CRUD, role mappings, owners | Used only by `/portal` and its handlers |

@@ -1,8 +1,17 @@
-import { SlashCommandBuilder, ButtonBuilder, ButtonStyle, type ChatInputCommandInteraction } from 'discord.js'
+import {
+  SlashCommandBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  type ChatInputCommandInteraction,
+} from 'discord.js'
 import { resolveBusinesses, hasMinRank } from '../services/permissionService'
 import { getAllStock } from '../services/ocStockService'
 import { buildOCPublicContainer } from '../embeds/ocEmbed'
-import { registerSendable, withSendButtonV2 } from '../utils/sendable'
+import { registerSendable, withSendButtonV2Rows } from '../utils/sendable'
+import { resolveBusinessIdBySlug } from '../services/businessMessagesService'
+import { listEnabledButtons } from '../services/businessButtonsService'
+import { buildCustomButtonRows, manageButtonsButton } from '../embeds/businessButtons'
 
 export const data = new SlashCommandBuilder()
   .setName('oc')
@@ -25,26 +34,43 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const items = await getAllStock()
   const container = buildOCPublicContainer(items)
 
-  const sendKey = `oc_stock:${interaction.id}`
-  registerSendable(sendKey, () => ({ components: [container], flags: 32768 }))
+  const ocBusinessId = oc?.business.id ?? (await resolveBusinessIdBySlug('original-clothing'))
+  const customButtons = ocBusinessId ? await listEnabledButtons(ocBusinessId) : []
+  const customRows = buildCustomButtonRows(customButtons)
 
-  const extraButtons: ButtonBuilder[] = [
+  const sendKey = `oc_stock:${interaction.id}`
+  registerSendable(sendKey, () => ({
+    components: [container, ...buildCustomButtonRows(customButtons)],
+    flags: 32768,
+  }))
+
+  // Built-in OC controls live in their own row; custom manager buttons follow.
+  const builtinButtons: ButtonBuilder[] = [
     new ButtonBuilder()
       .setCustomId('oc_requirements')
       .setLabel('Requirements')
       .setEmoji('📋')
       .setStyle(ButtonStyle.Secondary),
   ]
-
   if (isManager) {
-    extraButtons.push(
+    builtinButtons.push(
       new ButtonBuilder()
         .setCustomId('oc_manage_open')
         .setLabel('Manage Stock')
         .setEmoji('⚙️')
-        .setStyle(ButtonStyle.Secondary)
+        .setStyle(ButtonStyle.Secondary),
     )
   }
 
-  await interaction.editReply({ ...withSendButtonV2(sendKey, container, extraButtons), content: null })
+  const extraRows: ActionRowBuilder<ButtonBuilder>[] = [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(...builtinButtons),
+    ...customRows,
+  ]
+  const trailing: ButtonBuilder[] =
+    isManager && ocBusinessId ? [manageButtonsButton(ocBusinessId)] : []
+
+  await interaction.editReply({
+    ...withSendButtonV2Rows(sendKey, container, extraRows, trailing),
+    content: null,
+  })
 }

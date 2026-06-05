@@ -51,6 +51,7 @@ async function buildHelpPayload(member: GuildMember, guildId: string) {
         '### Public',
         `${cmd('oc', guildId)} — Original Clothing stock, requirements, and product links`,
         `${cmd('caked', guildId)} — Caked Up order info, pricing, and intake forms`,
+        `${cmd('info', guildId)} — View a business and its quick links`,
         `${cmd('printinfo', guildId)} — McKenzie Enterprises printing reference`,
         `${cmd('artsize', guildId)} — Art commission size reference`,
         `${cmd('tcsheet', guildId)} — Trading card sheet reference`,
