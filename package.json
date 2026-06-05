@@ -1,7 +1,7 @@
 {
   "name": "otterbot",
-  "version": "0.10.3",
-  "description": "",
+  "version": "0.10.4",
+  "description": "Discord staff-management bot for multi-business roleplay communities — per-business permissions, McKenzie API lookups, employee management, and editable business cards.",
   "main": "index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
