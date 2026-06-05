@@ -1,11 +1,12 @@
 import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
+  ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
   MessageFlags,
 } from 'discord.js'
-import { registerSendable, withSendButtonV2 } from '../utils/sendable'
+import { registerSendable, withSendButtonV2Rows } from '../utils/sendable'
 import {
   CAKED_COLOR,
   cakedMainContainer,
@@ -15,6 +16,10 @@ import {
   getBusinessMessageOverrides,
   resolveBusinessIdBySlug,
 } from '../services/businessMessagesService'
+import { resolveBusinesses, hasMinRank } from '../services/permissionService'
+import { isSudoUser } from '../services/sudoService'
+import { listEnabledButtons } from '../services/businessButtonsService'
+import { buildCustomButtonRows, manageButtonsButton } from '../embeds/businessButtons'
 
 // Re-exported so existing button / modal handlers that import
 // `CAKED_COLOR` / `cakedMainContainer` from this module keep working.
@@ -59,12 +64,43 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     ? await getBusinessMessageOverrides(businessId, CAKED_EDITABLE_KEYS)
     : {}
   const container = cakedMainContainer(overrides)
+
+  // Manager-configured custom buttons (link / info), shown to everyone and
+  // included in the Send-to-Channel post so customers can use them publicly.
+  const customButtons = businessId ? await listEnabledButtons(businessId) : []
+  const customRows = buildCustomButtonRows(customButtons)
+
   // Re-register the send key against this exact override snapshot so
   // Send-to-Channel posts what the user is reading right now, not the
   // static default. Same trick `/oc` uses with a per-interaction key.
   registerSendable('caked:main', () => ({
-    components: [cakedMainContainer(overrides)],
+    components: [cakedMainContainer(overrides), ...buildCustomButtonRows(customButtons)],
     flags: MessageFlags.IsComponentsV2,
   }))
-  await interaction.reply(withSendButtonV2('caked:main', container, cakedNavButtons))
+
+  // Manager-or-sudo gets the Manage Buttons affordance. Best-effort — a failed
+  // member fetch shouldn't break the public command, just hide the button.
+  let isManager = false
+  if (businessId && interaction.inGuild() && interaction.guild) {
+    try {
+      const member = await interaction.guild.members.fetch(interaction.user.id)
+      isManager = isSudoUser(member)
+      if (!isManager) {
+        const resolved = await resolveBusinesses(member)
+        const r = resolved.find((rb) => rb.business.id === businessId)
+        isManager = !!(r && hasMinRank(r.rank, 'manager'))
+      }
+    } catch {
+      isManager = false
+    }
+  }
+
+  const extraRows: ActionRowBuilder<ButtonBuilder>[] = [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(...cakedNavButtons),
+    ...customRows,
+  ]
+  const trailing: ButtonBuilder[] =
+    isManager && businessId ? [manageButtonsButton(businessId)] : []
+
+  await interaction.reply(withSendButtonV2Rows('caked:main', container, extraRows, trailing))
 }

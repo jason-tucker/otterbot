@@ -47,6 +47,10 @@ import { handleOCItemSelect } from '../../interactions/selects/ocItemSelect'
 import { handleOCAddSubmit } from '../../interactions/modals/ocAddModal'
 import { handleOCUrlSubmit } from '../../interactions/modals/ocUrlModal'
 import { execute as executeOC, data as ocData } from '../../commands/oc'
+import { execute as executeInfo, data as infoData, autocomplete as infoAutocomplete } from '../../commands/info'
+import { handleBusinessButtonsButton } from '../../interactions/buttons/businessButtonsButton'
+import { handleBusinessButtonSelect } from '../../interactions/selects/businessButtonSelect'
+import { handleBusinessButtonModal } from '../../interactions/modals/businessButtonModal'
 import { execute as executeReport, data as reportData } from '../../commands/report'
 import { handleReportSubmit } from '../../interactions/modals/reportSubmit'
 import { handleHelpSelect } from '../../interactions/selects/helpSelect'
@@ -68,6 +72,7 @@ const commandHandlers = new Map<string, (i: ChatInputCommandInteraction) => Prom
   [employeeData.name, executeEmployee],
   [portalData.name, executePortal],
   [ocData.name, executeOC],
+  [infoData.name, executeInfo],
   [reportData.name, executeReport],
 ])
 
@@ -78,6 +83,13 @@ export function registerInteractionCreate(client: Client) {
       if (interaction.isChatInputCommand()) {
         const handler = commandHandlers.get(interaction.commandName)
         if (handler) await handler(interaction)
+        return
+      }
+
+      if (interaction.isAutocomplete()) {
+        if (interaction.commandName === infoData.name) {
+          await infoAutocomplete(interaction)
+        }
         return
       }
 
@@ -111,6 +123,8 @@ export function registerInteractionCreate(client: Client) {
           await handleTicketCharSelect(interaction as StringSelectMenuInteraction)
         } else if (id === 'oc_item_select') {
           await handleOCItemSelect(interaction as StringSelectMenuInteraction)
+        } else if (id.startsWith('bizbtn_select:')) {
+          await handleBusinessButtonSelect(interaction as StringSelectMenuInteraction)
         } else if (id === 'help:section') {
           await handleHelpSelect(interaction as StringSelectMenuInteraction)
         }
@@ -144,6 +158,8 @@ export function registerInteractionCreate(client: Client) {
           await handlePortalButton(interaction as ButtonInteraction)
         } else if (id.startsWith('oc_')) {
           await handleOCButton(interaction as ButtonInteraction)
+        } else if (id.startsWith('bizbtn:')) {
+          await handleBusinessButtonsButton(interaction as ButtonInteraction)
         } else if (id.startsWith('report_approve_') || id.startsWith('report_reject_')) {
           await handleReportReview(interaction as ButtonInteraction)
         } else if (id.startsWith('ticket_account_made:')) {
@@ -170,6 +186,8 @@ export function registerInteractionCreate(client: Client) {
           await handleOCAddSubmit(interaction as ModalSubmitInteraction)
         } else if (id.startsWith('oc_url_submit:')) {
           await handleOCUrlSubmit(interaction as ModalSubmitInteraction)
+        } else if (id.startsWith('bizbtn_add_submit:') || id.startsWith('bizbtn_edit_submit:')) {
+          await handleBusinessButtonModal(interaction as ModalSubmitInteraction)
         } else if (id === 'report:submit') {
           await handleReportSubmit(interaction as ModalSubmitInteraction)
         }

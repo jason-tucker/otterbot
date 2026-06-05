@@ -36,6 +36,18 @@ export const businessName = z.string().trim().min(1).max(100)
 export const rank = z.enum(['employee', 'manager', 'owner'])
 export type Rank = z.infer<typeof rank>
 
+/**
+ * HTTP(S) URL — trimmed, ≤512 chars, must be http or https. Used for
+ * manager-supplied link-button URLs so a `javascript:` / `data:` URI can't
+ * sneak onto a public command embed.
+ */
+export const httpUrl = z
+  .string()
+  .trim()
+  .max(512)
+  .url()
+  .refine((u) => /^https?:\/\//i.test(u), { message: 'must be http(s)' })
+
 // -----------------------------------------------------------------------------
 // safeParse helpers — return parsed value on success, `null` on failure
 // -----------------------------------------------------------------------------
@@ -57,5 +69,10 @@ export function parseBusinessName(input: unknown): string | null {
 
 export function parseRank(input: unknown): Rank | null {
   const result = rank.safeParse(input)
+  return result.success ? result.data : null
+}
+
+export function parseHttpUrl(input: unknown): string | null {
+  const result = httpUrl.safeParse(input)
   return result.success ? result.data : null
 }

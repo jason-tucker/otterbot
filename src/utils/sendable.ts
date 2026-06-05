@@ -132,6 +132,39 @@ export function withSendButtonV2(
   }
 }
 
+// ── V2 with arbitrary extra rows ───────────────────────────────────────────
+/**
+ * Like {@link withSendButtonV2} but supports laying out multiple action rows
+ * between the container and the trailing Send-to-Channel row. `extraRows` are
+ * rendered as-is (e.g. a command's built-in buttons + a business's custom
+ * button rows); `trailingButtons` sit in the final row alongside Send
+ * (e.g. a manager-only "Manage Buttons" affordance). Same Ephemeral + V2
+ * flags and no-ping allowed-mentions as the single-row variant.
+ */
+export function withSendButtonV2Rows(
+  key: string,
+  container: ContainerBuilder,
+  extraRows: ActionRowBuilder<ButtonBuilder>[] = [],
+  trailingButtons: ButtonBuilder[] = []
+) {
+  return {
+    components: [
+      container,
+      ...extraRows,
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        ...trailingButtons,
+        new ButtonBuilder()
+          .setCustomId(`send_to_channel:${key}`)
+          .setLabel('Send to Channel')
+          .setEmoji('📢')
+          .setStyle(ButtonStyle.Secondary)
+      ),
+    ] as unknown as ActionRowBuilder<ButtonBuilder>[],
+    allowedMentions: NO_PING_ALLOWED_MENTIONS,
+    flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+  }
+}
+
 // ── Handler ────────────────────────────────────────────────────────────────
 export async function handleSendToChannel(interaction: ButtonInteraction): Promise<void> {
   const key = interaction.customId.slice('send_to_channel:'.length)
