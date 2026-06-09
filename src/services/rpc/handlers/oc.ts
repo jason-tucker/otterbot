@@ -61,6 +61,11 @@ registerVerb('oc.stock_post', async (params, ctx) => {
     const msg = await sendable.send({
       flags: MessageFlags.IsComponentsV2,
       components: [container],
+      // Explicit no-ping, matching caked.message_post. The client default
+      // already suppresses mentions, but pin it here so this RPC-driven post
+      // to an arbitrary channel can never ping even if the global default
+      // changes (OC item names render as markdown).
+      allowedMentions: { parse: [] },
     })
     return {
       ok: true,
