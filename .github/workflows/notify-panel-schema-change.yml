@@ -23,10 +23,13 @@ jobs:
       - name: Send repository_dispatch to botpanel
         env:
           GH_TOKEN: ${{ secrets.BOTPANEL_DISPATCH_PAT }}
+          # Pass the commit message via env, not inline ${{ }} in the script,
+          # so a crafted commit message can't inject shell into the run block.
+          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
           gh api -X POST repos/jason-tucker/botpanel/dispatches \
             -f event_type='bot-schema-changed' \
             -F 'client_payload[source_repo]=otterbot' \
             -F 'client_payload[source_ref]=${{ github.sha }}' \
             -F 'client_payload[schema_dir]=otter' \
-            -F 'client_payload[head_commit_message]=${{ github.event.head_commit.message }}'
+            -F "client_payload[head_commit_message]=$HEAD_COMMIT_MESSAGE"
