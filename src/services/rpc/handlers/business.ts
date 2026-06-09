@@ -390,7 +390,7 @@ registerVerb('business.roster', async (params, ctx: VerbContext): Promise<VerbRe
 // ────────────────────────────────────────────────────────────────────
 registerVerb('business.user_ranks', async (params, ctx: VerbContext): Promise<VerbResult> => {
   const p = params as { userId?: unknown } | null
-  if (!p || typeof p !== 'object' || typeof p.userId !== 'string' || !/^\d{15,25}$/.test(p.userId)) {
+  if (!p || typeof p !== 'object' || typeof p.userId !== 'string' || !/^\d{17,20}$/.test(p.userId)) {
     return { ok: false, error: 'bad-user-id' }
   }
   const userId = p.userId

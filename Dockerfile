@@ -34,4 +34,11 @@ RUN chmod +x docker-entrypoint.sh
 
 ENV NODE_ENV=production
 
+# Drop root: run as the unprivileged `node` user (uid 1000, ships with the
+# base image). Own only the workdir so the bot can still write its
+# .presence-state.json — the copied dist/node_modules stay root-owned but
+# world-readable, which is enough to read and execute them.
+RUN chown node:node /app
+USER node
+
 ENTRYPOINT ["./docker-entrypoint.sh"]

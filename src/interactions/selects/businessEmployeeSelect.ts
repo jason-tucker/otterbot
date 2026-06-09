@@ -38,10 +38,20 @@ export async function handleBusinessEmployeeSelect(interaction: StringSelectMenu
     }
 
     const rosterName = session.roster.businessName.trim().toLowerCase()
-    resolved = allResolved.find((r) => {
+    const matched = allResolved.find((r) => {
       const apiName = ((r.business.settings?.apiBusinessName as string | undefined) ?? r.business.name).trim().toLowerCase()
       return apiName === rosterName || r.business.name.trim().toLowerCase() === rosterName
-    }) ?? allResolved[0]
+    })
+    // If the user isn't actually staff of the searched business, view at
+    // least-privilege (employee) rather than inheriting their highest-ranked
+    // unrelated business's manager/owner rank, which would surface
+    // higher-visibility notes. See REMEDIATION_PLAN F-05.
+    resolved = matched ?? (allResolved[0] ? { business: allResolved[0].business, rank: 'employee' } : null)
+  }
+
+  if (!resolved) {
+    await interaction.editReply({ content: 'You need a staff role to look up employees.', embeds: [], components: [] })
+    return
   }
 
   await showCharacterEmbed(interaction as LookupInteraction, resolved, member.character, null)

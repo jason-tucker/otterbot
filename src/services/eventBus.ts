@@ -26,10 +26,11 @@
 import { Redis } from 'ioredis'
 import type { Client } from 'discord.js'
 import { createLogger } from '../utils/logger'
+import { env } from '../config/env'
 
 const logger = createLogger('eventBus')
 
-const REDIS_URL = process.env.REDIS_URL ?? 'redis://redis:6379'
+const REDIS_URL = env.REDIS_URL
 
 // Top-level botpanel namespace. Channels are `bot.<bot>.<domain>.<event>`.
 const BOT_NS = 'otter'

@@ -64,7 +64,9 @@ export async function handlePortalSelect(interaction: StringSelectMenuInteractio
     await interaction.deferUpdate()
     const mappingId = interaction.values[0]
 
-    await removeRoleMapping(mappingId)
+    // Scope the delete to the session's selected business so a stale select
+    // value can't remove another business's role mapping.
+    const removed = await removeRoleMapping(mappingId, businessId)
     await audit({
       actorDiscordId: interaction.user.id,
       actorName: interaction.user.username,
@@ -72,8 +74,12 @@ export async function handlePortalSelect(interaction: StringSelectMenuInteractio
       action: 'remove_role_mapping',
       targetType: 'role_mapping',
       targetId: mappingId,
-      success: true,
+      success: removed,
     })
+    if (!removed) {
+      await interaction.editReply({ content: 'That role mapping no longer exists or does not belong to this business.', components: [], embeds: [] })
+      return
+    }
 
     const [biz, mappings] = await Promise.all([
       getBusinessById(businessId),

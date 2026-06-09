@@ -74,6 +74,8 @@ export async function handleReportReview(interaction: ButtonInteraction): Promis
       'User-Agent': 'otterbot-report',
     },
     body: JSON.stringify({ title: session.title, body: session.body, labels: session.labels }),
+    // Bound the call so a hung GitHub API doesn't wedge the interaction.
+    signal: AbortSignal.timeout(10_000),
   })
 
   if (!res.ok) {

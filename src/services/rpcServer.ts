@@ -60,7 +60,7 @@ import './rpc/handlers/meta'
 
 const logger = createLogger('rpcServer')
 
-const REDIS_URL = process.env.REDIS_URL ?? 'redis://redis:6379'
+const REDIS_URL = env.REDIS_URL
 const CHANNEL_PREFIX = 'cmd.otter.'
 const CHANNEL_PATTERN = `${CHANNEL_PREFIX}*`
 const REPLAY_WINDOW_MS = 30_000

@@ -42,7 +42,7 @@ import {
   type UpdateButtonFields,
 } from '../../businessButtonsService'
 
-const SNOWFLAKE_RE = /^\d{15,25}$/
+const SNOWFLAKE_RE = /^\d{17,20}$/ /* canonical Discord snowflake; was {15,25} */
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 

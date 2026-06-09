@@ -12,6 +12,7 @@ import { sep,sepLarge,sepBlank } from '../utils/cv2'
 import type { Character, Business, StaffRank, CustomerStanding, Standing } from '../types/domain'
 import { STANDING_COLORS } from '../types/domain'
 import { registerSendable } from '../utils/sendable'
+import { safeMarkdown, safeMarkdownLinkLabel } from '../utils/escape'
 
 export type ViewerMode = 'staff' | 'self'
 
@@ -30,9 +31,13 @@ function capitalize(s: string): string {
 }
 
 function nameNode(character: Character): string {
+  // character.name comes from the external MKE API (player-controlled in-game).
+  // Escape link-label syntax so a crafted name can't break out of the
+  // [label](url) and point staff at an attacker URL (phishing via Send to
+  // Channel). encodeURIComponent the id for defense in depth.
   return character.source === 'mckenzie_api'
-    ? `[${character.name}](https://mke.euphoric.gg/employee/portal/customers/view/${character.id})`
-    : character.name
+    ? `[${safeMarkdownLinkLabel(character.name)}](https://mke.euphoric.gg/employee/portal/customers/view/${encodeURIComponent(character.id)})`
+    : safeMarkdown(character.name)
 }
 
 export interface BusinessAccountsInfo {
@@ -75,7 +80,7 @@ function buildInfoContainer(
     )
   }
 
-  const standingLabel = `${standingEmoji(currentStanding)} **${capitalize(currentStanding)}**${standing?.reason ? ` — ${standing.reason}` : ''}`
+  const standingLabel = `${standingEmoji(currentStanding)} **${capitalize(currentStanding)}**${standing?.reason ? ` — ${safeMarkdown(standing.reason)}` : ''}`
   const lines = [`**Standing** · ${standingLabel}`]
   if (!options.hideNotes) {
     const notesLabel = notesCount === 0 ? 'None' : `${notesCount} note${notesCount === 1 ? '' : 's'}`
@@ -102,7 +107,7 @@ function buildInfoContainer(
       sep()
     )
     const riskDetail = character.securityRiskInfo?.reason
-      ? `\n${character.securityRiskInfo.reason}`
+      ? `\n${safeMarkdown(character.securityRiskInfo.reason)}`
       : ''
     container.addTextDisplayComponents(
       new TextDisplayBuilder().setContent(

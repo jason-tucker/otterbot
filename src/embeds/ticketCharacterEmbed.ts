@@ -9,6 +9,7 @@ import {
   MessageFlags,
 } from 'discord.js'
 import { sepLarge } from '../utils/cv2'
+import { safeInlineCode, safeMarkdown } from '../utils/escape'
 
 interface TicketCharacter {
   id: string
@@ -36,16 +37,19 @@ export function buildTicketCharacterEmbed(
 ) {
   const { sessionKey, lookupMethod = 'discord' } = options
 
+  // CSN / phone / bank come from the external MKE API and render inside
+  // `code spans` in a public ticket channel — strip backticks so a crafted
+  // value can't close the span and inject markdown. Name escapes formatting.
   const fields: string[] = []
-  if (character.csn) fields.push(`**CSN** · \`${character.csn}\``)
-  if (character.phoneNumber) fields.push(`**Phone** · \`${character.phoneNumber}\``)
-  if (character.bankNumber) fields.push(`**Bank** · \`${character.bankNumber}\``)
+  if (character.csn) fields.push(`**CSN** · \`${safeInlineCode(character.csn)}\``)
+  if (character.phoneNumber) fields.push(`**Phone** · \`${safeInlineCode(character.phoneNumber)}\``)
+  if (character.bankNumber) fields.push(`**Bank** · \`${safeInlineCode(character.bankNumber)}\``)
   fields.push(`**Lookup Method** · ${lookupMethodLabel(lookupMethod)}`)
 
   const container = new ContainerBuilder()
     .setAccentColor(0x5865f2)
     .addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(`### ${character.name}\n<@${discordId}>`)
+      new TextDisplayBuilder().setContent(`### ${safeMarkdown(character.name)}\n<@${discordId}>`)
     )
     .addSeparatorComponents(
       sepLarge()

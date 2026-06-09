@@ -33,10 +33,14 @@ export async function handleBusinessSearchSubmit(interaction: ModalSubmitInterac
   const member = await interaction.guild.members.fetch(interaction.user.id)
   const allResolved = await resolveBusinesses(member)
   const rosterName = roster.businessName.trim().toLowerCase()
-  const resolved = allResolved.find((r) => {
+  const matched = allResolved.find((r) => {
     const apiName = ((r.business.settings?.apiBusinessName as string | undefined) ?? r.business.name).trim().toLowerCase()
     return apiName === rosterName || r.business.name.trim().toLowerCase() === rosterName
-  }) ?? allResolved[0] ?? null
+  })
+  // Least-privilege fallback when the searched business isn't one the user is
+  // staff of: view at employee rank under their first business instead of
+  // inheriting an unrelated manager/owner rank. See REMEDIATION_PLAN F-05.
+  const resolved = matched ?? (allResolved[0] ? { business: allResolved[0].business, rank: 'employee' as const } : null)
 
   const sessionKey = storeBusinessRosterSession({ resolved, roster })
   const response = buildBusinessEmbed({ name: roster.businessName, providerType: 'mckenzie' }, roster, sessionKey)

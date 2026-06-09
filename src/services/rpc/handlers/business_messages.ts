@@ -40,7 +40,7 @@ import {
   upsertBusinessMessage,
 } from '../../businessMessagesService'
 
-const SNOWFLAKE_RE = /^\d{15,25}$/
+const SNOWFLAKE_RE = /^\d{17,20}$/
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 const BODY_MIN = 1
 const BODY_MAX = 4000

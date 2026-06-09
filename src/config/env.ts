@@ -40,6 +40,11 @@ const envSchema = z.object({
   // subscriber logs a warning at startup and never connects, so the bot
   // continues to function as a publish-only client.
   BOTPANEL_RPC_SECRET: z.string().min(1).optional(),
+
+  // Redis connection string for the pub/sub command bus + cache invalidation.
+  // Defaults to the docker-network hostname. Security-relevant (it's the RPC
+  // trust channel), so validate it here rather than reading process.env raw.
+  REDIS_URL: z.string().min(1).default('redis://redis:6379'),
 })
 
 const parsed = envSchema.safeParse(process.env)

@@ -1,0 +1,51 @@
+name: Security Scan
+
+# Defensive scanning the team previously relied on manual review for:
+#   - gitleaks: catches a committed secret before it can reach main / history.
+#   - dependency-review: flags newly-introduced vulnerable deps on PRs.
+# Dependabot (.github/dependabot.yml) already handles routine version bumps.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 7 * * 1' # weekly, Monday 07:00 UTC
+  workflow_dispatch:
+
+# Deny-all default; each job grants only contents: read.
+permissions: {}
+
+jobs:
+  gitleaks:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0 # gitleaks needs full history to scan past commits
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # NOTE: gitleaks-action v2 is free for personal accounts. If this
+          # repo ever moves under a GitHub org, set a GITLEAKS_LICENSE secret.
+
+  dependency-review:
+    name: Dependency review
+    runs-on: ubuntu-latest
+    # PR-only: this action diffs the PR's dependency changes against the base.
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Dependency review
+        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4
+        with:
+          fail-on-severity: high

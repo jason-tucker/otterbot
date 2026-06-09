@@ -5,6 +5,31 @@ import { db } from '../../db/client'
 import { businesses } from '../../db/schema'
 import { and, eq } from 'drizzle-orm'
 import { storeLookupSession } from '../../services/interactionCache'
+import { resolveBusinesses } from '../../services/permissionService'
+
+/**
+ * Who may reveal a customer's MKE PII (CSN / phone / bank) from the ticket
+ * character selector. The selector lives on a PUBLIC ticket message, so any
+ * member who can see the channel could otherwise pull another user's PII by
+ * picking from the menu. Allow only:
+ *   - the ticket subject themselves (self-lookup, like /lookup),
+ *   - McKenzie staff (same gate as /lookup), or
+ *   - ticket support staff (ManageChannels), matching ticket_account_made.
+ */
+async function canRevealTicketPII(
+  interaction: StringSelectMenuInteraction,
+  targetDiscordId: string,
+): Promise<boolean> {
+  if (interaction.user.id === targetDiscordId) return true
+  if (!interaction.guild) return false
+  const member =
+    interaction.guild.members.cache.get(interaction.user.id) ??
+    (await interaction.guild.members.fetch(interaction.user.id).catch(() => null))
+  if (!member) return false
+  if (member.permissions.has('ManageChannels')) return true
+  const resolved = await resolveBusinesses(member)
+  return resolved.some((r) => r.business.providerType === 'mckenzie')
+}
 
 interface MkCharacterProfile {
   id: string
@@ -43,9 +68,20 @@ async function getMckenzieBusinessId(guildId: string): Promise<string | null> {
 }
 
 export async function handleTicketCharSelect(interaction: StringSelectMenuInteraction): Promise<void> {
+  const targetDiscordId = interaction.customId.slice('ticket_char_select:'.length)
+
+  // Authorize BEFORE acknowledging so we can deny ephemerally and never expose
+  // PII to an unauthorized clicker on this public message.
+  if (!(await canRevealTicketPII(interaction, targetDiscordId))) {
+    await interaction.reply({
+      content: '❌ Only the ticket creator or McKenzie staff can view this character.',
+      ephemeral: true,
+    })
+    return
+  }
+
   await interaction.deferUpdate()
 
-  const targetDiscordId = interaction.customId.slice('ticket_char_select:'.length)
   const selectedCharacterId = interaction.values[0]
 
   let characters: Awaited<ReturnType<typeof fetchCharacters>>

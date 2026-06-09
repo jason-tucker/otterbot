@@ -17,6 +17,18 @@ export const data = new SlashCommandBuilder()
   )
   .setDMPermission(false)
 
+/**
+ * Per-user rate limit for `/business`. It's the only command that hits the
+ * MKE roster API with an arbitrary search string and had no throttle; 30s
+ * mirrors `/lookup`. Sudo bypasses.
+ */
+const BUSINESS_COOLDOWN_MS = 30_000
+const lastBusinessSearchAt = new Map<string, number>()
+function sweepBusinessCooldowns(): void {
+  const cutoff = Date.now() - BUSINESS_COOLDOWN_MS
+  for (const [k, t] of lastBusinessSearchAt) if (t < cutoff) lastBusinessSearchAt.delete(k)
+}
+
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!interaction.inGuild() || !interaction.guild) {
     await interaction.reply({ content: 'This command can only be used in a server.', ephemeral: true })
@@ -42,6 +54,17 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       content: 'You need to be a staff member of at least one business to use this command.',
     })
     return
+  }
+
+  if (!sudo) {
+    const last = lastBusinessSearchAt.get(interaction.user.id) ?? 0
+    const remaining = BUSINESS_COOLDOWN_MS - (Date.now() - last)
+    if (remaining > 0) {
+      await interaction.editReply({ content: `⏳ Slow down — try again in ${Math.ceil(remaining / 1000)}s.` })
+      return
+    }
+    if (lastBusinessSearchAt.size > 500) sweepBusinessCooldowns()
+    lastBusinessSearchAt.set(interaction.user.id, Date.now())
   }
 
   const roster = await MckenzieProvider.findByName(searchName)
