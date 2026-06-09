@@ -7,6 +7,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### CI / Infra
+- **Pin all GitHub Actions to commit SHAs and add a deny-all default permission.** `deploy.yml` now sets a top-level `permissions: {}` (the deploy job keeps its explicit `contents: read` / `packages: write`) and pins `actions/checkout`, `docker/setup-buildx-action`, `docker/login-action`, `docker/metadata-action`, `docker/build-push-action`, and `appleboy/ssh-action` to full commit SHAs (the SSH action holds the VPS key — biggest supply-chain blast radius). `notify-panel-schema-change.yml` now passes `github.event.head_commit.message` via an `env:` var instead of inline `${{ }}` interpolation in the `run:` block, closing a GitHub Actions script-injection vector.
+- **Run the bot container as non-root.** The production Docker stage now `chown`s the workdir and switches to `USER node` (uid 1000) before the entrypoint, instead of running the process as root. The copied `dist`/`node_modules` stay root-owned but world-readable; the workdir is owned by `node` so the best-effort `.presence-state.json` write still works.
+- **New `Security Scan` workflow.** Adds gitleaks secret scanning (push / PR / weekly, full-history) and `dependency-review` on PRs (`fail-on-severity: high`), both fully SHA-pinned with deny-all default permissions. Codifies the secret/dependency gates the team previously relied on manual review for.
+
 ### Hardening
 - **Bring `REDIS_URL` under the validated env schema and clamp the note marker type.** `REDIS_URL` (the RPC trust channel) was read raw via `process.env` in three services, bypassing startup validation; it's now a validated schema field (`z.string().min(1).default('redis://redis:6379')`) consumed via `env.REDIS_URL` in `rpcServer`, `eventBus`, and `cacheInvalidator`. `noteSubmit` now clamps the marker type to the known set (`VISIBLE_MARKER_TYPES`, default `NOTE`) instead of passing an unbounded `Number(parts[2])` straight to the MKE API and audit log. Documented the optional `BOTPANEL_RPC_SECRET` and `REDIS_URL` in `.env.example` (the RPC secret was validated in-schema but missing from the example, so a fresh operator would silently run with the command bus disabled).
 
