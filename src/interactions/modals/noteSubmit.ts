@@ -6,13 +6,16 @@ import { db } from '../../db/client'
 import { notes } from '../../db/schema'
 import { audit } from '../../services/auditService'
 import { getProvider } from '../../services/businessService'
-import { markerTypeLabel } from '../../services/providers/IBusinessProvider'
+import { markerTypeLabel, MARKER_TYPE_NOTE, VISIBLE_MARKER_TYPES } from '../../services/providers/IBusinessProvider'
 import { publish, notesCh } from '../../services/eventBus'
 
 export async function handleNoteSubmit(interaction: ModalSubmitInteraction): Promise<void> {
   const parts = interaction.customId.split(':')
   const sessionKey = parts[1]
-  const type = parts[2] !== undefined ? Number(parts[2]) : 0
+  // Clamp the marker type to the known set — an out-of-range / NaN value
+  // would otherwise be POSTed to the MKE API and stored in the audit log.
+  const rawType = parts[2] !== undefined ? Number(parts[2]) : MARKER_TYPE_NOTE
+  const type = (VISIBLE_MARKER_TYPES as readonly number[]).includes(rawType) ? rawType : MARKER_TYPE_NOTE
   const session = await getLookupSession(sessionKey)
 
   if (!session) {

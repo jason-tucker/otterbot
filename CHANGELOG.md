@@ -7,6 +7,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Hardening
+- **Bring `REDIS_URL` under the validated env schema and clamp the note marker type.** `REDIS_URL` (the RPC trust channel) was read raw via `process.env` in three services, bypassing startup validation; it's now a validated schema field (`z.string().min(1).default('redis://redis:6379')`) consumed via `env.REDIS_URL` in `rpcServer`, `eventBus`, and `cacheInvalidator`. `noteSubmit` now clamps the marker type to the known set (`VISIBLE_MARKER_TYPES`, default `NOTE`) instead of passing an unbounded `Number(parts[2])` straight to the MKE API and audit log. Documented the optional `BOTPANEL_RPC_SECRET` and `REDIS_URL` in `.env.example` (the RPC secret was validated in-schema but missing from the example, so a fresh operator would silently run with the command bus disabled).
+
 ### Reliability
 - **Bound the remaining unbounded `fetch` calls and close the Redis publisher on shutdown.** The Uptime-Kuma health push (`bot/healthPush.ts`) and the `/report` GitHub-issue `fetch` (`interactions/buttons/reportReview.ts`) had no timeout — a hung endpoint could leave a dangling socket every minute / wedge the interaction. Both now use `AbortSignal.timeout`. The health push also logs a rate-limited warning on persistent failure instead of swallowing silently. `gracefulShutdown` (`src/index.ts`) now calls `closeEventBus()` — the lazily-opened Redis publisher (audit/event bus) was never closed, leaking its socket and potentially keeping the event loop alive on SIGTERM/SIGINT.
 
