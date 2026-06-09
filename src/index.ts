@@ -9,6 +9,7 @@ import { stopHealthPush } from './bot/healthPush'
 import { closeDb } from './db/client'
 import { startRpcServer, closeRpcServer } from './services/rpcServer'
 import { startCacheInvalidator } from './services/cacheInvalidator'
+import { closeEventBus } from './services/eventBus'
 
 registerReadyEvent(client)
 registerInteractionCreate(client)
@@ -46,6 +47,9 @@ async function gracefulShutdown(signal: NodeJS.Signals): Promise<void> {
   stopHealthPush()
   try { await client.destroy() } catch (err) { console.warn('client.destroy failed', err) }
   try { await closeRpcServer() } catch (err) { console.warn('closeRpcServer failed', err) }
+  // The lazily-opened Redis publisher (audit/event bus) was never closed —
+  // leaked the socket on shutdown and could keep the event loop alive.
+  try { await closeEventBus() } catch (err) { console.warn('closeEventBus failed', err) }
   try { await closeDb() } catch (err) { console.warn('closeDb failed', err) }
   // SIGTERM → mimic the natural "unhandled signal" exit code (128 + 15 = 143)
   // so systemd's Restart=on-failure still triggers. SIGINT → clean exit.
