@@ -309,7 +309,7 @@ export async function updateRoleMapping(
   }
 }
 
-export async function removeRoleMapping(mappingId: string): Promise<void> {
+export async function removeRoleMapping(mappingId: string, expectedBusinessId?: string): Promise<boolean> {
   // Capture businessId/roleId before delete so the published event carries
   // the routing keys the panel needs to update its view.
   const rows = await db
@@ -317,15 +317,21 @@ export async function removeRoleMapping(mappingId: string): Promise<void> {
     .from(businessRoleMappings)
     .where(eq(businessRoleMappings.id, mappingId))
     .limit(1)
+  const row = rows[0]
+  if (!row) return false
+  // Scope guard: when the caller knows which business the mapping must belong
+  // to (the /portal flow always does), refuse to delete a mapping from a
+  // different business — defends against a stale/forged select value
+  // referencing another business's mapping id.
+  if (expectedBusinessId && row.businessId !== expectedBusinessId) return false
   await db.delete(businessRoleMappings).where(eq(businessRoleMappings.id, mappingId))
-  if (rows.length > 0) {
-    void publish(businessCh('role_mapping_removed'), {
-      businessId: rows[0].businessId,
-      roleId: rows[0].roleId,
-      mappingId,
-      ts: new Date().toISOString(),
-    })
-  }
+  void publish(businessCh('role_mapping_removed'), {
+    businessId: row.businessId,
+    roleId: row.roleId,
+    mappingId,
+    ts: new Date().toISOString(),
+  })
+  return true
 }
 
 // ---------------------------------------------------------------------------
