@@ -12,14 +12,18 @@ import { sep,sepLarge,sepBlank } from '../utils/cv2'
 import { randomUUID } from 'crypto'
 import type { BusinessRoster, RosterMember } from '../services/providers/IBusinessProvider'
 import { registerSendable } from '../utils/sendable'
+import { safeInlineCode, safeMarkdown } from '../utils/escape'
 
 function formatRosterMember(m: RosterMember, includeDiscord: boolean): string {
+  // Names + CSN/phone/bank originate from the external MKE API. Escape so a
+  // crafted roster entry can't hijack formatting or break code spans in the
+  // (potentially public, Send-to-Channel'd) roster embed.
   const parts: string[] = []
-  if (m.csn) parts.push(`CSN \`${m.csn}\``)
-  if (m.character.phoneNumber) parts.push(`📞 \`${m.character.phoneNumber}\``)
-  if (m.character.bankNumber) parts.push(`🏦 \`${m.character.bankNumber}\``)
+  if (m.csn) parts.push(`CSN \`${safeInlineCode(m.csn)}\``)
+  if (m.character.phoneNumber) parts.push(`📞 \`${safeInlineCode(m.character.phoneNumber)}\``)
+  if (m.character.bankNumber) parts.push(`🏦 \`${safeInlineCode(m.character.bankNumber)}\``)
   if (includeDiscord && m.discordId) parts.push(`<@${m.discordId}>`)
-  return `**${m.name}**${parts.length ? ' — ' + parts.join(' · ') : ''}`
+  return `**${safeMarkdown(m.name)}**${parts.length ? ' — ' + parts.join(' · ') : ''}`
 }
 
 interface BusinessInfo {
@@ -45,9 +49,9 @@ export function buildBusinessEmbed(info: BusinessInfo, roster: BusinessRoster | 
 
   const container = new ContainerBuilder().setAccentColor(0x5865f2)
 
-  // Header
+  // Header (roster.businessName is API-sourced — escape it)
   container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent(`## ${roster.businessName}`)
+    new TextDisplayBuilder().setContent(`## ${safeMarkdown(roster.businessName)}`)
   )
 
   container.addSeparatorComponents(

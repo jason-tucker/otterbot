@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [Unreleased]
+
+### Security
+- **Escape MKE-API-controlled strings in the `/lookup`, ticket, and `/business` embeds.** Character names, standing/risk reasons, CSN/phone/bank fields, and roster member names come from the external MKE API (player-controlled in-game) and were interpolated raw into Components V2 text. A crafted character name could break out of the `[label](url)` markdown link in the lookup customer card and point staff at an attacker URL (phishing) — especially after **Send to Channel** broadcasts it publicly. `customerEmbed.ts` now wraps the name in `safeMarkdownLinkLabel` (+ `encodeURIComponent` on the id) and escapes the standing/risk reasons; `ticketCharacterEmbed.ts` and `businessEmbed.ts` now `safeMarkdown` names and `safeInlineCode` the code-span fields. The escaper utilities already existed and are tested — they were simply not applied to these three embeds (OC/notes embeds already used them). Added `embeds/embedEscaping.test.ts` asserting the builders escape injected payloads.
+
+---
+
 ## [0.11.1] — 2026-06-05
 
 ### Ops
