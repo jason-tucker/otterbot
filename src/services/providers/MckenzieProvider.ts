@@ -1,6 +1,7 @@
 import { env } from '../../config/env'
 import type { Character, Business } from '../../types/domain'
 import { createLogger } from '../../utils/logger'
+import { mkeGetJson, invalidateMkeCacheWhere } from '../mkeGateway'
 import type { IBusinessProvider, BusinessRoster, RosterMember, ApiNote, CreateMarkerResult, CharacterWithBusinesses } from './IBusinessProvider'
 
 const logger = createLogger('MKE')
@@ -59,9 +60,10 @@ export class MckenzieProvider implements IBusinessProvider {
 
   // Character profiles endpoint returns a raw array (no wrapper)
   async lookupByDiscordId(discordId: string): Promise<Character[]> {
-    const res = await fetch(
-      `${this.baseUrl}/character-profiles/discord/${encodeURIComponent(discordId)}`,
-      { headers: this.headers(), signal: AbortSignal.timeout(8000) }
+    // Cached + deduped via the MKE gateway — the multi-character /lookup flow
+    // hits this endpoint twice (menu build, then selection) within seconds.
+    const res = await mkeGetJson(
+      `/character-profiles/discord/${encodeURIComponent(discordId)}`
     )
 
     if (!res.ok) return []
@@ -70,7 +72,7 @@ export class MckenzieProvider implements IBusinessProvider {
     // shape, swallow the error and return [] rather than crashing the
     // calling handler. Existing shape was an `as`-cast that would let bad
     // data through silently.
-    const data = await res.json().catch(() => null) as MkCharacterProfile[] | null
+    const data = res.data as MkCharacterProfile[] | null
     if (!Array.isArray(data)) return []
 
     return data
@@ -83,24 +85,21 @@ export class MckenzieProvider implements IBusinessProvider {
   }
 
   async getBusinessRoster(): Promise<BusinessRoster | null> {
-    return MckenzieProvider.fetchRosterByName(this.apiBusinessName, this.headers())
+    return MckenzieProvider.fetchRosterByName(this.apiBusinessName)
   }
 
   static async findByName(name: string): Promise<BusinessRoster | null> {
-    const headers = { 'EUPHORIC-API-KEY': env.EUPHORIC_API_KEY }
-    return MckenzieProvider.fetchRosterByName(name, headers)
+    return MckenzieProvider.fetchRosterByName(name)
   }
 
-  private static async fetchRosterByName(
-    name: string,
-    headers: Record<string, string>
-  ): Promise<BusinessRoster | null> {
-    const url = `${env.EUPHORIC_API_BASE_URL}/business-accounts/find?name=${encodeURIComponent(name)}`
-    const res = await fetch(url, { headers, signal: AbortSignal.timeout(8000) })
+  private static async fetchRosterByName(name: string): Promise<BusinessRoster | null> {
+    // Gateway-cached: /business searches and the known-business UUID refresh
+    // both resolve rosters by name — identical concurrent requests collapse.
+    const res = await mkeGetJson(`/business-accounts/find?name=${encodeURIComponent(name)}`)
 
     if (!res.ok) return null
 
-    const data = await res.json() as MkBusinessAccount
+    const data = res.data as MkBusinessAccount | null
     if (!data?.id) return null
 
     const { owner, employees, name: businessName } = data
@@ -131,21 +130,17 @@ export class MckenzieProvider implements IBusinessProvider {
    * action names and probing CSN-based sub-resources.
    */
   async getNotes(csn: string): Promise<ApiNote[]> {
-    const url = `${this.baseUrl}/character-profiles/csn/${encodeURIComponent(csn)}/markers`
+    const path = `/character-profiles/csn/${encodeURIComponent(csn)}/markers`
     try {
-      const res = await fetch(url, {
-        method: 'GET',
-        headers: this.headers(),
-        signal: AbortSignal.timeout(8000),
-      })
+      const res = await mkeGetJson(path)
       if (!res.ok) {
         // Don't log the response body — MKE error payloads can echo back
         // PII (CSN / phone / bank fields) and journald retains otterbot logs.
         // Status + URL is enough to triage without exposing PII.
-        logger.warn('getNotes failed', { status: res.status, url })
+        logger.warn('getNotes failed', { status: res.status, url: `${this.baseUrl}${path}` })
         return []
       }
-      const data = await res.json()
+      const data = res.data
       if (!Array.isArray(data)) {
         // Only log the type — the value itself can echo PII.
         logger.warn('getNotes returned non-array', { type: typeof data })
@@ -161,11 +156,10 @@ export class MckenzieProvider implements IBusinessProvider {
   }
 
   async getCharacterByCsn(csn: string): Promise<CharacterWithBusinesses | null> {
-    const url = `${this.baseUrl}/character-profiles/csn/${encodeURIComponent(csn)}`
     try {
-      const res = await fetch(url, { headers: this.headers(), signal: AbortSignal.timeout(8000) })
+      const res = await mkeGetJson(`/character-profiles/csn/${encodeURIComponent(csn)}`)
       if (!res.ok) return null
-      const profile = await res.json() as MkCharacterProfile
+      const profile = res.data as MkCharacterProfile | null
       if (!profile?.id) return null
       const character = MckenzieProvider.mapToCharacter(profile)
       return {
@@ -197,6 +191,9 @@ export class MckenzieProvider implements IBusinessProvider {
       }
       let marker: ApiNote | undefined
       try { marker = text ? JSON.parse(text) as ApiNote : undefined } catch { /* non-JSON success */ }
+      // Bust the gateway cache for this CSN (markers + profile) so an
+      // immediate View Notes / re-render shows the marker we just created.
+      invalidateMkeCacheWhere(encodeURIComponent(csn))
       return { ok: true, marker }
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) }
