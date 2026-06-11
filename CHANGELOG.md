@@ -7,6 +7,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **`/movechannel` is no longer hidden from non-sudo managers.** The command set `defaultMemberPermissions(0)`, which hid it from every non-admin (including business managers) unless a server admin manually granted it per-role via Server Settings → Integrations — so non-sudo users couldn't see or run it. Removed the Discord-level gate; access is now enforced solely by the existing in-code "Manager+ or sudo" check (matching the visible-to-all + code-gated pattern of `/oc`, `/help`). Requires `pnpm commands:deploy` to take effect.
+
 ### CI / Infra
 - **Pin all GitHub Actions to commit SHAs and add a deny-all default permission.** `deploy.yml` now sets a top-level `permissions: {}` (the deploy job keeps its explicit `contents: read` / `packages: write`) and pins `actions/checkout`, `docker/setup-buildx-action`, `docker/login-action`, `docker/metadata-action`, `docker/build-push-action`, and `appleboy/ssh-action` to full commit SHAs (the SSH action holds the VPS key — biggest supply-chain blast radius). `notify-panel-schema-change.yml` now passes `github.event.head_commit.message` via an `env:` var instead of inline `${{ }}` interpolation in the `run:` block, closing a GitHub Actions script-injection vector.
 - **Run the bot container as non-root.** The production Docker stage now `chown`s the workdir and switches to `USER node` (uid 1000) before the entrypoint, instead of running the process as root. The copied `dist`/`node_modules` stay root-owned but world-readable; the workdir is owned by `node` so the best-effort `.presence-state.json` write still works.

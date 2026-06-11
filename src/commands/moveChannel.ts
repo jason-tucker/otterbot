@@ -40,7 +40,11 @@ export const data = new SlashCommandBuilder()
       .addChoices({ name: 'Top', value: 'top' }, { name: 'Bottom', value: 'bottom' })
   )
   .setDMPermission(false)
-  .setDefaultMemberPermissions(0)
+  // No setDefaultMemberPermissions gate: `0` hid the command from every
+  // non-admin (including business managers) unless an admin manually granted
+  // it per-role via Server Settings → Integrations, which broke it for
+  // non-sudo users. Visibility is left open and access is enforced in code
+  // below (Manager+ or sudo), matching the pattern used by /oc, /help, etc.
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!interaction.inGuild() || !interaction.guild) {
