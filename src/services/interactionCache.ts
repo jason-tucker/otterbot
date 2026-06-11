@@ -39,12 +39,24 @@ export interface LookupSession {
   rank: StaffRank
 }
 
+// Sweep expired lookup_sessions rows at most this often. The sweep used to
+// run (and be awaited) on EVERY insert — an extra blocking DELETE round-trip
+// in the hot path of every lookup/ticket embed. Rows are tiny and reads
+// already filter on expires_at, so a 5-minute cadence is plenty.
+const LOOKUP_SWEEP_MIN_INTERVAL_MS = 5 * 60 * 1000
+let lastLookupSweepAt = 0
+
 export async function storeLookupSession(data: LookupSession): Promise<string> {
   const key = makeKey()
   const expiresAt = new Date(Date.now() + LOOKUP_TTL_MS)
   await db.insert(lookupSessions).values({ key, ...data, expiresAt })
-  // Sweep old rows opportunistically; not blocking on errors
-  await db.delete(lookupSessions).where(lt(lookupSessions.expiresAt, new Date())).catch(() => {})
+  // Opportunistic sweep — throttled and fire-and-forget so it never adds
+  // latency to (or fails) the interaction that triggered it.
+  const now = Date.now()
+  if (now - lastLookupSweepAt >= LOOKUP_SWEEP_MIN_INTERVAL_MS) {
+    lastLookupSweepAt = now
+    void db.delete(lookupSessions).where(lt(lookupSessions.expiresAt, new Date())).catch(() => {})
+  }
   return key
 }
 

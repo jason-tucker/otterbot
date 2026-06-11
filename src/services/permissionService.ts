@@ -23,46 +23,50 @@ export async function resolveBusinesses(member: GuildMember): Promise<ResolvedBu
 
   const guildId = member.guild.id
 
-  // --- 1. Role-based access ---
+  // The two sources are independent — run both queries concurrently. This
+  // function sits on the hot path of nearly every interaction, so halving
+  // its round-trip latency is felt everywhere.
   const roleIds = [...member.roles.cache.keys()]
-  if (roleIds.length > 0) {
-    const roleRows = await db
-      .select({ business: businesses, rank: businessRoleMappings.rank })
-      .from(businessRoleMappings)
-      .innerJoin(businesses, eq(businessRoleMappings.businessId, businesses.id))
+  const [roleRows, ownerRows] = await Promise.all([
+    // --- 1. Role-based access ---
+    roleIds.length > 0
+      ? db
+          .select({ business: businesses, rank: businessRoleMappings.rank })
+          .from(businessRoleMappings)
+          .innerJoin(businesses, eq(businessRoleMappings.businessId, businesses.id))
+          .where(
+            and(
+              inArray(businessRoleMappings.roleId, roleIds),
+              eq(businessRoleMappings.guildId, guildId),
+              eq(businesses.active, true),
+            ),
+          )
+      : Promise.resolve([]),
+    // --- 2. DB owner list ---
+    db
+      .select({ business: businesses })
+      .from(businessOwners)
+      .innerJoin(businesses, eq(businessOwners.businessId, businesses.id))
       .where(
         and(
-          inArray(businessRoleMappings.roleId, roleIds),
-          eq(businessRoleMappings.guildId, guildId),
+          eq(businessOwners.discordUserId, member.id),
           eq(businesses.active, true),
         ),
-      )
+      ),
+  ])
 
-    for (const row of roleRows) {
-      const existing = byBusiness.get(row.business.id)
-      if (!existing || RANK_ORDER[row.rank] > RANK_ORDER[existing.rank]) {
-        byBusiness.set(row.business.id, {
-          business: {
-            ...row.business,
-            settings: (row.business.settings as Record<string, unknown>) ?? null,
-          },
-          rank: row.rank,
-        })
-      }
+  for (const row of roleRows) {
+    const existing = byBusiness.get(row.business.id)
+    if (!existing || RANK_ORDER[row.rank] > RANK_ORDER[existing.rank]) {
+      byBusiness.set(row.business.id, {
+        business: {
+          ...row.business,
+          settings: (row.business.settings as Record<string, unknown>) ?? null,
+        },
+        rank: row.rank,
+      })
     }
   }
-
-  // --- 2. DB owner list ---
-  const ownerRows = await db
-    .select({ business: businesses })
-    .from(businessOwners)
-    .innerJoin(businesses, eq(businessOwners.businessId, businesses.id))
-    .where(
-      and(
-        eq(businessOwners.discordUserId, member.id),
-        eq(businesses.active, true),
-      ),
-    )
 
   for (const row of ownerRows) {
     const existing = byBusiness.get(row.business.id)
