@@ -209,7 +209,25 @@ export function registerInteractionCreate(client: Client) {
         if (interaction.isRepliable() && !interaction.replied) {
           const payload = { content: 'An unexpected error occurred.', ephemeral: true }
           if ('deferred' in interaction && interaction.deferred) {
-            await (interaction as ChatInputCommandInteraction).editReply({ content: payload.content })
+            // For a component (or message-launched modal) sitting on a PUBLIC
+            // message, the interaction was almost certainly acked with
+            // deferUpdate — editReply would REPLACE the public message
+            // (ticket select, public OC card, …) with this error string.
+            // Send an ephemeral follow-up instead and leave the message
+            // intact. Ephemeral panels and deferred slash replies keep the
+            // editReply path so the user isn't left on "thinking…".
+            const sourceMessage = interaction.isMessageComponent()
+              ? interaction.message
+              : interaction.isModalSubmit() && interaction.isFromMessage()
+                ? interaction.message
+                : null
+            const onPublicMessage =
+              sourceMessage !== null && sourceMessage.flags?.has('Ephemeral') === false
+            if (onPublicMessage) {
+              await interaction.followUp({ content: payload.content, ephemeral: true })
+            } else {
+              await (interaction as ChatInputCommandInteraction).editReply({ content: payload.content })
+            }
           } else {
             await interaction.reply(payload)
           }
