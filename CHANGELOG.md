@@ -7,6 +7,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Docs
+- docs: add mandatory Agent usage policy to CLAUDE.md; remove phantom standing_* customIds (removed in 0.9.1); document `business_messages` table + `businessMessagesService.ts`, the actual `drizzle-kit push --force` container entrypoint (not `pnpm db:migrate`), `BOTPANEL_RPC_SECRET` / `REDIS_URL` env vars, and the Bot ↔ Botpanel RPC integration section.
+
 ### CI / Infra
 - **Pin all GitHub Actions to commit SHAs and add a deny-all default permission.** `deploy.yml` now sets a top-level `permissions: {}` (the deploy job keeps its explicit `contents: read` / `packages: write`) and pins `actions/checkout`, `docker/setup-buildx-action`, `docker/login-action`, `docker/metadata-action`, `docker/build-push-action`, and `appleboy/ssh-action` to full commit SHAs (the SSH action holds the VPS key — biggest supply-chain blast radius). `notify-panel-schema-change.yml` now passes `github.event.head_commit.message` via an `env:` var instead of inline `${{ }}` interpolation in the `run:` block, closing a GitHub Actions script-injection vector.
 - **Run the bot container as non-root.** The production Docker stage now `chown`s the workdir and switches to `USER node` (uid 1000) before the entrypoint, instead of running the process as root. The copied `dist`/`node_modules` stay root-owned but world-readable; the workdir is owned by `node` so the best-effort `.presence-state.json` write still works.
