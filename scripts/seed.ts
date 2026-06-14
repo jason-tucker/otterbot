@@ -1,6 +1,16 @@
 // Syncs businesses.config.ts → database for all configured guilds.
-// Run: pnpm db:seed
-// Safe to run multiple times (upserts, non-destructive for runtime data).
+// Run: pnpm db:seed [-- --force]
+//
+// Safe to run multiple times. By default the seed only CREATES what's
+// missing — existing business rows and existing role-mapping sets are left
+// untouched, because the live values are managed at runtime via /portal
+// (permission flags, apiBusinessName, descriptions, isBase /
+// autoGrantEmployee / minRankToAssign on mappings) and re-seeding them from
+// the static config template would silently revert those edits.
+//
+// Pass `--force` to restore the old overwrite behavior: update existing
+// business rows from the config and replace each business's role-mapping
+// set for the guild.
 
 import 'dotenv/config'
 import { REST, Routes } from 'discord.js'
@@ -13,6 +23,7 @@ import { ALL_GUILD_IDS } from '../src/config/guilds.config'
 
 const DATABASE_URL = process.env.DATABASE_URL
 const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN
+const FORCE = process.argv.includes('--force')
 
 if (!DATABASE_URL || !BOT_TOKEN) {
   console.error('❌ Missing DATABASE_URL or DISCORD_BOT_TOKEN in .env')
@@ -45,15 +56,22 @@ async function seedGuild(guildId: string) {
 
     if (existing.length > 0) {
       businessId = existing[0].id
-      // Update name/provider/settings only — don't overwrite runtime changes
-      await db
-        .update(businesses)
-        .set({
-          name: config.name,
-          providerType: config.providerType,
-          settings: config.settings as Record<string, unknown> ?? existing[0].settings,
-        })
-        .where(eq(businesses.id, businessId))
+      if (FORCE) {
+        // --force: restore the template values over whatever is in the DB.
+        await db
+          .update(businesses)
+          .set({
+            name: config.name,
+            providerType: config.providerType,
+            settings: config.settings as Record<string, unknown> ?? existing[0].settings,
+          })
+          .where(eq(businesses.id, businessId))
+      } else {
+        // Existing row → leave it alone. `settings` (permission flags,
+        // apiBusinessName, description) is edited at runtime via /portal;
+        // overwriting it from the config template would revert live config.
+        console.log(`  ${config.name}: row exists — leaving business record untouched (use --force to overwrite)`)
+      }
     } else {
       const inserted = await db
         .insert(businesses)
@@ -67,6 +85,21 @@ async function seedGuild(guildId: string) {
         })
         .returning({ id: businesses.id })
       businessId = inserted[0].id
+    }
+
+    // Role mappings: only seed when none exist for this business+guild (or
+    // when --force is passed). The old unconditional delete-and-reinsert
+    // wiped runtime /portal edits — custom labels, isBase,
+    // autoGrantEmployee, minRankToAssign — every time the seed ran.
+    const existingMappings = await db
+      .select({ id: businessRoleMappings.id })
+      .from(businessRoleMappings)
+      .where(and(eq(businessRoleMappings.businessId, businessId), eq(businessRoleMappings.guildId, guildId)))
+      .limit(1)
+
+    if (existingMappings.length > 0 && !FORCE) {
+      console.log(`  ${config.name}: role mappings exist — skipped (use --force to replace)`)
+      continue
     }
 
     // Replace role mappings for this business+guild
