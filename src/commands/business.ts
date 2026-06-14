@@ -5,6 +5,7 @@ import { MckenzieProvider } from '../services/providers/MckenzieProvider'
 import { buildBusinessEmbed } from '../embeds/businessEmbed'
 import { audit } from '../services/auditService'
 import { storeBusinessRosterSession } from '../services/interactionCache'
+import { panelLinkDisplay } from '../utils/panelLink'
 
 export const data = new SlashCommandBuilder()
   .setName('business')
@@ -92,5 +93,6 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   const sessionKey = storeBusinessRosterSession({ resolved, roster })
   const response = buildBusinessEmbed({ name: roster.businessName, providerType: 'mckenzie' }, roster, sessionKey)
+  response.components.push(panelLinkDisplay('/otter/businesses', 'Open businesses on the website') as any)
   await interaction.editReply({ ...response, content: null } as any)
 }

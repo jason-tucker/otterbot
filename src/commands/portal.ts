@@ -3,6 +3,7 @@ import { isSudoUser } from '../services/sudoService'
 import { getAllBusinesses } from '../services/portalService'
 import { storePortalSession } from '../services/interactionCache'
 import { buildPortalMainMenu } from '../embeds/portalEmbed'
+import { panelLinkDisplay } from '../utils/panelLink'
 
 export const data = new SlashCommandBuilder()
   .setName('portal')
@@ -32,5 +33,6 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   })
 
   const portalMenu = buildPortalMainMenu(businesses, sessionKey)
+  portalMenu.components.push(panelLinkDisplay('/otter/businesses', 'Manage businesses on the website') as any)
   await interaction.editReply({ ...portalMenu, content: null })
 }

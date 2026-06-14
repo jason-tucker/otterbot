@@ -22,6 +22,7 @@ import type { ResolvedBusiness, Character, Business } from '../types/domain'
 import { storeLookupSession } from '../services/interactionCache'
 import { refreshKnownMckenzieBusinesses, type KnownBusiness } from '../services/mckenzieBusinessCache'
 import { isSudoUser } from '../services/sudoService'
+import { panelLinkDisplay } from '../utils/panelLink'
 
 /**
  * Per-user rate limit for `/lookup` (and the right-click Lookup context
@@ -280,5 +281,6 @@ export async function showCharacterEmbed(
     matchedBusinesses,
     unknownBusinessCount: unknownBusinessIds.length,
   })
+  response.components.push(panelLinkDisplay('/otter/mke', 'Open McKenzie on the website') as any)
   await interaction.editReply({ ...response, content: null } as any)
 }

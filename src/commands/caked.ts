@@ -20,6 +20,7 @@ import { resolveBusinesses, hasMinRank } from '../services/permissionService'
 import { isSudoUser } from '../services/sudoService'
 import { listEnabledButtons } from '../services/businessButtonsService'
 import { buildCustomButtonRows, manageButtonsButton } from '../embeds/businessButtons'
+import { appendPanelLink } from '../utils/panelLink'
 
 // Re-exported so existing button / modal handlers that import
 // `CAKED_COLOR` / `cakedMainContainer` from this module keep working.
@@ -64,6 +65,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     ? await getBusinessMessageOverrides(businessId, CAKED_EDITABLE_KEYS)
     : {}
   const container = cakedMainContainer(overrides)
+  appendPanelLink(container, '/otter/caked', 'Manage Caked Up on the website')
 
   // Manager-configured custom buttons (link / info), shown to everyone and
   // included in the Send-to-Channel post so customers can use them publicly.

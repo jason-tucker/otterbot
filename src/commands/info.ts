@@ -14,6 +14,7 @@ import { listEnabledButtons } from '../services/businessButtonsService'
 import { buildCustomButtonRows, manageButtonsButton } from '../embeds/businessButtons'
 import { registerSendable, withSendButtonV2Rows } from '../utils/sendable'
 import { sep } from '../utils/cv2'
+import { appendPanelLink } from '../utils/panelLink'
 
 // Businesses with their own richer command surface are excluded from /info —
 // their managers get custom buttons on /oc and /caked instead. MKE is excluded
@@ -108,6 +109,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   const buttons = await listEnabledButtons(biz.id)
   const container = infoContainer(biz)
+  appendPanelLink(container, biz.slug ? `/otter/businesses/${biz.slug}` : '/otter/businesses', 'Open this business on the website')
   const customRows = buildCustomButtonRows(buttons)
 
   const sendKey = `info:${biz.slug}:${interaction.id}`

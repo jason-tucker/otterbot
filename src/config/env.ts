@@ -45,6 +45,10 @@ const envSchema = z.object({
   // Defaults to the docker-network hostname. Security-relevant (it's the RPC
   // trust channel), so validate it here rather than reading process.env raw.
   REDIS_URL: z.string().min(1).default('redis://redis:6379'),
+
+  // Website (botpanel) base URL for the "do this on the website" links appended
+  // to slash command replies. Optional — panelLink.ts falls back to the prod domain.
+  PANEL_BASE_URL: z.string().url().optional(),
 })
 
 const parsed = envSchema.safeParse(process.env)
