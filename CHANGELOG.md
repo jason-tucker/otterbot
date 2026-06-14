@@ -7,6 +7,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **Custom buttons panel returned `forbidden` for the bot owner.** The `business_buttons.*` RPC gate (`actorRankForBusiness`) was missing the bot-owner bypass that `business_messages.ts` already has, so botpanel's `/otter/businesses/[slug]` page — which shows the buttons editor to `access.botOwner` — got "Couldn't load custom buttons. The bot returned forbidden." for an owner who isn't also a per-business owner/manager. Added the same `env.BOT_OWNER_ID` bypass so the bot answers consistently with the panel's gate.
+
 ### Docs
 - docs: add mandatory Agent usage policy to CLAUDE.md; remove phantom standing_* customIds (removed in 0.9.1); document `business_messages` table + `businessMessagesService.ts`, the actual `drizzle-kit push --force` container entrypoint (not `pnpm db:migrate`), `BOTPANEL_RPC_SECRET` / `REDIS_URL` env vars, and the Bot ↔ Botpanel RPC integration section.
 
