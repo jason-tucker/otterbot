@@ -26,12 +26,14 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   await interaction.deferReply({ ephemeral: true })
 
-  const member = await interaction.guild.members.fetch(interaction.user.id)
-  const resolved = await resolveBusinesses(member)
+  // Permission resolution and the stock read are independent — overlap them.
+  const [resolved, items] = await Promise.all([
+    interaction.guild.members.fetch(interaction.user.id).then((m) => resolveBusinesses(m)),
+    getAllStock(),
+  ])
   const oc = resolved.find((r) => r.business.slug === 'original-clothing')
   const isManager = oc ? hasMinRank(oc.rank, 'manager') : false
 
-  const items = await getAllStock()
   const container = buildOCPublicContainer(items)
 
   const ocBusinessId = oc?.business.id ?? (await resolveBusinessIdBySlug('original-clothing'))
