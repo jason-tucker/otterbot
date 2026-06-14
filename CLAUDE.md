@@ -315,6 +315,7 @@ await interaction.editReply({ ...withSendButtonV2(sendKey, container, extraButto
 | `UPTIME_KUMA_PUSH_URL` | No | Kuma push URL — bot pings every 60 s after `clientReady` |
 | `BOTPANEL_RPC_SECRET` | No | HMAC-SHA256 secret shared with botpanel. Must match the value in the botpanel stack. If unset, the RPC subscriber and cache-invalidate subscriber log a warning at startup and never connect — the bot still runs as a publish-only client. The command bus fails closed on a mismatch (envelope dropped with a warn, no information leak). |
 | `REDIS_URL` | No | Redis connection string for the pub/sub command bus and cache invalidation. Validated at startup via the env schema (not read raw). Default: `redis://redis:6379` (the docker-network hostname). Override for local or non-docker runs. |
+| `PANEL_BASE_URL` | No | Base URL of the botpanel website for the "do this on the website" links appended to slash command replies. Defaults to `https://bots.tucker.host`. |
 
 ---
 

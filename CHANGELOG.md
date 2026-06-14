@@ -7,6 +7,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- Slash command replies now show a "do this on the website" link to the matching botpanel page (`/oc`, `/caked`, `/info`, `/lookup`, `/business`, `/employee`, `/portal`). New optional `PANEL_BASE_URL` env var (defaults to `https://bots.tucker.host`).
+
 ### Fixed
 - **Custom buttons panel returned `forbidden` for the bot owner.** The `business_buttons.*` RPC gate (`actorRankForBusiness`) was missing the bot-owner bypass that `business_messages.ts` already has, so botpanel's `/otter/businesses/[slug]` page — which shows the buttons editor to `access.botOwner` — got "Couldn't load custom buttons. The bot returned forbidden." for an owner who isn't also a per-business owner/manager. Added the same `env.BOT_OWNER_ID` bypass so the bot answers consistently with the panel's gate.
 

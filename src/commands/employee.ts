@@ -17,6 +17,7 @@ import { storeEmployeeSession } from '../services/interactionCache'
 import { getTargetStatus } from '../services/employeeService'
 import { getAllBusinesses } from '../services/portalService'
 import type { ResolvedBusiness } from '../types/domain'
+import { panelLinkDisplay } from '../utils/panelLink'
 
 export type EmployeeManageInteraction =
   | ChatInputCommandInteraction
@@ -171,5 +172,6 @@ export async function showEmployeeManageEmbed(
     isSudo,
     allConfigsWithOwnership,
   )
+  response.components.push(panelLinkDisplay('/otter/businesses', 'Manage employees on the website') as any)
   await interaction.editReply({ ...response, content: null })
 }

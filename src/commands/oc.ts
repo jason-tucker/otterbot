@@ -12,6 +12,7 @@ import { registerSendable, withSendButtonV2Rows } from '../utils/sendable'
 import { resolveBusinessIdBySlug } from '../services/businessMessagesService'
 import { listEnabledButtons } from '../services/businessButtonsService'
 import { buildCustomButtonRows, manageButtonsButton } from '../embeds/businessButtons'
+import { appendPanelLink } from '../utils/panelLink'
 
 export const data = new SlashCommandBuilder()
   .setName('oc')
@@ -35,6 +36,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const isManager = oc ? hasMinRank(oc.rank, 'manager') : false
 
   const container = buildOCPublicContainer(items)
+  appendPanelLink(container, '/otter/oc-stock', 'View & manage OC stock on the website')
 
   const ocBusinessId = oc?.business.id ?? (await resolveBusinessIdBySlug('original-clothing'))
   const customButtons = ocBusinessId ? await listEnabledButtons(ocBusinessId) : []
