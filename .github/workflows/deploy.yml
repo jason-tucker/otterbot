@@ -50,7 +50,7 @@ jobs:
       # ── 4. Compute image tags ─────────────────────────────────────────────────
       - name: Docker metadata
         id: meta
-        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
+        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
@@ -88,7 +88,7 @@ jobs:
       # ── 7. Deploy to VPS ──────────────────────────────────────────────────────
       - name: Deploy to VPS
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: appleboy/ssh-action@7eaf76671a0d7eec5d98ee897acda4f968735a17 # v1.2.0
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
@@ -101,12 +101,32 @@ jobs:
             git fetch --all
             git reset --hard origin/main
 
-            # Pull the new image and restart
-            BOT_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" \
-              docker compose pull otterbot
+            export BOT_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
 
-            BOT_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" \
-              docker compose up -d --remove-orphans
+            # Pull the new image.
+            docker compose pull otterbot
+
+            # Bring the container up on the new image. The otterbot service is
+            # also watched by watchtower (it auto-updates :latest on GHCR push),
+            # so watchtower may already be recreating the container when this
+            # step runs. A single `compose up` then races it and dies with
+            # "removal of container ... is already in progress". Retry a few
+            # times: once watchtower's recreate settles, `up -d` converges to a
+            # no-op (container already on the new :latest) and succeeds. Both
+            # deployers stay enabled; they just stop fighting.
+            for attempt in 1 2 3 4 5; do
+              if docker compose up -d --remove-orphans; then
+                echo "✓ compose up succeeded (attempt $attempt)"
+                break
+              fi
+              if [ "$attempt" -eq 5 ]; then
+                echo "ERROR: compose up failed after $attempt attempts"
+                docker compose logs otterbot --tail=30 || true
+                exit 1
+              fi
+              echo "compose up attempt $attempt failed (likely a watchtower recreate race) — retrying in 8s…"
+              sleep 8
+            done
 
             # Wait for container to be healthy
             sleep 10

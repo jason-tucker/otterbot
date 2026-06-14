@@ -94,20 +94,20 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   }
 
   // Manager-or-sudo gets the Manage Buttons affordance. Best-effort.
-  let isManager = false
-  try {
-    const member = await interaction.guild.members.fetch(interaction.user.id)
-    isManager = isSudoUser(member)
-    if (!isManager) {
+  async function checkManager(): Promise<boolean> {
+    try {
+      const member = await interaction.guild!.members.fetch(interaction.user.id)
+      if (isSudoUser(member)) return true
       const resolved = await resolveBusinesses(member)
-      const r = resolved.find((rb) => rb.business.id === biz.id)
-      isManager = !!(r && hasMinRank(r.rank, 'manager'))
+      const r = resolved.find((rb) => rb.business.id === biz!.id)
+      return !!(r && hasMinRank(r.rank, 'manager'))
+    } catch {
+      return false
     }
-  } catch {
-    isManager = false
   }
 
-  const buttons = await listEnabledButtons(biz.id)
+  // Manager check and button read are independent — overlap them.
+  const [isManager, buttons] = await Promise.all([checkManager(), listEnabledButtons(biz.id)])
   const container = infoContainer(biz)
   appendPanelLink(container, biz.slug ? `/otter/businesses/${biz.slug}` : '/otter/businesses', 'Open this business on the website')
   const customRows = buildCustomButtonRows(buttons)
