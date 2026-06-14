@@ -9,9 +9,9 @@
  * implementation here.
  */
 import { and, eq } from 'drizzle-orm'
-import { env } from '../config/env'
 import { db } from '../db/client'
 import { businesses } from '../db/schema'
+import { mkeGetJson } from './mkeGateway'
 
 /** Hard-coded constants used by the ticket auto-lookup. The category is the
  *  Ticket Tool integration's parent category in this guild; the bot user id
@@ -46,15 +46,16 @@ export interface TicketCharacter {
  * only when fetch itself rejects (network / timeout).
  */
 export async function fetchCharacters(discordId: string): Promise<TicketCharacter[]> {
-  const res = await fetch(
-    `${env.EUPHORIC_API_BASE_URL}/character-profiles/discord/${encodeURIComponent(discordId)}`,
-    { headers: { 'EUPHORIC-API-KEY': env.EUPHORIC_API_KEY }, signal: AbortSignal.timeout(8000) },
-  )
+  // Goes through the MKE gateway: identical concurrent lookups (e.g. ticket
+  // auto-lookup racing a staff /lookup on the same user) share one request,
+  // and the character-select click right after the ticket message reuses the
+  // 15 s-cached response instead of re-fetching.
+  const res = await mkeGetJson(`/character-profiles/discord/${encodeURIComponent(discordId)}`)
   if (!res.ok) return []
-  const data = await res.json() as MkCharacterProfile[]
+  const data = res.data as MkCharacterProfile[] | null
   if (!Array.isArray(data)) return []
   return data
-    .filter(p => p.status)
+    .filter(p => p && typeof p === 'object' && p.status)
     .map(p => ({
       id: p.id,
       name: p.name,

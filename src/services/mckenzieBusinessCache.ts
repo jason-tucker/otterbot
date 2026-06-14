@@ -1,7 +1,7 @@
 import { db } from '../db/client'
 import { businesses } from '../db/schema'
 import { eq } from 'drizzle-orm'
-import { env } from '../config/env'
+import { mkeGetJson } from './mkeGateway'
 
 export interface KnownBusiness {
   id: string
@@ -55,13 +55,14 @@ export async function refreshKnownMckenzieBusinesses(opts?: { force?: boolean })
       const apiName = ((row.settings?.apiBusinessName as string | undefined) ?? row.name).trim()
       if (!apiName) return
       try {
-        const url = `${env.EUPHORIC_API_BASE_URL}/business-accounts/find?name=${encodeURIComponent(apiName)}`
-        const res = await fetch(url, {
-          headers: { 'EUPHORIC-API-KEY': env.EUPHORIC_API_KEY },
-          signal: AbortSignal.timeout(6000),
-        })
+        // Same gateway path /business search uses — concurrent name resolves
+        // for the same business collapse into one HTTP request.
+        const res = await mkeGetJson(
+          `/business-accounts/find?name=${encodeURIComponent(apiName)}`,
+          { timeoutMs: 6000 },
+        )
         if (!res.ok) return
-        const data = await res.json() as { id?: string; name?: string }
+        const data = res.data as { id?: string; name?: string } | null
         if (!data?.id || !data?.name) return
         result.set(data.id, { id: data.id, name: data.name, localSlug: row.slug })
       } catch {

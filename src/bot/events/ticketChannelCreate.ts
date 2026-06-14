@@ -26,17 +26,40 @@ import {
   getMckenzieBusinessId,
 } from '../../services/ticketLookup'
 
-const pendingTicketChannels = new Set<string>()
+// channelId → registered-at timestamp. Ticket Tool normally posts its intro
+// message within seconds of creating the channel; if it never does (deleted
+// ticket, third-party hiccup), the entry would previously sit in the set for
+// the bot's lifetime. Entries now expire after 30 minutes and are also
+// dropped when the channel itself is deleted.
+const pendingTicketChannels = new Map<string, number>()
+const PENDING_TICKET_TTL_MS = 30 * 60 * 1000
+
+function prunePendingTicketChannels(): void {
+  const cutoff = Date.now() - PENDING_TICKET_TTL_MS
+  for (const [id, at] of pendingTicketChannels) {
+    if (at < cutoff) pendingTicketChannels.delete(id)
+  }
+}
 
 export function registerTicketChannelCreate(client: Client): void {
   client.on('channelCreate', (channel) => {
     if (channel.type !== ChannelType.GuildText) return
     if (channel.parentId !== TICKET_CATEGORY_ID) return
-    pendingTicketChannels.add(channel.id)
+    prunePendingTicketChannels()
+    pendingTicketChannels.set(channel.id, Date.now())
+  })
+
+  client.on('channelDelete', (channel) => {
+    pendingTicketChannels.delete(channel.id)
   })
 
   client.on('messageCreate', async (message) => {
-    if (!pendingTicketChannels.has(message.channelId)) return
+    const registeredAt = pendingTicketChannels.get(message.channelId)
+    if (registeredAt === undefined) return
+    if (Date.now() - registeredAt > PENDING_TICKET_TTL_MS) {
+      pendingTicketChannels.delete(message.channelId)
+      return
+    }
     if (message.author.id !== TICKET_BOT_USER_ID) return
 
     pendingTicketChannels.delete(message.channelId)
