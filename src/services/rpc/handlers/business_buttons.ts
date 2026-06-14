@@ -23,6 +23,7 @@
 import { and, eq, inArray } from 'drizzle-orm'
 import { db } from '../../../db/client'
 import { businesses, businessRoleMappings, businessOwners } from '../../../db/schema'
+import { env } from '../../../config/env'
 import { registerVerb, type VerbContext, type VerbResult } from '../registry'
 import { parseHttpUrl } from '../../../utils/validators'
 import {
@@ -70,6 +71,14 @@ async function actorRankForBusiness(
   biz: ResolvedBiz,
   actorUserId: string,
 ): Promise<Rank | null> {
+  // Bot owner (env `BOT_OWNER_ID`) is the panel's super-admin and bypasses
+  // every per-business rank check on the panel side via `access.botOwner`.
+  // Mirror that here so the bot returns the same answer the panel would —
+  // otherwise the panel renders the buttons editor (viewerCanManageButtons via
+  // botOwner) but every `business_buttons.*` call comes back forbidden. Matches
+  // the bypass in `business_messages.ts`.
+  if (env.BOT_OWNER_ID && actorUserId === env.BOT_OWNER_ID) return 'owner'
+
   const ownerRows = await db
     .select({ id: businessOwners.id })
     .from(businessOwners)

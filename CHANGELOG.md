@@ -7,6 +7,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **Custom buttons panel returned `forbidden` for the bot owner.** The `business_buttons.*` RPC gate (`actorRankForBusiness`) was missing the bot-owner bypass that `business_messages.ts` already has, so botpanel's `/otter/businesses/[slug]` page — which shows the buttons editor to `access.botOwner` — got "Couldn't load custom buttons. The bot returned forbidden." for an owner who isn't also a per-business owner/manager. Added the same `env.BOT_OWNER_ID` bypass so the bot answers consistently with the panel's gate.
+
 ### Performance
 - **MKE API gateway — 15 s GET cache + in-flight dedup (`src/services/mkeGateway.ts`).** All MKE/Euphoric GET requests (`lookupByDiscordId`, roster find-by-name, `getNotes`, `getCharacterByCsn`, the ticket flow's `fetchCharacters`) now route through one chokepoint: identical concurrent requests share a single HTTP call, and 200-OK responses are cached for 15 seconds (errors/timeouts are never cached; bounded at 300 entries, in-memory only). Removes the duplicate `character-profiles/discord/{id}` fetch in the `/lookup` multi-character flow, collapses a ticket auto-lookup racing a staff `/lookup` on the same user, and dedupes roster name-resolves between `/business` and the known-business cache. `createMarker` invalidates cached reads for the affected CSN so Add Note → View Notes shows the new marker immediately. Covered by 9 new unit tests.
 - **`resolveBusinesses` now runs its role-mapping and owner queries concurrently.** They were sequential; this function sits on the hot path of nearly every interaction.
