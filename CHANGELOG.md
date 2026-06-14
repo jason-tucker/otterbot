@@ -21,6 +21,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Safety
 - **`pnpm db:seed` no longer overwrites live business config without `--force`.** The seed deleted and re-inserted every business's role mappings on each run (wiping runtime `/portal` edits: custom labels, `isBase`, `autoGrantEmployee`, `minRankToAssign`) and overwrote existing businesses' `settings` (permission flags, `apiBusinessName`, description) from the static config template. It now only creates what's missing and skips existing rows with a notice; pass `--force` to restore the overwrite behavior. What the seed creates for new rows is unchanged.
+### Docs
+- docs: add mandatory Agent usage policy to CLAUDE.md; remove phantom standing_* customIds (removed in 0.9.1); document `business_messages` table + `businessMessagesService.ts`, the actual `drizzle-kit push --force` container entrypoint (not `pnpm db:migrate`), `BOTPANEL_RPC_SECRET` / `REDIS_URL` env vars, and the Bot ↔ Botpanel RPC integration section.
 
 ### CI / Infra
 - **Pin all GitHub Actions to commit SHAs and add a deny-all default permission.** `deploy.yml` now sets a top-level `permissions: {}` (the deploy job keeps its explicit `contents: read` / `packages: write`) and pins `actions/checkout`, `docker/setup-buildx-action`, `docker/login-action`, `docker/metadata-action`, `docker/build-push-action`, and `appleboy/ssh-action` to full commit SHAs (the SSH action holds the VPS key — biggest supply-chain blast radius). `notify-panel-schema-change.yml` now passes `github.event.head_commit.message` via an `env:` var instead of inline `${{ }}` interpolation in the `run:` block, closing a GitHub Actions script-injection vector.

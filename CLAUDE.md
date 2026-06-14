@@ -5,6 +5,32 @@ Follow them exactly. They exist to keep the codebase consistent and help future 
 
 ---
 
+## Agent usage
+
+Always spawn agents to do work. Haiku for lookups. Sonnet for coding. Opus for planning.
+
+Use agents proactively — delegation is the default, not a fallback. Match the model to the task:
+
+- **Haiku** — file discovery, repository searches, quick lookups, lightweight analysis, and simple verification.
+- **Sonnet** — coding, implementation, refactoring, debugging, writing tests, editing documentation, and normal technical work.
+- **Opus** — architecture, complex planning, cross-repository strategy, high-risk changes, difficult debugging strategy, and final reconciliation.
+
+How to delegate well:
+
+- Run independent work in parallel; serialize only when there is a real dependency.
+- Give every delegated task a precise scope and a concrete expected output.
+- Require every agent to cite the paths, symbols, commands, or repository evidence behind its conclusions.
+- Demand actionable results, not generic summaries.
+- Never let two agents edit the same file at once — assign explicit file ownership and coordinate overlaps through the orchestrator.
+- Resolve conflicting recommendations with repository evidence, not preference.
+- Validate every agent's output before accepting it; re-run or re-scope on doubt.
+- Use agents to improve speed or quality — not to create pointless duplication.
+- The orchestrator reviews all delegated work and remains responsible for final correctness.
+
+To validate without the compiler (rule 2 forbids `pnpm typecheck`/`pnpm build` on the VPS): run `pnpm test` (vitest).
+
+---
+
 ## Mandatory rules
 
 ### 1. Always update CHANGELOG.md
@@ -106,9 +132,9 @@ const isManager = oc ? hasMinRank(oc.rank, 'manager') : false
 | `oc_stock` | name, status (in_stock/low_stock/out_of_stock), sortOrder, url, updatedByDiscordId | OC clothing items with product links |
 | `lookup_sessions` | key (random hex), characterId, characterName, characterCsn, businessId, targetDiscordId, rank, expiresAt | DB-backed `/lookup` sessions so Add Note / View Notes buttons survive bot restarts. 24 h TTL, swept on insert. |
 | `business_buttons` | businessId, type (link/info), label, emoji, style, url, body, sortOrder, enabled | Manager-configurable custom buttons on `/oc` `/caked` `/info`. 30 s read cache; cap 10/business. UUIDs encoded directly in customIds (OC exception). |
+| `business_messages` | businessId, key, body | Per-business overridable card body copy. Used by `/caked` (Contact/Event/Pricing sections) and `/oc` (Requirements). Renderers call `getBusinessMessageOverrides()` and fall back to built-in defaults. 60 s in-process LRU cache; invalidated on update/reset. |
 
-**Migrations:** `src/db/migrations/*.sql` + `src/db/migrations/meta/_journal.json`
-When adding a migration manually, the `when` timestamp must be higher than all existing entries. Run `pnpm db:migrate` to apply. If it doesn't apply (already marked done in `__drizzle_migrations` table), run the SQL directly via a temp `tsx` script in `scripts/`, then delete the script.
+**Schema application:** The container ENTRYPOINT (`scripts/docker-entrypoint.sh`) runs `drizzle-kit push --force` against the compiled schema on every container start — this is the single authoritative mechanism for production schema changes. `src/db/migrations/*.sql` and `src/db/migrations/meta/_journal.json` are kept for local/manual use (`pnpm db:migrate`) but are NOT run in the container. The journal currently references `idx: 3` (`0003_perf_indexes`) whose `.sql` file is absent on disk — this is a known gap tracked as **OB-D3** in `REMEDIATION_PLAN.md`. Do NOT renumber existing entries; the next migration is `idx 6`.
 
 ---
 
@@ -132,11 +158,14 @@ All routing is in `src/bot/events/interactionCreate.ts`.
 |---|---|---|
 | `note_add:{sessionKey}` | `buttons/noteAdd.ts` | Open add-note modal |
 | `note_view:{sessionKey}` | `buttons/noteView.ts` | View notes list |
-| `standing_change:{sessionKey}` | `buttons/standingChange.ts` | Open standing select |
 | `print_info:{section}:{sessionKey}` | `buttons/printInfoButton.ts` | Navigate printinfo sections |
 | `send_to_channel:{key}` | `utils/sendable.ts` | Post registered payload publicly |
 | `caked:{action}` | `buttons/cakedButton.ts` | contact/event → modal; pricing → reply |
 | `business_lookup:{sessionKey}` | `buttons/businessLookupButton.ts` | Lookup employee from roster |
+| `business_search:{sessionKey}` | `buttons/businessSearchButton.ts` | Navigate to the business search result panel |
+| `ticket_account_made:{targetDiscordId}` | `buttons/ticketAccountMade.ts` | Ticket channel: opener confirms their account exists — triggers character lookup |
+| `ticket_account_help:{targetDiscordId}` | `buttons/ticketAccountMade.ts` | Ticket channel: opener says account not yet made — shows sign-up link card |
+| `help:back` | `commands/help.ts` (`executeFromBackButton`) | Return to the `/help` main menu from a section page — `deferUpdate()` |
 | `emp_{action}` | `buttons/employeeActionButton.ts` | hire/fire/promote/demote/etc |
 | `portal_{action}` | `buttons/portalButton.ts` | Portal navigation and actions |
 | `oc_requirements` | `buttons/ocButton.ts` | Show requirements — `deferReply({ ephemeral: true })` |
@@ -153,7 +182,8 @@ All routing is in `src/bot/events/interactionCreate.ts`.
 |---|---|---|
 | `lookup_business_select:{targetDiscordId}` | `selects/businessSelect.ts` | |
 | `lookup_char_select:{businessId}:{targetDiscordId}` | `selects/characterSelect.ts` | |
-| `standing_select:{sessionKey}` | `selects/standingSelect.ts` | |
+| `note_type_select:{sessionKey}` | `selects/noteTypeSelect.ts` | Pick note visibility tier when adding a note |
+| `help:section` | `selects/helpSelect.ts` | Navigate to a section of the `/help` menu |
 | `business_employee_select:{sessionKey}` | `selects/businessEmployeeSelect.ts` | |
 | `emp_business_select:{sessionKey}` | `selects/employeeBusinessSelect.ts` | |
 | `emp_custom_role:{sessionKey}` | `selects/employeeCustomRoleSelect.ts` | |
@@ -168,7 +198,8 @@ All routing is in `src/bot/events/interactionCreate.ts`.
 | CustomId | Handler | Notes |
 |---|---|---|
 | `note_submit:{sessionKey}` | `modals/noteSubmit.ts` | |
-| `standing_submit:{sessionKey}` | `modals/standingSubmit.ts` | |
+| `business_search_submit:{sessionKey}` | `modals/businessSearchSubmit.ts` | Submit the business-name search query |
+| `report:submit` | `modals/reportSubmit.ts` | Submit the `/report` modal (Title / Type / Description / Steps) — DMs the bot owner for review |
 | `caked_contact_submit` | `modals/cakedContactSubmit.ts` | |
 | `caked_event_submit` | `modals/cakedEventSubmit.ts` | |
 | `portal_{type}_modal:{sessionKey}` | `modals/portalModal.ts` | |
@@ -231,6 +262,7 @@ await interaction.editReply({ ...withSendButtonV2(sendKey, container, extraButto
 | `interactionCache.ts` | `storeLookupSession()`, `getLookupSession()`, `storePortalSession()`, etc. | 1-hour in-memory TTL sessions |
 | `ocStockService.ts` | `getAllStock()`, `getStockById()`, `updateStockStatus()`, `updateStockUrl()`, `addStockItem()`, `removeStockItem()` | OC stock DB operations |
 | `businessButtonsService.ts` | `listButtons()`, `listEnabledButtons()`, `getButton()`, `addButton()`, `updateButton()`, `removeButton()`, `moveButton()`, `reorderButtons()` | Custom command buttons (`business_buttons`). 30 s cache, cap 10/business. |
+| `businessMessagesService.ts` | `getBusinessMessageOverrides()`, `upsertBusinessMessage()`, `resetBusinessMessage()`, `getAllEditableKeys()`, `getDefaultBody()`, `invalidateBusinessMessageCache()` | Per-business editable card copy (`business_messages`). Called by `/caked` (Contact/Event/Pricing) and `/oc` (Requirements) renderers. 60 s LRU cache. |
 | `sudoService.ts` | `isSudoUser(member)` | Checks `SUDO_ROLE_IDS` env var |
 | `employeeService.ts` | `getEmployeeBusinessConfig()`, role add/remove | DB-backed employee role management |
 | `portalService.ts` | Business CRUD, role mappings, owners | Used only by `/portal` and its handlers |
@@ -254,10 +286,9 @@ await interaction.editReply({ ...withSendButtonV2(sendKey, container, extraButto
 ### New database table
 1. Create `src/db/schema/yourTable.ts`
 2. Export from `src/db/schema/index.ts`
-3. Create `src/db/migrations/XXXX_tag.sql`
-4. Add entry to `src/db/migrations/meta/_journal.json` with `idx` = next number and `when` > all existing timestamps
-5. Run `pnpm db:migrate`
-6. If migration doesn't apply (already tracked as done), run SQL via a temp `scripts/yourScript.ts`, then delete it
+3. **Production schema is applied by `drizzle-kit push --force`** at container start (`scripts/docker-entrypoint.sh`) — no migration runner. The schema files are the single authoritative source; any new table or column lands on the next container restart automatically.
+4. For local/manual use only: create `src/db/migrations/XXXX_tag.sql` and add an entry to `src/db/migrations/meta/_journal.json` with `idx` = next number and `when` > all existing timestamps, then run `pnpm db:migrate`. **Note:** `_journal.json` currently references `idx: 3` (`0003_perf_indexes`) whose `.sql` file is absent on disk — this is a known gap tracked as **OB-D3** in `REMEDIATION_PLAN.md`. Do NOT renumber; the next migration is `idx 6`.
+5. If a local migration doesn't apply (already tracked as done in `__drizzle_migrations`), run the SQL via a temp `scripts/yourScript.ts`, then delete it.
 
 ### New business
 1. Add to `src/config/businesses.config.ts`
@@ -282,3 +313,19 @@ await interaction.editReply({ ...withSendButtonV2(sendKey, container, extraButto
 | `GITHUB_TOKEN` | No | Fine-grained PAT with `Issues: Read & Write` on `GITHUB_REPO`; required for `/report` |
 | `GITHUB_REPO` | No | `owner/name` of the repo issues land in (e.g. `jason-tucker/otterbot`); required for `/report` |
 | `UPTIME_KUMA_PUSH_URL` | No | Kuma push URL — bot pings every 60 s after `clientReady` |
+| `BOTPANEL_RPC_SECRET` | No | HMAC-SHA256 secret shared with botpanel. Must match the value in the botpanel stack. If unset, the RPC subscriber and cache-invalidate subscriber log a warning at startup and never connect — the bot still runs as a publish-only client. The command bus fails closed on a mismatch (envelope dropped with a warn, no information leak). |
+| `REDIS_URL` | No | Redis connection string for the pub/sub command bus and cache invalidation. Validated at startup via the env schema (not read raw). Default: `redis://redis:6379` (the docker-network hostname). Override for local or non-docker runs. |
+
+---
+
+## Bot ↔ Botpanel integration
+
+The bot and botpanel communicate exclusively over Redis pub/sub — no HTTP between them.
+
+**Inbound commands (panel → bot):** botpanel publishes on `cmd.otter.<verb>`. The bot's subscriber (`src/services/rpcServer.ts`) `psubscribe`s `cmd.otter.*`, HMAC-verifies every envelope (`{requestId, ts, hmac, params}` where `hmac = HMAC-SHA256(BOTPANEL_RPC_SECRET, "${channel}|${requestId}|${ts}|${JSON.stringify(params)}")`), replay-checks against a 30-second window + an in-memory LRU `Map` of 5000 `requestId`s, then dispatches to a verb registry (`src/services/rpc/registry.ts`). Verb handlers live under `src/services/rpc/handlers/`. Replies publish on `res.<requestId>` via the existing event-bus publisher.
+
+**Outbound events (bot → panel):** the bot publishes on `bot.otter.<domain>.<event>` via `src/services/eventBus.ts`. Channel helpers: `businessCh`, `ocStockCh`, `employeeCh`, `auditCh`, `notesCh`, `botCh`, etc.
+
+**Cache-invalidation subscriber:** `src/services/cacheInvalidator.ts` subscribes to `bot.otter.settings.invalidate`. HMAC-verified events from botpanel dispatch cache clears by `params.table` (`business_messages`, `mckenzie_businesses`, etc.) without requiring a bot restart.
+
+**Schema-change notifications:** `.github/workflows/notify-panel-schema-change.yml` fires a `repository_dispatch` (`bot-schema-changed`) at `jason-tucker/botpanel` whenever a push to `main` touches `src/db/schema/**`. Botpanel's companion `sync-bot-schema` workflow opens or updates a PR re-vendoring the Drizzle schemas. Review and merge that auto-PR before any panel operations depend on the new columns.
