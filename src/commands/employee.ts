@@ -3,6 +3,7 @@ import {
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
   ActionRowBuilder,
+  ContainerBuilder,
   type ChatInputCommandInteraction,
   type StringSelectMenuInteraction,
   type UserContextMenuCommandInteraction,
@@ -17,7 +18,7 @@ import { storeEmployeeSession } from '../services/interactionCache'
 import { getTargetStatus } from '../services/employeeService'
 import { getAllBusinesses } from '../services/portalService'
 import type { ResolvedBusiness } from '../types/domain'
-import { panelLinkDisplay } from '../utils/panelLink'
+import { appendPanelLink } from '../utils/panelLink'
 
 export type EmployeeManageInteraction =
   | ChatInputCommandInteraction
@@ -172,6 +173,6 @@ export async function showEmployeeManageEmbed(
     isSudo,
     allConfigsWithOwnership,
   )
-  response.components.push(panelLinkDisplay('/otter/businesses', 'Manage employees on the website') as any)
+  appendPanelLink(response.components[0] as ContainerBuilder, '/otter/businesses', 'Manage employees on the website')
   await interaction.editReply({ ...response, content: null })
 }

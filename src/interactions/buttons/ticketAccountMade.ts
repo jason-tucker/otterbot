@@ -112,9 +112,19 @@ export async function handleTicketAccountMadeButton(interaction: ButtonInteracti
   // Found at least one character — replace the original "no character linked"
   // message in-channel with the proper character embed/selector, then ack.
   const channel = interaction.channel as TextChannel | null
-  const businessId = channel?.guildId ? await getMckenzieBusinessId(channel.guildId) : null
+  // A DB hiccup resolving the business id must not blow up the whole
+  // interaction — without it the session/note-buttons are simply omitted.
+  // (An unguarded throw here surfaces to the user as "unexpected error".)
+  const businessId = channel?.guildId
+    ? await getMckenzieBusinessId(channel.guildId).catch(err => {
+        console.error('Ticket lookup: getMckenzieBusinessId failed:', err)
+        return null
+      })
+    : null
   const originalMsg = interaction.message
 
+  // Build the replacement payload (single char → embed, multiple → selector).
+  let payload: { components: any[]; flags: number }
   if (characters.length === 1) {
     const character = characters[0]
     const sessionKey = businessId
@@ -125,10 +135,13 @@ export async function handleTicketAccountMadeButton(interaction: ButtonInteracti
           businessId,
           targetDiscordId,
           rank: 'employee',
+        }).catch(err => {
+          // Degrade gracefully: the embed just won't carry the note buttons.
+          console.error('Ticket lookup: storeLookupSession failed:', err)
+          return undefined
         })
       : undefined
-    const payload = buildTicketCharacterEmbed(character, targetDiscordId, { sessionKey, lookupMethod: 'discord' })
-    await originalMsg?.edit(payload as any).catch(err => console.error('Failed to edit ticket message:', err))
+    payload = buildTicketCharacterEmbed(character, targetDiscordId, { sessionKey, lookupMethod: 'discord' })
   } else {
     const select = new StringSelectMenuBuilder()
       .setCustomId(`ticket_char_select:${targetDiscordId}`)
@@ -141,7 +154,7 @@ export async function handleTicketAccountMadeButton(interaction: ButtonInteracti
             .setValue(c.id),
         ),
       )
-    await originalMsg?.edit({
+    payload = {
       components: [
         new ContainerBuilder()
           .setAccentColor(0x5865f2)
@@ -156,12 +169,36 @@ export async function handleTicketAccountMadeButton(interaction: ButtonInteracti
           .addActionRowComponents(
             new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select),
           ),
-      ] as any[],
+      ],
       flags: MessageFlags.IsComponentsV2,
-    } as any).catch(err => console.error('Failed to edit ticket message:', err))
+    }
   }
 
-  await interaction.editReply({ content: '✅ Found your character — updated the message above.' })
+  // Replace the original "no character linked" message. If editing it fails
+  // (deleted, too old, transient API error), fall back to posting a fresh
+  // message so the user still sees their character — and only claim success
+  // when something actually landed. Previously a failed edit was swallowed
+  // while we still told the user "updated the message above", so it silently
+  // appeared to do nothing.
+  let delivered = false
+  if (originalMsg) {
+    delivered = await originalMsg.edit(payload as any).then(() => true).catch(err => {
+      console.error('Failed to edit ticket message:', err)
+      return false
+    })
+  }
+  if (!delivered && channel) {
+    delivered = await channel.send(payload as any).then(() => true).catch(err => {
+      console.error('Failed to post ticket character message:', err)
+      return false
+    })
+  }
+
+  await interaction.editReply({
+    content: delivered
+      ? '✅ Found your character — see the message above.'
+      : '⚠️ Found your character, but I couldn’t post it in this channel. Please ping staff for help.',
+  })
 }
 
 /**

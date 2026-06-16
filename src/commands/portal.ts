@@ -1,9 +1,9 @@
-import { SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js'
+import { SlashCommandBuilder, ContainerBuilder, type ChatInputCommandInteraction } from 'discord.js'
 import { isSudoUser } from '../services/sudoService'
 import { getAllBusinesses } from '../services/portalService'
 import { storePortalSession } from '../services/interactionCache'
 import { buildPortalMainMenu } from '../embeds/portalEmbed'
-import { panelLinkDisplay } from '../utils/panelLink'
+import { appendPanelLink } from '../utils/panelLink'
 
 export const data = new SlashCommandBuilder()
   .setName('portal')
@@ -33,6 +33,6 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   })
 
   const portalMenu = buildPortalMainMenu(businesses, sessionKey)
-  portalMenu.components.push(panelLinkDisplay('/otter/businesses', 'Manage businesses on the website') as any)
+  appendPanelLink(portalMenu.components[0] as ContainerBuilder, '/otter/businesses', 'Manage businesses on the website')
   await interaction.editReply({ ...portalMenu, content: null })
 }
