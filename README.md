@@ -4,7 +4,7 @@ A Discord staff-management bot for multi-business roleplay communities. Handles 
 
 ## Overview
 
-Otterbot runs as a single Discord bot serving several "businesses" inside one (today) RP guild. Each business is a row in the database with a provider type, a set of Discord role → rank mappings, and optional designated owners. Staff interact through slash commands, context-menu actions, and an auto-lookup that fires when a support ticket opens. A companion web panel (botpanel) drives the bot over a Redis command bus for the same operations.
+Otterbot runs as a single Discord bot serving several "businesses" across two hardcoded guilds — the production RP guild and a dev/test guild (`src/config/guilds.config.ts`); slash commands are deployed and role mappings are seeded to both. Each business is a row in the database with a provider type, a set of Discord role → rank mappings, and optional designated owners. Staff interact through slash commands, context-menu actions, and an auto-lookup that fires when a support ticket opens. A companion web panel (botpanel) drives the bot over a Redis command bus for the same operations.
 
 Highlights:
 
@@ -12,6 +12,7 @@ Highlights:
 - **Provider model** — McKenzie Enterprises reads from the external Euphoric REST API; every other business is "discord-only" (Discord roles + local Postgres). Commands never touch the API or DB directly; they go through `IBusinessProvider`.
 - **Ticket auto-lookup** — when Ticket Tool opens a channel and pings a customer, the bot posts that customer's McKenzie character(s) automatically.
 - **Manager-editable surfaces** — `/oc`, `/caked`, and `/info` cards are editable in-Discord and from the panel (`business_messages`), and managers can add custom Link/Info buttons (`business_buttons`) to those commands.
+- **Panel deep-links** — `/lookup`, `/business`, `/employee`, `/portal`, `/oc`, `/caked`, and `/info` all append a "Do this on the website" link to the matching botpanel page (base URL from `PANEL_BASE_URL`, defaults to the production panel domain).
 
 Roadmap, completed work, and open action items are tracked on the [Bot Development project board](https://github.com/users/jason-tucker/projects/3). Items use these statuses: **Todo**, **In Progress**, **Done**, **Tucker Action** (waiting on the owner), **Blocked** (with a Blocker note).
 
@@ -101,6 +102,8 @@ Copy `.env.example` to `.env` and fill in the values below. Env vars are validat
 | `SUDO_ROLE_IDS` | No | Comma-separated Discord role IDs that grant full sudo access |
 | `DISCORD_PORTAL_ADMIN_ROLE_ID` | No | Legacy single-role sudo fallback — prefer `SUDO_ROLE_IDS` |
 | `BOTPANEL_RPC_SECRET` | No | Shared HMAC secret for the botpanel command bus. Unset → RPC + cache-invalidate subscribers stay off (bot still runs as a publish-only client). |
+| `REDIS_URL` | No | Redis connection string for the event bus + command bus. Default `redis://redis:6379` (the docker-network hostname botpanel's Redis is reachable at over `botpanel-net`) — override for local/non-docker runs. Validated by Zod, not read raw. |
+| `PANEL_BASE_URL` | No | Base URL of the botpanel website for the "do this on the website" links appended to slash command replies. Defaults to `https://bots.tucker.host`. |
 | `BOT_OWNER_ID` | No¹ | Receives a DM to approve every `/report`, plus silent startup pings |
 | `GITHUB_TOKEN` | No¹ | Fine-grained PAT with **Issues: Read & Write** on `GITHUB_REPO` (for `/report`) |
 | `GITHUB_REPO` | No¹ | `owner/name`, e.g. `jason-tucker/otterbot` (for `/report`) |
