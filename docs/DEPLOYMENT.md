@@ -32,9 +32,19 @@ cd otterbot
 cp .env.example .env
 nano .env    # fill in all required values
 
-# 3. Start
+# 3. Create the shared external network (once per host; no-op if it already
+#    exists — e.g. because the botpanel stack created it first)
+docker network create botpanel-net || true
+
+# 4. Start
 BOT_IMAGE=ghcr.io/YOUR_GITHUB_USERNAME/otterbot:latest docker compose up -d
 ```
+
+> `docker-compose.yml` declares `botpanel-net` as `external: true` — both the
+> `otterbot` and `db` services join it so botpanel (and its Redis) can reach
+> them without a host port. `docker compose up` fails immediately if the
+> network doesn't exist yet, so create it before the first start on any
+> given host.
 
 **Works on:** Ubuntu, Debian, any Linux with Docker, Unraid (Docker Compose Manager plugin)
 
@@ -75,6 +85,10 @@ nano otterbot/.env
 # Required: DISCORD_BOT_TOKEN, DISCORD_CLIENT_ID, EUPHORIC_API_KEY
 # Required: POSTGRES_PASSWORD (anything strong)
 # Required: BOT_IMAGE=ghcr.io/YOUR_USERNAME/otterbot:latest
+
+# Create the shared external network (skip if another stack, e.g. botpanel,
+# already created it)
+docker network create botpanel-net || true
 
 # Start
 cd otterbot && docker compose up -d
