@@ -107,7 +107,9 @@ function applyEmoji(btn: ButtonBuilder, emoji: string | null | undefined): void 
 export function buildCustomButtonRows(
   buttons: BusinessButton[],
 ): ActionRowBuilder<ButtonBuilder>[] {
-  const enabled = buttons.filter((b) => b.enabled)
+  // Skip rows the panel could have written with an empty label, and fall back
+  // to Secondary on an unknown style — one bad row must not 50035 the command.
+  const enabled = buttons.filter((b) => b.enabled && b.label.trim().length > 0)
   const rows: ActionRowBuilder<ButtonBuilder>[] = []
   for (let i = 0; i < enabled.length; i += 5) {
     const row = new ActionRowBuilder<ButtonBuilder>()
@@ -117,7 +119,7 @@ export function buildCustomButtonRows(
       if (b.type === 'link' && b.url) {
         btn.setStyle(ButtonStyle.Link).setURL(b.url)
       } else {
-        btn.setStyle(STYLE_MAP[b.style]).setCustomId(`bizbtn:show:${b.id}`)
+        btn.setStyle(STYLE_MAP[b.style] ?? ButtonStyle.Secondary).setCustomId(`bizbtn:show:${b.id}`)
       }
       row.addComponents(btn)
     }
