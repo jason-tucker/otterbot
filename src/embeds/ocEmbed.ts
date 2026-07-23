@@ -42,72 +42,102 @@ function sep(divider = true) {
   return new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(divider)
 }
 
-function itemLine(item: OcStockItem): string {
+function itemLine(item: OcStockItem, withLinks: boolean): string {
   // Escape `]`, `(`, `)`, `\` in the item name when it goes inside a markdown
   // link — otherwise a manager could put `]` and `(...)` characters in `name`
   // to break out of the brackets and inject a different URL into the public
   // OC embed. URL is already validated to http/https in ocUrlModal.
-  const label = item.url
+  const label = withLinks && item.url
     ? `[${safeMarkdownLinkLabel(item.name)}](${item.url})`
     : item.name
   return `${STATUS_EMOJI[item.status]} ${label}`
 }
 
-function stockSection(items: OcStockItem[], status: OcStockStatus): string {
-  const filtered = items.filter((i) => i.status === status)
-  if (filtered.length === 0) return ''
-  const header = `**${STATUS_EMOJI[status]} ${STATUS_LABEL[status]}** — ${filtered.length} item${filtered.length === 1 ? '' : 's'}`
-  return `${header}\n${filtered.map(itemLine).join('\n')}`
+/**
+ * Discord rejects any Components-V2 message whose combined text-display
+ * content exceeds 4000 characters (error 50035), and the builders don't
+ * validate the total locally — so once the stock list grew large enough,
+ * /oc failed at editReply time with the generic "unexpected error".
+ * Budget the item sections to stay under the cap, leaving headroom for the
+ * panel-link line the command appends: render markdown product links while
+ * they fit, fall back to plain names when they don't, and as a last resort
+ * drop trailing items behind a "+N more" note.
+ */
+const TEXT_BUDGET = 3800
+
+const STATUSES: readonly OcStockStatus[] = ['in_stock', 'low_stock', 'out_of_stock']
+
+function stockSections(items: OcStockItem[], withLinks: boolean): string[] {
+  return STATUSES.map((status) => {
+    const filtered = items.filter((i) => i.status === status)
+    if (filtered.length === 0) return ''
+    const header = `**${STATUS_EMOJI[status]} ${STATUS_LABEL[status]}** — ${filtered.length} item${filtered.length === 1 ? '' : 's'}`
+    return `${header}\n${filtered.map((i) => itemLine(i, withLinks)).join('\n')}`
+  }).filter((s) => s.length > 0)
 }
 
 export function buildOCPublicContainer(items: OcStockItem[]): ContainerBuilder {
-  const inStock = items.filter((i) => i.status === 'in_stock')
-  const lowStock = items.filter((i) => i.status === 'low_stock')
-  const outOfStock = items.filter((i) => i.status === 'out_of_stock')
+  const headerText = `## Original Clothing\n[Browse our full shop →](${OC_WEBSITE})`
+  const stockKeyText = `**Stock Key**\n🟢 **In Stock** — 10+ slots available\n🟠 **Low Stock** — fewer than 10 slots open\n🔴 **Out of Stock** — no slots open`
+  const footerText = `-# All items include male & female versions. Special imports are not available.`
+
+  const chrome = headerText.length + stockKeyText.length + footerText.length
+  const total = (sections: string[]) =>
+    chrome + sections.reduce((n, s) => n + s.length, 0)
+
+  let sections = stockSections(items, true)
+  if (total(sections) > TEXT_BUDGET) {
+    // Too much text with product links — plain names, with the shop link above.
+    sections = stockSections(items, false)
+    sections.push(`-# Too many items to show product links — use "Browse our full shop" above.`)
+  }
+
+  let dropped = 0
+  const NOTE_RESERVE = 60 // once trimming starts, leave room for the "+N more" note
+  while (total(sections) > TEXT_BUDGET - (dropped > 0 ? NOTE_RESERVE : 0)) {
+    // Trim the last item line off the longest section until we fit.
+    const idx = sections.reduce((best, s, i) => (s.length > sections[best].length ? i : best), 0)
+    const lines = sections[idx].split('\n')
+    if (lines.length <= 2) break // header + one item — can't shrink further
+    lines.pop()
+    dropped++
+    sections[idx] = lines.join('\n')
+  }
+  if (dropped > 0) {
+    sections.push(`-# …plus ${dropped} more item${dropped === 1 ? '' : 's'} not shown.`)
+  }
 
   const container = new ContainerBuilder().setAccentColor(0x1a1a2e)
 
-  container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent(`## Original Clothing\n[Browse our full shop →](${OC_WEBSITE})`)
-  )
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(headerText))
 
   container.addSeparatorComponents(sep())
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(stockKeyText))
 
-  container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent(
-      `**Stock Key**\n🟢 **In Stock** — 10+ slots available\n🟠 **Low Stock** — fewer than 10 slots open\n🔴 **Out of Stock** — no slots open`
-    )
-  )
-
-  if (inStock.length > 0) {
+  for (const section of sections) {
     container.addSeparatorComponents(sep())
-    container.addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(stockSection(items, 'in_stock'))
-    )
-  }
-
-  if (lowStock.length > 0) {
-    container.addSeparatorComponents(sep())
-    container.addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(stockSection(items, 'low_stock'))
-    )
-  }
-
-  if (outOfStock.length > 0) {
-    container.addSeparatorComponents(sep())
-    container.addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(stockSection(items, 'out_of_stock'))
-    )
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(section))
   }
 
   container.addSeparatorComponents(sep())
-  container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent(
-      `-# All items include male & female versions. Special imports are not available.`
-    )
-  )
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(footerText))
 
   return container
+}
+
+/** Join names ' • '-separated but stop at `max` chars, noting how many were cut —
+ *  the manage panel shares the same 4000-char CV2 total-text cap as the public card. */
+function clampNameList(names: string[], max = 1000): string {
+  let out = ''
+  let shown = 0
+  for (const n of names) {
+    const next = out ? `${out} • ${n}` : n
+    if (next.length > max) break
+    out = next
+    shown++
+  }
+  if (shown === names.length) return out
+  return shown === 0 ? `…${names.length} items` : `${out} • …+${names.length - shown} more`
 }
 
 export function buildOCManageEmbed(items: OcStockItem[]) {
@@ -124,7 +154,7 @@ export function buildOCManageEmbed(items: OcStockItem[]) {
     container.addSeparatorComponents(sep())
     container.addTextDisplayComponents(
       new TextDisplayBuilder().setContent(
-        `**🟢 In Stock** (${inStock.length})\n${inStock.map((i) => i.name).join(' • ')}`
+        `**🟢 In Stock** (${inStock.length})\n${clampNameList(inStock.map((i) => i.name))}`
       )
     )
   }
@@ -133,7 +163,7 @@ export function buildOCManageEmbed(items: OcStockItem[]) {
     container.addSeparatorComponents(sep())
     container.addTextDisplayComponents(
       new TextDisplayBuilder().setContent(
-        `**🟠 Low Stock** (${lowStock.length})\n${lowStock.map((i) => i.name).join(' • ')}`
+        `**🟠 Low Stock** (${lowStock.length})\n${clampNameList(lowStock.map((i) => i.name))}`
       )
     )
   }
@@ -142,7 +172,7 @@ export function buildOCManageEmbed(items: OcStockItem[]) {
     container.addSeparatorComponents(sep())
     container.addTextDisplayComponents(
       new TextDisplayBuilder().setContent(
-        `**🔴 Out of Stock** (${outOfStock.length})\n${outOfStock.map((i) => i.name).join(' • ')}`
+        `**🔴 Out of Stock** (${outOfStock.length})\n${clampNameList(outOfStock.map((i) => i.name))}`
       )
     )
   }
