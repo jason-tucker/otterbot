@@ -103,6 +103,39 @@ export async function publish<T>(channel: string, payload: T): Promise<void> {
   }
 }
 
+/**
+ * Attempt to acquire a short-lived, cross-process "do this exactly once"
+ * lock: `SET key '1' EX ttlSeconds NX` on the shared publisher connection.
+ *
+ * Built for the watchtower deploy race (see commit 18bcfd0, "otterbot deploy
+ * tolerates the watchtower recreate race"): during a recreate the old and
+ * new bot containers briefly hold live gateway sessions on the same bot
+ * token, so both processes receive the same Discord events and an in-memory
+ * guard in either process can't see the other's copy. Redis is the only
+ * thing both processes share, so the lock has to live there.
+ *
+ * Returns:
+ *   - `true`  — the key didn't exist and we just set it (SET returned
+ *     `'OK'`). Caller won the race and should proceed.
+ *   - `false` — the key already existed (SET returned `null` because of
+ *     `NX`). Some other process already claimed this action; caller should
+ *     skip.
+ *   - `null`  — Redis is unavailable or errored. Never throws; the caller
+ *     decides how to fail (typically: fail open with a best-effort secondary
+ *     guard, since a lock we can't take can't protect anything).
+ */
+export async function tryAcquireOnce(key: string, ttlSeconds: number): Promise<boolean | null> {
+  try {
+    const client = getPublisher()
+    const result = await client.set(key, '1', 'EX', ttlSeconds, 'NX')
+    return result === 'OK'
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    logger.warn('tryAcquireOnce failed', { key, error: msg })
+    return null
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Channel-name helpers (one per top-level domain)
 // ---------------------------------------------------------------------------

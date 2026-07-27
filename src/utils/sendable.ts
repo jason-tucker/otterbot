@@ -12,6 +12,17 @@
  *     await interaction.reply(withSendButtonV2('my_feature:key', myContainer()))
  *
  *   No extra wiring needed in interactionCreate.ts for new features — send_to_channel: is already routed.
+ *
+ *   PERSISTENT (static, module-load) payloads:
+ *     Pass `{ persistent: true }` for entries registered once at module load whose
+ *     builder captures no per-interaction state (e.g. /artsize, /tcsheet, /printinfo's
+ *     nav sections, /caked's static fallback keys). Persistent entries never expire
+ *     and are never evicted by the hard-cap — otherwise, being the oldest entries in
+ *     the registry, they'd be the first things dropped, and once the 1 h TTL passed
+ *     the Send to Channel button would be permanently broken until the process
+ *     restarted. Per-interaction entries (keyed by interaction id, snapshotting a
+ *     specific user's view) must stay non-persistent so they still expire normally.
+ *     registerSendable('my_feature:key', () => ({ ... }), { persistent: true })
  */
 
 import {
@@ -45,6 +56,10 @@ const NO_PING_ALLOWED_MENTIONS = { parse: [] as const }
 interface RegistryEntry {
   builder: () => SendablePayload
   expiresAt: number
+  /** Static, module-load registrations that must survive forever — see the
+   *  PERSISTENT doc-comment above. Skipped by both `sweepSendables()` and the
+   *  hard-cap eviction loop in `registerSendable`. */
+  persistent?: boolean
 }
 
 const registry = new Map<string, RegistryEntry>()
@@ -58,20 +73,38 @@ const SENDABLE_SWEEP_INTERVAL_MS = 30 * 60_000
 
 function sweepSendables(): void {
   const now = Date.now()
-  for (const [k, e] of registry) if (e.expiresAt < now) registry.delete(k)
+  // Persistent entries never expire — skip them regardless of expiresAt.
+  for (const [k, e] of registry) if (!e.persistent && e.expiresAt < now) registry.delete(k)
 }
 
-export function registerSendable(key: string, builder: () => SendablePayload): void {
+export function registerSendable(
+  key: string,
+  builder: () => SendablePayload,
+  opts?: { persistent?: boolean }
+): void {
+  const persistent = !!opts?.persistent
   // Sweep expired entries first — cheap and frees space before the hard-cap kicks in.
   if (registry.size > SENDABLE_MAX_ENTRIES) sweepSendables()
-  registry.set(key, { builder, expiresAt: Date.now() + SENDABLE_TTL_MS })
-  // Hard-cap regardless of TTL: drop oldest entries (Map iteration is
-  // insertion-ordered) until we're back under the limit. Belt-and-braces
-  // against a flood of new registrations within a single sweep window.
-  while (registry.size > SENDABLE_MAX_ENTRIES) {
-    const oldest = registry.keys().next().value
-    if (oldest === undefined) break
-    registry.delete(oldest)
+  registry.set(key, {
+    builder,
+    expiresAt: persistent ? Number.POSITIVE_INFINITY : Date.now() + SENDABLE_TTL_MS,
+    persistent,
+  })
+  // Hard-cap regardless of TTL: drop oldest NON-persistent entries (Map
+  // iteration is insertion-ordered) until we're back under the limit.
+  // Persistent entries are skipped — they're deliberately kept forever, and
+  // being the oldest entries in the registry they'd otherwise be the first
+  // ones evicted. Belt-and-braces against a flood of new registrations
+  // within a single sweep window.
+  if (registry.size > SENDABLE_MAX_ENTRIES) {
+    for (const [k, e] of registry) {
+      if (registry.size <= SENDABLE_MAX_ENTRIES) break
+      if (e.persistent) continue
+      registry.delete(k)
+    }
+    // If every remaining entry is persistent, the loop above can't shrink
+    // the registry further — that's fine, persistent entries are meant to
+    // stay, and there's a hard cap on how many the codebase registers.
   }
 }
 
@@ -170,6 +203,8 @@ export async function handleSendToChannel(interaction: ButtonInteraction): Promi
   const key = interaction.customId.slice('send_to_channel:'.length)
   const entry = registry.get(key)
 
+  // Persistent entries have expiresAt === POSITIVE_INFINITY, so this check
+  // naturally treats them as always valid — no separate branch needed.
   if (!entry || entry.expiresAt < Date.now()) {
     if (entry) registry.delete(key)  // expired — clean up while we're here
     await interaction.reply({ content: 'This section is no longer available — re-run the command and try again.', ephemeral: true })

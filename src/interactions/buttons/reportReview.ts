@@ -29,10 +29,10 @@ export async function handleReportReview(interaction: ButtonInteraction): Promis
   const action = interaction.customId.slice(0, colonIdx)
   const sessionKey = interaction.customId.slice(colonIdx + 1)
 
-  const session = getReportSession(sessionKey)
+  const session = await getReportSession(sessionKey)
   if (!session) {
     await interaction.editReply({
-      content: '⚠️ Report session expired or already handled.',
+      content: '⚠️ This report session was not found — it may have expired (7 days) or already been handled. If it was never filed, ask the reporter to run /report again.',
       components: [],
     })
     return
@@ -42,7 +42,7 @@ export async function handleReportReview(interaction: ButtonInteraction): Promis
   const isApprove = action.startsWith('report_approve')
 
   if (!isApprove) {
-    deleteReportSession(sessionKey)
+    await deleteReportSession(sessionKey)
     await interaction.editReply({
       content: `❌ **Rejected${notify ? '' : ' silently'}** — /report from <@${session.reporterId}> (\`${session.reporterTag}\`)\n**Title:** ${session.title}`,
       components: [],
@@ -88,7 +88,7 @@ export async function handleReportReview(interaction: ButtonInteraction): Promis
   }
 
   const data = (await res.json()) as { html_url: string; number: number }
-  deleteReportSession(sessionKey)
+  await deleteReportSession(sessionKey)
 
   await interaction.editReply({
     content: `✅ **Filed${notify ? ' + notified reporter' : ' silently'}** — Issue **#${data.number}** — ${data.html_url}\nReporter: <@${session.reporterId}> (\`${session.reporterTag}\`)`,

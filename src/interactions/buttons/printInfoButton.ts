@@ -64,9 +64,14 @@ const SECTIONS: Record<string, () => { embeds: EmbedBuilder[] }> = {
   other_printables: () => ({ embeds: [otherPrintablesEmbed()] }),
 }
 
-// Register each section so the global "Send to Channel" handler can re-build them
+// Register each section so the global "Send to Channel" handler can re-build them.
+// All builders are static/deterministic — registered once at module load, so
+// they're persistent (never expire, never evicted by the hard cap). Without
+// this, a Send click on a section would break an hour after bot start even
+// though re-navigating to the section (which hits this same static registry,
+// not a fresh registerSendable call) wouldn't fix it.
 for (const [section, builder] of Object.entries(SECTIONS)) {
-  registerSendable(`print_info:${section}`, builder)
+  registerSendable(`print_info:${section}`, builder, { persistent: true })
 }
 
 export async function handlePrintInfoButton(interaction: ButtonInteraction): Promise<void> {

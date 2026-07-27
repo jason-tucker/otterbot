@@ -118,7 +118,9 @@ function mainEmbed(): EmbedBuilder {
     .setFooter({ text: 'Click a button below for category-specific details.' })
 }
 
-registerSendable('print_info:main', () => ({ embeds: [mainEmbed()] }))
+// Static content registered once at module load — persistent so it survives
+// the 1 h TTL and the hard-cap eviction (see sendable.ts doc-comment).
+registerSendable('print_info:main', () => ({ embeds: [mainEmbed()] }), { persistent: true })
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const navButtons = [
