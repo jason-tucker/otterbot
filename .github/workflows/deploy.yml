@@ -128,11 +128,30 @@ jobs:
               sleep 8
             done
 
-            # Wait for container to be healthy
-            sleep 10
-            if ! docker compose ps otterbot | grep -q "running\|Up"; then
-              echo "ERROR: otterbot container is not running"
-              docker compose logs otterbot --tail=30
+            # Wait for the container to come up AND stay up. A one-shot check
+            # 10s after `compose up` raced watchtower here the same way
+            # `compose up` itself used to: watchtower can be mid-recreate at
+            # check time (old container renamed away, new one still inside the
+            # entrypoint's `drizzle-kit push`), so the single `ps` snapshot saw
+            # "not running" and failed a deploy that converged fine seconds
+            # later (run 30321327502). Poll for up to 2 minutes instead, and
+            # require two consecutive positive checks 10s apart so a
+            # crash-looping container (briefly "running" between restarts)
+            # doesn't slip through.
+            healthy=0
+            for check in $(seq 1 12); do
+              if docker compose ps otterbot | grep -q "running\|Up"; then
+                healthy=$((healthy+1))
+                if [ "$healthy" -ge 2 ]; then break; fi
+              else
+                healthy=0
+              fi
+              sleep 10
+            done
+            if [ "$healthy" -lt 2 ]; then
+              echo "ERROR: otterbot container is not running (waited up to 120s)"
+              docker compose ps otterbot || true
+              docker compose logs otterbot --tail=50 || true
               exit 1
             fi
 
