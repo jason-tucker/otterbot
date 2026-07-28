@@ -54,10 +54,16 @@ function tcSheetContainer(): ContainerBuilder {
   )
 }
 
-registerSendable('tc_sheet', () => ({
-  components: [tcSheetContainer()],
-  flags: MessageFlags.IsComponentsV2,
-}))
+// Static content registered once at module load — persistent so it survives
+// the 1 h TTL and the hard-cap eviction (see sendable.ts doc-comment).
+registerSendable(
+  'tc_sheet',
+  () => ({
+    components: [tcSheetContainer()],
+    flags: MessageFlags.IsComponentsV2,
+  }),
+  { persistent: true }
+)
 
 export const data = new SlashCommandBuilder()
   .setName('tcsheet')

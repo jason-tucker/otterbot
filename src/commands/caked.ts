@@ -35,11 +35,18 @@ export const data = new SlashCommandBuilder()
 // Send-to-Channel button posts exactly what the user is currently looking
 // at — overrides included. (The /oc command uses the same pattern.) We
 // keep this static registration as a safety net for older ephemeral
-// embeds whose button still points at the bare "caked:main" key.
-registerSendable('caked:main', () => ({
-  components: [cakedMainContainer()],
-  flags: MessageFlags.IsComponentsV2,
-}))
+// embeds whose button still points at the bare "caked:main" key. It's
+// registered once at module load, so it's persistent — otherwise it would
+// be the oldest (and first-evicted) entry in the registry, and the 1 h TTL
+// would silently break every stale "caked:main" button after an hour.
+registerSendable(
+  'caked:main',
+  () => ({
+    components: [cakedMainContainer()],
+    flags: MessageFlags.IsComponentsV2,
+  }),
+  { persistent: true }
+)
 
 const cakedNavButtons = [
   new ButtonBuilder()

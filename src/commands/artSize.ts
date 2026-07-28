@@ -85,11 +85,18 @@ function artSizeContainer(): ContainerBuilder {
   )
 }
 
-// Register the public (non-ephemeral) version for the Send to Channel handler
-registerSendable('art_size', () => ({
-  components: [artSizeContainer()],
-  flags: MessageFlags.IsComponentsV2,
-}))
+// Register the public (non-ephemeral) version for the Send to Channel handler.
+// Static content registered once at module load — persistent so it survives
+// the 1 h TTL and the hard-cap eviction (it would otherwise be the oldest
+// entry in the registry and evicted first).
+registerSendable(
+  'art_size',
+  () => ({
+    components: [artSizeContainer()],
+    flags: MessageFlags.IsComponentsV2,
+  }),
+  { persistent: true }
+)
 
 export const data = new SlashCommandBuilder()
   .setName('artsize')

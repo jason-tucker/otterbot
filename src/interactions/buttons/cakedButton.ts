@@ -20,10 +20,19 @@ import {
 // slash-command flow even when the user hasn't actually clicked the button
 // in this process yet. The button handler re-registers it with the latest
 // overrides applied right before the user sees the ephemeral.
-registerSendable('caked:pricing', () => ({
-  components: [cakedPricingContainer()],
-  flags: MessageFlags.IsComponentsV2,
-}))
+//
+// This is a single shared key (not per-interaction — no interaction id in
+// it), and the payload is business-wide override copy, not anything
+// user-specific, so it's persistent: never expires, never evicted by the
+// hard cap. See sendable.ts doc-comment.
+registerSendable(
+  'caked:pricing',
+  () => ({
+    components: [cakedPricingContainer()],
+    flags: MessageFlags.IsComponentsV2,
+  }),
+  { persistent: true }
+)
 
 // ── Button handler ─────────────────────────────────────────────────────────
 
@@ -124,10 +133,18 @@ export async function handleCakedButton(interaction: ButtonInteraction): Promise
       ? await getBusinessMessageOverrides(businessId, CAKED_EDITABLE_KEYS)
       : {}
     const container = cakedPricingContainer(overrides)
-    registerSendable('caked:pricing', () => ({
-      components: [cakedPricingContainer(overrides)],
-      flags: MessageFlags.IsComponentsV2,
-    }))
+    // Same shared key as the module-load registration above — keep it
+    // persistent here too, otherwise this re-registration would flip the
+    // entry back to a TTL-based one and reintroduce the "expires after 1 h
+    // of no clicks" bug for this key.
+    registerSendable(
+      'caked:pricing',
+      () => ({
+        components: [cakedPricingContainer(overrides)],
+        flags: MessageFlags.IsComponentsV2,
+      }),
+      { persistent: true }
+    )
     await interaction.reply(withSendButtonV2('caked:pricing', container))
   }
 }

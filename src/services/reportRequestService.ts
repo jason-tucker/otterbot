@@ -85,13 +85,19 @@ export async function submitReport(input: SubmitReportInput): Promise<SubmitRepo
     `\n\n---\n_Reported by Discord user **${reporterTag}** (\`${input.userId}\`) via /report._`,
   ].join('')
 
-  const sessionKey = createReportSession({
-    reporterId: input.userId,
-    reporterTag,
-    title,
-    body,
-    labels,
-  })
+  let sessionKey: string
+  try {
+    sessionKey = await createReportSession({
+      reporterId: input.userId,
+      reporterTag,
+      title,
+      body,
+      labels,
+    })
+  } catch (err) {
+    logger.error('Failed to persist /report session', { error: err instanceof Error ? err.message : String(err) })
+    return { ok: false, error: 'unknown', details: (err as Error).message }
+  }
 
   try {
     const owner = await input.client.users.fetch(env.BOT_OWNER_ID)
