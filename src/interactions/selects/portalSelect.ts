@@ -15,13 +15,18 @@ import {
   buildPortalOwnersView,
 } from '../../embeds/portalEmbed'
 import { audit } from '../../services/auditService'
+import { v2Text } from '../../utils/cv2'
 
 export async function handlePortalSelect(interaction: StringSelectMenuInteraction): Promise<void> {
   if (!interaction.guild) return
 
+  // Ack immediately — every branch below ends in deferUpdate() anyway, so
+  // acking before the member fetch keeps a slow fetch from tripping a 10062.
+  await interaction.deferUpdate()
+
   const member = await interaction.guild.members.fetch(interaction.user.id)
   if (!isSudoUser(member)) {
-    await interaction.reply({ content: 'Permission denied.', ephemeral: true })
+    await interaction.editReply(v2Text('Permission denied.') as any)
     return
   }
 
@@ -32,12 +37,11 @@ export async function handlePortalSelect(interaction: StringSelectMenuInteractio
 
   const session = getPortalSession(sessionKey)
   if (!session) {
-    await interaction.reply({ content: `This session has expired. Run ${cmd('portal', interaction.guildId!)} again.`, ephemeral: true })
+    await interaction.editReply(v2Text(`This session has expired. Run ${cmd('portal', interaction.guildId!)} again.`) as any)
     return
   }
 
   if (action === 'portal_biz_select') {
-    await interaction.deferUpdate()
     const selectedId = interaction.values[0]
     updatePortalSession(sessionKey, { businessId: selectedId })
 
@@ -47,7 +51,7 @@ export async function handlePortalSelect(interaction: StringSelectMenuInteractio
       getRoleMappings(selectedId, session.guildId),
     ])
     if (!biz) {
-      await interaction.editReply({ content: 'Business not found.', components: [], embeds: [] })
+      await interaction.editReply(v2Text('Business not found.') as any)
       return
     }
     await interaction.editReply(buildPortalBusinessDetail(biz, owners, mappings, sessionKey))
@@ -56,12 +60,11 @@ export async function handlePortalSelect(interaction: StringSelectMenuInteractio
 
   const businessId = session.businessId
   if (!businessId) {
-    await interaction.reply({ content: 'No business selected.', ephemeral: true })
+    await interaction.editReply(v2Text('No business selected.') as any)
     return
   }
 
   if (action === 'portal_rm_role') {
-    await interaction.deferUpdate()
     const mappingId = interaction.values[0]
 
     // Scope the delete to the session's selected business so a stale select
@@ -77,7 +80,7 @@ export async function handlePortalSelect(interaction: StringSelectMenuInteractio
       success: removed,
     })
     if (!removed) {
-      await interaction.editReply({ content: 'That role mapping no longer exists or does not belong to this business.', components: [], embeds: [] })
+      await interaction.editReply(v2Text('That role mapping no longer exists or does not belong to this business.') as any)
       return
     }
 
@@ -86,7 +89,7 @@ export async function handlePortalSelect(interaction: StringSelectMenuInteractio
       getRoleMappings(businessId, session.guildId),
     ])
     if (!biz) {
-      await interaction.editReply({ content: 'Business not found.', components: [], embeds: [] })
+      await interaction.editReply(v2Text('Business not found.') as any)
       return
     }
     await interaction.editReply(buildPortalRolesView(biz, mappings, sessionKey))
@@ -94,7 +97,6 @@ export async function handlePortalSelect(interaction: StringSelectMenuInteractio
   }
 
   if (action === 'portal_rm_owner') {
-    await interaction.deferUpdate()
     const discordUserId = interaction.values[0]
 
     await removeBusinessOwner(businessId, discordUserId)
@@ -113,7 +115,7 @@ export async function handlePortalSelect(interaction: StringSelectMenuInteractio
       getBusinessOwners(businessId),
     ])
     if (!biz) {
-      await interaction.editReply({ content: 'Business not found.', components: [], embeds: [] })
+      await interaction.editReply(v2Text('Business not found.') as any)
       return
     }
     await interaction.editReply(buildPortalOwnersView(biz, owners, sessionKey))

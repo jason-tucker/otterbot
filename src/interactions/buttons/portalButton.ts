@@ -26,15 +26,10 @@ import {
   buildPortalPermsView,
 } from '../../embeds/portalEmbed'
 import { audit } from '../../services/auditService'
+import { v2Text } from '../../utils/cv2'
 
 export async function handlePortalButton(interaction: ButtonInteraction): Promise<void> {
   if (!interaction.guild) return
-
-  const member = await interaction.guild.members.fetch(interaction.user.id)
-  if (!isSudoUser(member)) {
-    await interaction.reply({ content: 'Permission denied.', ephemeral: true })
-    return
-  }
 
   const id = interaction.customId
 
@@ -52,9 +47,33 @@ export async function handlePortalButton(interaction: ButtonInteraction): Promis
     sessionKey = id.slice(colonIdx + 1)
   }
 
+  // Actions that end in showModal() can't be preceded by any ack — Discord
+  // requires showModal to be the interaction's very first response. Every
+  // other action defers immediately so the member fetch below can't leave
+  // the interaction un-acked long enough to trip a 10062.
+  const showsModal = action === 'create' || action === 'edit' || action === 'add_role' || action === 'add_owner' || action === 'set_api'
+  if (!showsModal) {
+    await interaction.deferUpdate()
+  }
+
+  const member = await interaction.guild.members.fetch(interaction.user.id)
+  if (!isSudoUser(member)) {
+    if (showsModal) {
+      await interaction.reply({ content: 'Permission denied.', ephemeral: true })
+    } else {
+      await interaction.editReply(v2Text('Permission denied.') as any)
+    }
+    return
+  }
+
   const session = getPortalSession(sessionKey)
   if (!session) {
-    await interaction.reply({ content: `This session has expired. Run ${cmd('portal', interaction.guildId!)} again.`, ephemeral: true })
+    const msg = `This session has expired. Run ${cmd('portal', interaction.guildId!)} again.`
+    if (showsModal) {
+      await interaction.reply({ content: msg, ephemeral: true })
+    } else {
+      await interaction.editReply(v2Text(msg) as any)
+    }
     return
   }
 
@@ -63,7 +82,6 @@ export async function handlePortalButton(interaction: ButtonInteraction): Promis
   // -------------------------------------------------------------------------
 
   if (action === 'main') {
-    await interaction.deferUpdate()
     updatePortalSession(sessionKey, { businessId: null })
     const businesses = await getAllBusinesses(session.guildId)
     await interaction.editReply(buildPortalMainMenu(businesses, sessionKey))
@@ -119,19 +137,23 @@ export async function handlePortalButton(interaction: ButtonInteraction): Promis
 
   const businessId = session.businessId
   if (!businessId) {
-    await interaction.reply({ content: 'No business selected. Use the main menu to select one.', ephemeral: true })
+    const msg = 'No business selected. Use the main menu to select one.'
+    if (showsModal) {
+      await interaction.reply({ content: msg, ephemeral: true })
+    } else {
+      await interaction.editReply(v2Text(msg) as any)
+    }
     return
   }
 
   if (action === 'view') {
-    await interaction.deferUpdate()
     const [biz, owners, mappings] = await Promise.all([
       getBusinessById(businessId),
       getBusinessOwners(businessId),
       getRoleMappings(businessId, session.guildId),
     ])
     if (!biz) {
-      await interaction.editReply({ content: 'Business not found.', components: [], embeds: [] })
+      await interaction.editReply(v2Text('Business not found.') as any)
       return
     }
     await interaction.editReply(buildPortalBusinessDetail(biz, owners, mappings, sessionKey))
@@ -179,13 +201,12 @@ export async function handlePortalButton(interaction: ButtonInteraction): Promis
   }
 
   if (action === 'roles') {
-    await interaction.deferUpdate()
     const [biz, mappings] = await Promise.all([
       getBusinessById(businessId),
       getRoleMappings(businessId, session.guildId),
     ])
     if (!biz) {
-      await interaction.editReply({ content: 'Business not found.', components: [], embeds: [] })
+      await interaction.editReply(v2Text('Business not found.') as any)
       return
     }
     await interaction.editReply(buildPortalRolesView(biz, mappings, sessionKey))
@@ -193,13 +214,12 @@ export async function handlePortalButton(interaction: ButtonInteraction): Promis
   }
 
   if (action === 'owners') {
-    await interaction.deferUpdate()
     const [biz, owners] = await Promise.all([
       getBusinessById(businessId),
       getBusinessOwners(businessId),
     ])
     if (!biz) {
-      await interaction.editReply({ content: 'Business not found.', components: [], embeds: [] })
+      await interaction.editReply(v2Text('Business not found.') as any)
       return
     }
     await interaction.editReply(buildPortalOwnersView(biz, owners, sessionKey))
@@ -207,10 +227,9 @@ export async function handlePortalButton(interaction: ButtonInteraction): Promis
   }
 
   if (action === 'perms') {
-    await interaction.deferUpdate()
     const biz = await getBusinessById(businessId)
     if (!biz) {
-      await interaction.editReply({ content: 'Business not found.', components: [], embeds: [] })
+      await interaction.editReply(v2Text('Business not found.') as any)
       return
     }
     await interaction.editReply(buildPortalPermsView(biz, sessionKey))
@@ -218,7 +237,6 @@ export async function handlePortalButton(interaction: ButtonInteraction): Promis
   }
 
   if (action === 'deactivate') {
-    await interaction.deferUpdate()
     await deactivateBusiness(businessId, interaction.user.id)
     await audit({
       actorDiscordId: interaction.user.id,
@@ -233,7 +251,7 @@ export async function handlePortalButton(interaction: ButtonInteraction): Promis
       getRoleMappings(businessId, session.guildId),
     ])
     if (!biz) {
-      await interaction.editReply({ content: 'Business not found.', components: [], embeds: [] })
+      await interaction.editReply(v2Text('Business not found.') as any)
       return
     }
     await interaction.editReply(buildPortalBusinessDetail(biz, owners, mappings, sessionKey))
@@ -241,7 +259,6 @@ export async function handlePortalButton(interaction: ButtonInteraction): Promis
   }
 
   if (action === 'reactivate') {
-    await interaction.deferUpdate()
     await reactivateBusiness(businessId, interaction.user.id)
     await audit({
       actorDiscordId: interaction.user.id,
@@ -256,7 +273,7 @@ export async function handlePortalButton(interaction: ButtonInteraction): Promis
       getRoleMappings(businessId, session.guildId),
     ])
     if (!biz) {
-      await interaction.editReply({ content: 'Business not found.', components: [], embeds: [] })
+      await interaction.editReply(v2Text('Business not found.') as any)
       return
     }
     await interaction.editReply(buildPortalBusinessDetail(biz, owners, mappings, sessionKey))
@@ -264,7 +281,6 @@ export async function handlePortalButton(interaction: ButtonInteraction): Promis
   }
 
   if (action === 'toggle') {
-    await interaction.deferUpdate()
     const flag = id.split(':')[1] as keyof BusinessSettings
     await toggleBusinessSetting(businessId, flag, interaction.user.id)
     await audit({
@@ -277,7 +293,7 @@ export async function handlePortalButton(interaction: ButtonInteraction): Promis
     })
     const biz = await getBusinessById(businessId)
     if (!biz) {
-      await interaction.editReply({ content: 'Business not found.', components: [], embeds: [] })
+      await interaction.editReply(v2Text('Business not found.') as any)
       return
     }
     await interaction.editReply(buildPortalPermsView(biz, sessionKey))
