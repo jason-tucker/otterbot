@@ -31,6 +31,11 @@ const envSchema = z.object({
   UPTIME_KUMA_PUSH_URL: z.string().url().optional(),
   BOT_OWNER_ID: z.string().regex(SNOWFLAKE_RE, 'must be a Discord snowflake').optional(),
 
+  // Discord channel the bot posts redacted error summaries to (see
+  // src/utils/errorReport.ts). Optional — unset means errors only reach
+  // console.error / journald, as before this was added.
+  LOG_CHANNEL_ID: z.string().regex(SNOWFLAKE_RE, 'must be a Discord snowflake').optional(),
+
   // /report — files GitHub issues from inside Discord
   GITHUB_TOKEN: z.string().optional(),
   GITHUB_REPO: z.string().regex(REPO_RE, 'must be in `owner/name` form').optional(),

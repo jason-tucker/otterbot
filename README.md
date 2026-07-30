@@ -108,6 +108,7 @@ Copy `.env.example` to `.env` and fill in the values below. Env vars are validat
 | `GITHUB_TOKEN` | No¹ | Fine-grained PAT with **Issues: Read & Write** on `GITHUB_REPO` (for `/report`) |
 | `GITHUB_REPO` | No¹ | `owner/name`, e.g. `jason-tucker/otterbot` (for `/report`) |
 | `UPTIME_KUMA_PUSH_URL` | No | Push-monitor URL; the bot pings it every 60 s after `clientReady` |
+| `LOG_CHANNEL_ID` | No | Discord channel the bot posts redacted error summaries to (`src/utils/errorReport.ts`). Unset → errors only reach `console.error`/journald. |
 | `NODE_ENV` | No | `development` (default), `production`, or `test` |
 
 ¹ Required only for `/report` to file GitHub issues; without them `/report` replies with a friendly "not configured" message.

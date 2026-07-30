@@ -59,6 +59,7 @@ import {
   handleTicketAccountMadeButton,
   handleTicketAccountHelpButton,
 } from '../../interactions/buttons/ticketAccountMade'
+import { errorReport } from '../../utils/errorReport'
 
 const commandHandlers = new Map<string, (i: ChatInputCommandInteraction) => Promise<void>>([
   [lookupData.name, executeLookup],
@@ -205,6 +206,7 @@ export function registerInteractionCreate(client: Client) {
       const userTag = `user=${interaction.user.id}`
       const guildTag = interaction.guildId ? `guild=${interaction.guildId}` : 'guild=dm'
       console.error(`Interaction error: ${tag} ${userTag} ${guildTag}`, err)
+      errorReport(`${tag} ${userTag} ${guildTag}`, err)
       try {
         if (interaction.isRepliable() && !interaction.replied) {
           const payload = { content: 'An unexpected error occurred.', ephemeral: true }

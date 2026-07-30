@@ -9,6 +9,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 - Slash command replies now show a "do this on the website" link to the matching botpanel page (`/oc`, `/caked`, `/info`, `/lookup`, `/business`, `/employee`, `/portal`). New optional `PANEL_BASE_URL` env var (defaults to `https://bots.tucker.host`).
+- **Discord-visible error logging.** New `src/utils/errorReport.ts`: the global interaction catch and the `unhandledRejection`/`uncaughtException` handlers now also post a redacted, deduped summary to a new optional `LOG_CHANNEL_ID` channel (never crashes, never leaks secrets, max one post per error key per 5 minutes) — errors are visible without shelling into `docker logs`.
 
 ### Fixed
 - **CI deploy verification no longer false-fails when watchtower is mid-recreate.** The "Deploy to VPS" step checked container health once, 10 s after `compose up` — if watchtower was recreating at that instant (or the entrypoint's `drizzle-kit push` was still introspecting), the deploy was marked failed even though it converged seconds later. The check now polls for up to 2 minutes and requires two consecutive healthy reads 10 s apart, so a crash-looping container still fails.
