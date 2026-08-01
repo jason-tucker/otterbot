@@ -3,6 +3,7 @@ import { resolveBusinesses } from '../../services/permissionService'
 import { isSudoUser } from '../../services/sudoService'
 import { showEmployeeManageEmbed } from '../../commands/employee'
 import { getBusinessById } from '../../services/portalService'
+import { v2Text } from '../../utils/cv2'
 
 export async function handleEmployeeBusinessSelect(
   interaction: StringSelectMenuInteraction,
@@ -43,7 +44,7 @@ export async function handleEmployeeBusinessSelect(
   }
 
   if (!selectedBusiness) {
-    await interaction.editReply({ content: 'You no longer have management access to that business.', components: [], embeds: [] })
+    await interaction.editReply(v2Text('You no longer have management access to that business.') as any)
     return
   }
 
@@ -51,7 +52,7 @@ export async function handleEmployeeBusinessSelect(
   try {
     targetMember = await interaction.guild.members.fetch(targetDiscordId)
   } catch {
-    await interaction.editReply({ content: 'That user is no longer in this server.', components: [], embeds: [] })
+    await interaction.editReply(v2Text('That user is no longer in this server.') as any)
     return
   }
 

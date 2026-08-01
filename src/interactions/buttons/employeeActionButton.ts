@@ -7,6 +7,7 @@ import { buildEmployeeManageEmbed } from '../../embeds/employeeManageEmbed'
 import { audit } from '../../services/auditService'
 import { addBusinessOwner, removeBusinessOwner, getBusinessById } from '../../services/portalService'
 import { publish, employeeCh, type EmployeeEvent } from '../../services/eventBus'
+import { v2Text } from '../../utils/cv2'
 import {
   getEmployeeBusinessConfig,
   getEmployeeBusinessConfigsForGuild,
@@ -68,7 +69,7 @@ export async function handleEmployeeActionButton(interaction: ButtonInteraction)
     } else {
       const bizRecord = await getBusinessById(session.businessId)
       if (!bizRecord || bizRecord.guildId !== interaction.guild.id) {
-        await interaction.editReply({ content: 'This management session belongs to a different server.', components: [] })
+        await interaction.editReply(v2Text('This management session belongs to a different server.') as any)
         return
       }
       managedBusiness = { business: bizRecord, rank: 'owner' as const }
@@ -78,13 +79,13 @@ export async function handleEmployeeActionButton(interaction: ButtonInteraction)
   }
 
   if (!managedBusiness) {
-    await interaction.editReply({ content: 'You no longer have management access to this business.', components: [] })
+    await interaction.editReply(v2Text('You no longer have management access to this business.') as any)
     return
   }
 
   const config = await getEmployeeBusinessConfig(session.businessId, interaction.guild.id)
   if (!config) {
-    await interaction.editReply({ content: 'Employee management is not configured for this business.', components: [] })
+    await interaction.editReply(v2Text('Employee management is not configured for this business.') as any)
     return
   }
 
@@ -92,7 +93,7 @@ export async function handleEmployeeActionButton(interaction: ButtonInteraction)
   try {
     targetMember = await interaction.guild.members.fetch(session.targetDiscordId)
   } catch {
-    await interaction.editReply({ content: 'The target user is no longer in this server.', components: [] })
+    await interaction.editReply(v2Text('The target user is no longer in this server.') as any)
     return
   }
 
@@ -106,7 +107,7 @@ export async function handleEmployeeActionButton(interaction: ButtonInteraction)
       targetId: targetMember.id,
       success: false,
     })
-    await interaction.editReply({ content: "You cannot manage the bot's own roles.", components: [] })
+    await interaction.editReply(v2Text("You cannot manage the bot's own roles.") as any)
     return
   }
 
@@ -129,7 +130,7 @@ export async function handleEmployeeActionButton(interaction: ButtonInteraction)
   })()
 
   if (!permCheck.allowed) {
-    await interaction.editReply({ content: `Permission denied: ${permCheck.reason}`, components: [] })
+    await interaction.editReply(v2Text(`Permission denied: ${permCheck.reason}`) as any)
     return
   }
 
@@ -189,11 +190,11 @@ export async function handleEmployeeActionButton(interaction: ButtonInteraction)
     }
   } catch (err) {
     if (err instanceof RoleMissingError) {
-      await interaction.editReply({ content: `**Role not found:** \`${err.roleName}\`\nCheck the business role config in ${cmd('portal', interaction.guildId!)}.`, components: [] })
+      await interaction.editReply(v2Text(`**Role not found:** \`${err.roleName}\`\nCheck the business role config in ${cmd('portal', interaction.guildId!)}.`) as any)
       return
     }
     if (err instanceof RoleHierarchyError) {
-      await interaction.editReply({ content: `**Role hierarchy error:** Cannot manage \`${err.roleName}\`. The bot's role must be above all business roles.`, components: [] })
+      await interaction.editReply(v2Text(`**Role hierarchy error:** Cannot manage \`${err.roleName}\`. The bot's role must be above all business roles.`) as any)
       return
     }
     throw err

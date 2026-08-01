@@ -49,7 +49,7 @@ export async function handleOCButton(interaction: ButtonInteraction): Promise<vo
     await interaction.deferUpdate()
     const oc = await requireOCManager(interaction)
     if (!oc) {
-      await interaction.editReply({ content: 'You do not have permission to manage OC stock.' })
+      await interaction.followUp({ content: 'You do not have permission to manage OC stock.', ephemeral: true })
       return
     }
     const items = await getAllStock()

@@ -7,6 +7,7 @@ import { buildEmployeeManageEmbed } from '../../embeds/employeeManageEmbed'
 import { audit } from '../../services/auditService'
 import { getBusinessById } from '../../services/portalService'
 import { publish, employeeCh } from '../../services/eventBus'
+import { v2Text } from '../../utils/cv2'
 import {
   getEmployeeBusinessConfig,
   getEmployeeBusinessConfigsForGuild,
@@ -49,25 +50,25 @@ export async function handleEmployeeCustomRoleSelect(
     if (biz) managedBusiness = { business: { id: biz.id, name: biz.name, slug: biz.slug, providerType: biz.providerType, guildId: biz.guildId, active: biz.active, settings: biz.settings, createdAt: biz.createdAt }, rank: 'owner' }
   }
   if (!managedBusiness) {
-    await interaction.editReply({ content: 'You no longer have management access to this business.', components: [] })
+    await interaction.editReply(v2Text('You no longer have management access to this business.') as any)
     return
   }
 
   const config = await getEmployeeBusinessConfig(session.businessId, interaction.guild.id)
   if (!config) {
-    await interaction.editReply({ content: 'Employee management is not configured for this business.', components: [] })
+    await interaction.editReply(v2Text('Employee management is not configured for this business.') as any)
     return
   }
 
   const customRole = config.roles.custom.find((cr) => cr.roleId === roleId)
   if (!customRole) {
-    await interaction.editReply({ content: 'That role is not configured for this business.', components: [] })
+    await interaction.editReply(v2Text('That role is not configured for this business.') as any)
     return
   }
 
   const permCheck = canManageCustomRole(managedBusiness.rank, customRole, config, sudo)
   if (!permCheck.allowed) {
-    await interaction.editReply({ content: `Permission denied: ${permCheck.reason}`, components: [] })
+    await interaction.editReply(v2Text(`Permission denied: ${permCheck.reason}`) as any)
     return
   }
 
@@ -75,7 +76,7 @@ export async function handleEmployeeCustomRoleSelect(
   try {
     targetMember = await interaction.guild.members.fetch(session.targetDiscordId)
   } catch {
-    await interaction.editReply({ content: 'The target user is no longer in this server.', components: [] })
+    await interaction.editReply(v2Text('The target user is no longer in this server.') as any)
     return
   }
 
@@ -99,11 +100,11 @@ export async function handleEmployeeCustomRoleSelect(
     })
   } catch (err) {
     if (err instanceof RoleMissingError) {
-      await interaction.editReply({ content: `**Role not found:** \`${err.roleName}\`\nCheck role config in ${cmd('portal', interaction.guildId!)}.`, components: [] })
+      await interaction.editReply(v2Text(`**Role not found:** \`${err.roleName}\`\nCheck role config in ${cmd('portal', interaction.guildId!)}.`) as any)
       return
     }
     if (err instanceof RoleHierarchyError) {
-      await interaction.editReply({ content: `**Role hierarchy error:** Cannot manage \`${err.roleName}\`.`, components: [] })
+      await interaction.editReply(v2Text(`**Role hierarchy error:** Cannot manage \`${err.roleName}\`.`) as any)
       return
     }
     throw err

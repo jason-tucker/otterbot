@@ -23,15 +23,20 @@ import {
 } from '../../embeds/portalEmbed'
 import { audit } from '../../services/auditService'
 import { parseSlug, parseSnowflake } from '../../utils/validators'
+import { v2Text } from '../../utils/cv2'
 
 const VALID_RANKS: StaffRank[] = ['employee', 'manager', 'owner']
 
 export async function handlePortalModal(interaction: ModalSubmitInteraction): Promise<void> {
   if (!interaction.guild) return
 
+  // Every branch below ends in deferUpdate() — ack immediately so the member
+  // fetch can't leave the interaction un-acked long enough to trip a 10062.
+  await interaction.deferUpdate()
+
   const member = await interaction.guild.members.fetch(interaction.user.id)
   if (!isSudoUser(member)) {
-    await interaction.reply({ content: 'Permission denied.', ephemeral: true })
+    await interaction.editReply(v2Text('Permission denied.') as any)
     return
   }
 
@@ -42,7 +47,7 @@ export async function handlePortalModal(interaction: ModalSubmitInteraction): Pr
 
   const session = getPortalSession(sessionKey)
   if (!session) {
-    await interaction.reply({ content: `This session has expired. Run ${cmd('portal', interaction.guildId!)} again.`, ephemeral: true })
+    await interaction.editReply(v2Text(`This session has expired. Run ${cmd('portal', interaction.guildId!)} again.`) as any)
     return
   }
 
@@ -51,8 +56,6 @@ export async function handlePortalModal(interaction: ModalSubmitInteraction): Pr
   // -------------------------------------------------------------------------
 
   if (action === 'portal_create_modal') {
-    await interaction.deferUpdate()
-
     const name = interaction.fields.getTextInputValue('name').trim()
     const slugRaw = interaction.fields.getTextInputValue('slug').trim().toLowerCase().replace(/\s+/g, '-')
     const providerTypeRaw = interaction.fields.getTextInputValue('provider_type').trim().toLowerCase()
@@ -129,7 +132,7 @@ export async function handlePortalModal(interaction: ModalSubmitInteraction): Pr
 
   const businessId = session.businessId
   if (!businessId) {
-    await interaction.reply({ content: `No business selected. Run ${cmd('portal', interaction.guildId!)} again.`, ephemeral: true })
+    await interaction.editReply(v2Text(`No business selected. Run ${cmd('portal', interaction.guildId!)} again.`) as any)
     return
   }
 
@@ -138,8 +141,6 @@ export async function handlePortalModal(interaction: ModalSubmitInteraction): Pr
   // -------------------------------------------------------------------------
 
   if (action === 'portal_edit_modal') {
-    await interaction.deferUpdate()
-
     const name = interaction.fields.getTextInputValue('name').trim()
     const slug = interaction.fields.getTextInputValue('slug').trim().toLowerCase().replace(/\s+/g, '-')
     const providerTypeRaw = interaction.fields.getTextInputValue('provider_type').trim().toLowerCase()
@@ -151,13 +152,11 @@ export async function handlePortalModal(interaction: ModalSubmitInteraction): Pr
         getRoleMappings(businessId, session.guildId),
       ])
       if (!biz) {
-        await interaction.editReply({ content: 'Business not found.', components: [], embeds: [] })
+        await interaction.editReply(v2Text('Business not found.') as any)
         return
       }
-      await interaction.editReply({
-        ...buildPortalBusinessDetail(biz, owners, mappings, sessionKey),
-        content: `❌ Invalid provider type \`${providerTypeRaw}\`. Must be \`mckenzie\` or \`discord-only\`.`,
-      })
+      await interaction.editReply(buildPortalBusinessDetail(biz, owners, mappings, sessionKey))
+      await interaction.followUp({ content: `❌ Invalid provider type \`${providerTypeRaw}\`. Must be \`mckenzie\` or \`discord-only\`.`, ephemeral: true })
       return
     }
 
@@ -183,7 +182,7 @@ export async function handlePortalModal(interaction: ModalSubmitInteraction): Pr
       getRoleMappings(businessId, session.guildId),
     ])
     if (!biz) {
-      await interaction.editReply({ content: 'Business not found.', components: [], embeds: [] })
+      await interaction.editReply(v2Text('Business not found.') as any)
       return
     }
     await interaction.editReply(buildPortalBusinessDetail(biz, owners, mappings, sessionKey))
@@ -195,8 +194,6 @@ export async function handlePortalModal(interaction: ModalSubmitInteraction): Pr
   // -------------------------------------------------------------------------
 
   if (action === 'portal_add_role_modal') {
-    await interaction.deferUpdate()
-
     const roleIdRaw = interaction.fields.getTextInputValue('role_id').trim()
     const rankRaw = interaction.fields.getTextInputValue('rank').trim().toLowerCase()
     const label = interaction.fields.getTextInputValue('label').trim()
@@ -210,13 +207,11 @@ export async function handlePortalModal(interaction: ModalSubmitInteraction): Pr
         getRoleMappings(businessId, session.guildId),
       ])
       if (!biz) {
-        await interaction.editReply({ content: 'Business not found.', components: [], embeds: [] })
+        await interaction.editReply(v2Text('Business not found.') as any)
         return
       }
-      await interaction.editReply({
-        ...buildPortalRolesView(biz, mappings, sessionKey),
-        content: '❌ Invalid role ID — must be a Discord snowflake (17-20 digits)',
-      })
+      await interaction.editReply(buildPortalRolesView(biz, mappings, sessionKey))
+      await interaction.followUp({ content: '❌ Invalid role ID — must be a Discord snowflake (17-20 digits)', ephemeral: true })
       return
     }
 
@@ -226,13 +221,11 @@ export async function handlePortalModal(interaction: ModalSubmitInteraction): Pr
         getRoleMappings(businessId, session.guildId),
       ])
       if (!biz) {
-        await interaction.editReply({ content: 'Business not found.', components: [], embeds: [] })
+        await interaction.editReply(v2Text('Business not found.') as any)
         return
       }
-      await interaction.editReply({
-        ...buildPortalRolesView(biz, mappings, sessionKey),
-        content: `❌ Invalid rank \`${rankRaw}\`. Must be \`employee\`, \`manager\`, or \`owner\`.`,
-      })
+      await interaction.editReply(buildPortalRolesView(biz, mappings, sessionKey))
+      await interaction.followUp({ content: `❌ Invalid rank \`${rankRaw}\`. Must be \`employee\`, \`manager\`, or \`owner\`.`, ephemeral: true })
       return
     }
 
@@ -270,14 +263,15 @@ export async function handlePortalModal(interaction: ModalSubmitInteraction): Pr
         getRoleMappings(businessId, session.guildId),
       ])
       if (!biz) {
-        await interaction.editReply({ content: 'Business not found.', components: [], embeds: [] })
+        await interaction.editReply(v2Text('Business not found.') as any)
         return
       }
-      await interaction.editReply({
-        ...buildPortalRolesView(biz, mappings, sessionKey),
+      await interaction.editReply(buildPortalRolesView(biz, mappings, sessionKey))
+      await interaction.followUp({
         content: isDuplicate
           ? `❌ That role is already mapped to a business in this server.`
           : `❌ Failed to add role: ${msg}`,
+        ephemeral: true,
       })
       return
     }
@@ -298,7 +292,7 @@ export async function handlePortalModal(interaction: ModalSubmitInteraction): Pr
       getRoleMappings(businessId, session.guildId),
     ])
     if (!biz) {
-      await interaction.editReply({ content: 'Business not found.', components: [], embeds: [] })
+      await interaction.editReply(v2Text('Business not found.') as any)
       return
     }
     await interaction.editReply(buildPortalRolesView(biz, mappings, sessionKey))
@@ -310,8 +304,6 @@ export async function handlePortalModal(interaction: ModalSubmitInteraction): Pr
   // -------------------------------------------------------------------------
 
   if (action === 'portal_add_owner_modal') {
-    await interaction.deferUpdate()
-
     const discordUserIdRaw = interaction.fields.getTextInputValue('discord_user_id').trim()
 
     const discordUserId = parseSnowflake(discordUserIdRaw)
@@ -321,13 +313,11 @@ export async function handlePortalModal(interaction: ModalSubmitInteraction): Pr
         getBusinessOwners(businessId),
       ])
       if (!biz) {
-        await interaction.editReply({ content: 'Business not found.', components: [], embeds: [] })
+        await interaction.editReply(v2Text('Business not found.') as any)
         return
       }
-      await interaction.editReply({
-        ...buildPortalOwnersView(biz, owners, sessionKey),
-        content: '❌ Invalid user ID — must be a Discord snowflake (17-20 digits)',
-      })
+      await interaction.editReply(buildPortalOwnersView(biz, owners, sessionKey))
+      await interaction.followUp({ content: '❌ Invalid user ID — must be a Discord snowflake (17-20 digits)', ephemeral: true })
       return
     }
 
@@ -339,13 +329,11 @@ export async function handlePortalModal(interaction: ModalSubmitInteraction): Pr
         getBusinessOwners(businessId),
       ])
       if (!biz) {
-        await interaction.editReply({ content: 'Business not found.', components: [], embeds: [] })
+        await interaction.editReply(v2Text('Business not found.') as any)
         return
       }
-      await interaction.editReply({
-        ...buildPortalOwnersView(biz, owners, sessionKey),
-        content: `❌ User \`${discordUserId}\` is not in this server.`,
-      })
+      await interaction.editReply(buildPortalOwnersView(biz, owners, sessionKey))
+      await interaction.followUp({ content: `❌ User \`${discordUserId}\` is not in this server.`, ephemeral: true })
       return
     }
 
@@ -366,7 +354,7 @@ export async function handlePortalModal(interaction: ModalSubmitInteraction): Pr
       getBusinessOwners(businessId),
     ])
     if (!biz) {
-      await interaction.editReply({ content: 'Business not found.', components: [], embeds: [] })
+      await interaction.editReply(v2Text('Business not found.') as any)
       return
     }
     await interaction.editReply(buildPortalOwnersView(biz, owners, sessionKey))
@@ -378,8 +366,6 @@ export async function handlePortalModal(interaction: ModalSubmitInteraction): Pr
   // -------------------------------------------------------------------------
 
   if (action === 'portal_set_api_modal') {
-    await interaction.deferUpdate()
-
     const apiName = interaction.fields.getTextInputValue('api_name').trim()
     await updateBusinessSettings(businessId, { apiBusinessName: apiName }, interaction.user.id)
 
@@ -394,7 +380,7 @@ export async function handlePortalModal(interaction: ModalSubmitInteraction): Pr
 
     const biz = await getBusinessById(businessId)
     if (!biz) {
-      await interaction.editReply({ content: 'Business not found.', components: [], embeds: [] })
+      await interaction.editReply(v2Text('Business not found.') as any)
       return
     }
     await interaction.editReply(buildPortalPermsView(biz, sessionKey))

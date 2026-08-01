@@ -5,6 +5,7 @@ import { resolveBusinesses } from '../../services/permissionService'
 import { showCharacterEmbed } from '../../commands/lookup'
 import type { LookupInteraction } from '../../commands/lookup'
 import type { ResolvedBusiness } from '../../types/domain'
+import { v2Text } from '../../utils/cv2'
 
 export async function handleBusinessEmployeeSelect(interaction: StringSelectMenuInteraction): Promise<void> {
   if (!interaction.inGuild() || !interaction.guild) return
@@ -14,7 +15,7 @@ export async function handleBusinessEmployeeSelect(interaction: StringSelectMenu
   const session = getBusinessRosterSession(sessionKey)
 
   if (!session) {
-    await interaction.editReply({ content: `This session has expired. Run ${cmd('business', interaction.guildId!)} again.`, embeds: [], components: [] })
+    await interaction.editReply(v2Text(`This session has expired. Run ${cmd('business', interaction.guildId!)} again.`) as any)
     return
   }
 
@@ -22,7 +23,7 @@ export async function handleBusinessEmployeeSelect(interaction: StringSelectMenu
   const member = session.roster.members.find((m) => m.id === memberId)
 
   if (!member) {
-    await interaction.editReply({ content: 'Could not find that member in the roster.', embeds: [], components: [] })
+    await interaction.editReply(v2Text('Could not find that member in the roster.') as any)
     return
   }
 
@@ -33,7 +34,7 @@ export async function handleBusinessEmployeeSelect(interaction: StringSelectMenu
     const allResolved = await resolveBusinesses(guildMember)
 
     if (allResolved.length === 0) {
-      await interaction.editReply({ content: 'You need a staff role to look up employees.', embeds: [], components: [] })
+      await interaction.editReply(v2Text('You need a staff role to look up employees.') as any)
       return
     }
 
@@ -50,7 +51,7 @@ export async function handleBusinessEmployeeSelect(interaction: StringSelectMenu
   }
 
   if (!resolved) {
-    await interaction.editReply({ content: 'You need a staff role to look up employees.', embeds: [], components: [] })
+    await interaction.editReply(v2Text('You need a staff role to look up employees.') as any)
     return
   }
 

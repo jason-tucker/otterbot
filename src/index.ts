@@ -10,6 +10,13 @@ import { closeDb } from './db/client'
 import { startRpcServer, closeRpcServer } from './services/rpcServer'
 import { startCacheInvalidator } from './services/cacheInvalidator'
 import { closeEventBus } from './services/eventBus'
+import { attachErrorReportClient, errorReport } from './utils/errorReport'
+
+// Earliest reliable point to hand the client to errorReport — `client` is
+// already constructed (see src/bot/client.ts), and this runs before
+// `.login()` below, so the unhandledRejection/uncaughtException handlers
+// immediately following also have a client to post with.
+attachErrorReportClient(client)
 
 registerReadyEvent(client)
 registerInteractionCreate(client)
@@ -18,11 +25,13 @@ registerTicketChannelCreate(client)
 process.on('unhandledRejection', (reason) => {
   setDnd('Unhandled error — check logs')
   console.error('Unhandled rejection:', reason)
+  errorReport('unhandledRejection', reason)
 })
 
 process.on('uncaughtException', (err) => {
   setDnd('Uncaught exception — check logs')
   console.error('Uncaught exception:', err)
+  errorReport('uncaughtException', err)
 })
 
 /**

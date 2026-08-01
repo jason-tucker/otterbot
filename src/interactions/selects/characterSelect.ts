@@ -1,4 +1,4 @@
-import { ContainerBuilder, TextDisplayBuilder, MessageFlags, type StringSelectMenuInteraction } from 'discord.js'
+import type { StringSelectMenuInteraction } from 'discord.js'
 import { resolveBusinesses } from '../../services/permissionService'
 import { getProvider } from '../../services/businessService'
 import { showCharacterEmbed } from '../../commands/lookup'
@@ -7,16 +7,10 @@ import { businesses } from '../../db/schema'
 import { eq } from 'drizzle-orm'
 import type { Business, ResolvedBusiness } from '../../types/domain'
 import type { ViewerMode } from '../../embeds/customerEmbed'
+import { v2Text } from '../../utils/cv2'
 
 function v2Error(msg: string) {
-  return {
-    flags: MessageFlags.IsComponentsV2,
-    components: [
-      new ContainerBuilder().setAccentColor(0x95a5a6).addTextDisplayComponents(
-        new TextDisplayBuilder().setContent(msg)
-      ),
-    ] as any[],
-  }
+  return v2Text(msg)
 }
 
 async function loadBusinessById(id: string): Promise<Business | null> {

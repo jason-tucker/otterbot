@@ -4,7 +4,7 @@
  * matches what you actually want; both `Large` and `Small` are used in the
  * codebase, and the no-divider variant exists too.
  */
-import { SeparatorBuilder, SeparatorSpacingSize } from 'discord.js'
+import { SeparatorBuilder, SeparatorSpacingSize, ContainerBuilder, TextDisplayBuilder, MessageFlags } from 'discord.js'
 
 /** Default — small spacing, divider line. Most common across embeds. */
 export function sep(): SeparatorBuilder {
@@ -21,4 +21,18 @@ export function sepLarge(): SeparatorBuilder {
  *  field clusters inside a section. */
 export function sepBlank(): SeparatorBuilder {
   return new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(false)
+}
+
+/** A single-container CV2-safe error/status card. Use for any `editReply`/`update`
+ *  on a message that already carries `MessageFlags.IsComponentsV2` — that flag is
+ *  permanent, so a later edit can never set `content`, only `components`. */
+export function v2Text(msg: string, accentColor = 0x95a5a6) {
+  return {
+    flags: MessageFlags.IsComponentsV2,
+    components: [
+      new ContainerBuilder().setAccentColor(accentColor).addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(msg)
+      ),
+    ] as any[],
+  }
 }

@@ -2,6 +2,7 @@ import { type StringSelectMenuInteraction } from 'discord.js'
 import { resolveBusinesses, hasMinRank } from '../../services/permissionService'
 import { getStockById } from '../../services/ocStockService'
 import { buildOCEditItemEmbed } from '../../embeds/ocEmbed'
+import { v2Text } from '../../utils/cv2'
 
 export async function handleOCItemSelect(interaction: StringSelectMenuInteraction): Promise<void> {
   await interaction.deferUpdate()
@@ -12,7 +13,7 @@ export async function handleOCItemSelect(interaction: StringSelectMenuInteractio
   const oc = resolved.find((r) => r.business.slug === 'original-clothing')
 
   if (!oc || !hasMinRank(oc.rank, 'manager')) {
-    await interaction.editReply({ content: 'You do not have permission to manage OC stock.' })
+    await interaction.editReply(v2Text('You do not have permission to manage OC stock.') as any)
     return
   }
 
@@ -20,7 +21,7 @@ export async function handleOCItemSelect(interaction: StringSelectMenuInteractio
   const item = await getStockById(itemId)
 
   if (!item) {
-    await interaction.editReply({ content: 'That item no longer exists. Refresh with the Back button.' })
+    await interaction.editReply(v2Text('That item no longer exists. Refresh with the Back button.') as any)
     return
   }
 

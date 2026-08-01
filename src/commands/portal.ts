@@ -17,13 +17,13 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     return
   }
 
+  await interaction.deferReply({ ephemeral: true })
+
   const member = await interaction.guild.members.fetch(interaction.user.id)
   if (!isSudoUser(member)) {
-    await interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true })
+    await interaction.editReply({ content: 'You do not have permission to use this command.' })
     return
   }
-
-  await interaction.deferReply({ ephemeral: true })
 
   const businesses = await getAllBusinesses(interaction.guild.id)
   const sessionKey = storePortalSession({
