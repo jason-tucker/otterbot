@@ -326,6 +326,8 @@ The bot and botpanel communicate exclusively over Redis pub/sub — no HTTP betw
 
 **Inbound commands (panel → bot):** botpanel publishes on `cmd.otter.<verb>`. The bot's subscriber (`src/services/rpcServer.ts`) `psubscribe`s `cmd.otter.*`, HMAC-verifies every envelope (`{requestId, ts, hmac, params}` where `hmac = HMAC-SHA256(BOTPANEL_RPC_SECRET, "${channel}|${requestId}|${ts}|${JSON.stringify(params)}")`), replay-checks against a 30-second window + an in-memory LRU `Map` of 5000 `requestId`s, then dispatches to a verb registry (`src/services/rpc/registry.ts`). Verb handlers live under `src/services/rpc/handlers/`. Replies publish on `res.<requestId>` via the existing event-bus publisher.
 
+`business.user_ranks` additionally returns `roleIds` — every Discord role id the user holds in the Otter guild(s), `@everyone` excluded — so the panel can evaluate access rules that name roles directly (botpanel's configurable OC Stock see/edit allowlists) instead of only ranks.
+
 **Outbound events (bot → panel):** the bot publishes on `bot.otter.<domain>.<event>` via `src/services/eventBus.ts`. Channel helpers: `businessCh`, `ocStockCh`, `employeeCh`, `auditCh`, `notesCh`, `botCh`, etc.
 
 **Cache-invalidation subscriber:** `src/services/cacheInvalidator.ts` subscribes to `bot.otter.settings.invalidate`. HMAC-verified events from botpanel dispatch cache clears by `params.table` (`business_messages`, `mckenzie_businesses`, etc.) without requiring a bot restart.
