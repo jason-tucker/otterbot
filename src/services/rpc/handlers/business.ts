@@ -376,7 +376,8 @@ registerVerb('business.roster', async (params, ctx: VerbContext): Promise<VerbRe
 
 // ────────────────────────────────────────────────────────────────────
 // business.user_ranks — given a userId, return their rank in every
-// business they hold a role in.
+// business they hold a role in, plus the raw Discord role ids they
+// hold in those guilds (`roleIds`, @everyone excluded).
 //
 // Panel calls this from `loadOtterBusinesses` in lib/auth/perms.ts.
 // Manager/employee ranks live exclusively as Discord roles (the
@@ -384,6 +385,10 @@ registerVerb('business.roster', async (params, ctx: VerbContext): Promise<VerbRe
 // so the panel can't derive them from DB alone. Owners are pulled
 // from `business_owners` (DB) since they may not always hold the
 // Discord owner role.
+//
+// `roleIds` exists so the panel can honour role-level allowlists that
+// aren't expressible as a rank (the OC-stock view/edit config lives in
+// `businesses.settings.ocStockAccess` and names role ids directly).
 //
 // Pure cache read — zero Discord API hits. The bot keeps guild
 // members cached via the GUILD_MEMBERS intent.
@@ -436,12 +441,22 @@ registerVerb('business.user_ranks', async (params, ctx: VerbContext): Promise<Ve
   // Group businesses by guild so we minimize member-cache lookups.
   const guildIds = new Set(allBusinesses.map((b) => b.guildId))
   const memberRolesByGuild = new Map<string, Set<string>>()
+  // Union of every role the user holds across those guilds, minus the
+  // implicit @everyone role (its id === the guild id). The panel needs the
+  // raw role ids — not just the derived rank — so per-page role grants
+  // (e.g. the OC-stock view/edit allowlists) can be evaluated panel-side
+  // without a second round-trip.
+  const roleIdSet = new Set<string>()
   for (const gid of guildIds) {
     const guild = ctx.client.guilds.cache.get(gid)
     if (!guild) continue
     const member = guild.members.cache.get(userId)
     if (!member) continue
-    memberRolesByGuild.set(gid, new Set(member.roles.cache.keys()))
+    const roleIds = new Set(member.roles.cache.keys())
+    memberRolesByGuild.set(gid, roleIds)
+    for (const rid of roleIds) {
+      if (rid !== gid) roleIdSet.add(rid)
+    }
   }
 
   const ranks: Record<string, 'owner' | 'manager' | 'employee'> = {}
@@ -471,5 +486,5 @@ registerVerb('business.user_ranks', async (params, ctx: VerbContext): Promise<Ve
     if (rank) ranks[b.slug] = rank
   }
 
-  return { ok: true, data: { ranks } }
+  return { ok: true, data: { ranks, roleIds: [...roleIdSet] } }
 })

@@ -64,8 +64,12 @@ async function handleInvalidate(params: { table?: unknown; key?: unknown }): Pro
     case 'mckenzie_businesses':
     case 'business_owners':
     case 'business_role_mappings':
-      // Roster / ownership changes ripple through the McKenzie business
-      // cache. Drop and lazy-rebuild on next read.
+    case 'businesses':
+      // Roster / ownership / business-row changes ripple through the
+      // McKenzie business cache. Drop and lazy-rebuild on next read.
+      // (`businesses` also covers the panel writing `settings` JSONB —
+      // e.g. the OC-stock access rules; nothing bot-side caches that key
+      // today, but the event should not log as an unknown table.)
       logger.info(`cacheInvalidator: invalidate mckenzie_businesses (table=${table})`)
       invalidateKnownMckenzieBusinesses()
       return
