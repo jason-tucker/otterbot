@@ -312,6 +312,7 @@ await interaction.editReply({ ...withSendButtonV2(sendKey, container, extraButto
 | `BOT_OWNER_ID` | No (Yes for `/report`) | Receives DM on every `/report` for review approval, plus startup pings |
 | `GITHUB_TOKEN` | No | Fine-grained PAT with `Issues: Read & Write` on `GITHUB_REPO`; required for `/report` |
 | `GITHUB_REPO` | No | `owner/name` of the repo issues land in (e.g. `jason-tucker/otterbot`); required for `/report` |
+| `ERROR_ISSUES` | No | `on` (default) / `off`. When `on` and `GITHUB_TOKEN` + `GITHUB_REPO` are set, runtime errors are auto-filed as `[auto-error]` GitHub issues (`src/utils/errorIssueSink.ts`) — read these first when debugging instead of `docker logs`. |
 | `UPTIME_KUMA_PUSH_URL` | No | Kuma push URL — bot pings every 60 s after `clientReady` |
 | `LOG_CHANNEL_ID` | No | Discord channel the bot posts redacted error summaries to (`src/utils/errorReport.ts`). Unset → errors only reach `console.error`/journald. |
 | `BOTPANEL_RPC_SECRET` | No | HMAC-SHA256 secret shared with botpanel. Must match the value in the botpanel stack. If unset, the RPC subscriber and cache-invalidate subscriber log a warning at startup and never connect — the bot still runs as a publish-only client. The command bus fails closed on a mismatch (envelope dropped with a warn, no information leak). |
