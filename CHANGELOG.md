@@ -8,6 +8,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- **Runtime errors are now filed as GitHub issues** (`src/utils/errorIssueSink.ts`), so they can be read without VPS access. Every `errorReport()` call (interaction errors, `/oc` fallbacks, `unhandledRejection`, `uncaughtException`) files a redacted issue on `GITHUB_REPO` titled `[auto-error] … [err:<fingerprint>]`; repeats of the same error (any user) add a comment instead. Max one post per error per 30 min and 10 new issues per hour per process. Uses the existing `/report` `GITHUB_TOKEN`; on by default when `GITHUB_TOKEN` + `GITHUB_REPO` are set — new optional `ERROR_ISSUES=off` disables it.
 - chore: add `/project-manager` Claude Code skill (`.claude/skills/project-manager/SKILL.md`) — delegates all requested work to agents with written prompts: Opus for planning, Sonnet for coding, Haiku for lookups and low-level tasks.
 - Cache-invalidate subscriber now recognises `table: 'businesses'` (folds into the McKenzie business-cache drop) instead of logging it as an unknown table — botpanel emits it after writing `businesses.settings`.
 - `business.user_ranks` RPC now also returns `roleIds` — the raw Discord role ids the user holds in the Otter guild(s), `@everyone` excluded. Botpanel needs them to evaluate access rules that name roles directly (the new configurable OC Stock see/edit allowlists) rather than only business ranks. Additive: existing callers reading `ranks` are unaffected.

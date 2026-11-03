@@ -1,5 +1,6 @@
 import type { Client, TextChannel } from 'discord.js'
 import { env } from '../config/env'
+import { reportErrorToIssue } from './errorIssueSink'
 
 /**
  * Discord-visible error reporting.
@@ -90,6 +91,19 @@ function pruneSeen(now: number): void {
  */
 export function errorReport(context: string, err: unknown): void {
   console.error(`[errorReport] ${context}`, err)
+
+  // GitHub-issue sink (see errorIssueSink.ts) — readable without VPS access.
+  // On when GITHUB_TOKEN + GITHUB_REPO are set, unless ERROR_ISSUES=off.
+  if (env.GITHUB_TOKEN && env.GITHUB_REPO && env.ERROR_ISSUES !== 'off') {
+    void reportErrorToIssue(
+      { token: env.GITHUB_TOKEN, repo: env.GITHUB_REPO, redact },
+      {
+        context,
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error && err.stack ? err.stack : '',
+      },
+    )
+  }
 
   if (!cachedClient || !env.LOG_CHANNEL_ID) return
 

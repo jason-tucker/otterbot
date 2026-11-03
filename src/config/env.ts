@@ -39,6 +39,9 @@ const envSchema = z.object({
   // /report — files GitHub issues from inside Discord
   GITHUB_TOKEN: z.string().optional(),
   GITHUB_REPO: z.string().regex(REPO_RE, 'must be in `owner/name` form').optional(),
+  // Auto-file runtime errors as GitHub issues on GITHUB_REPO (src/utils/errorIssueSink.ts).
+  // On by default when GITHUB_TOKEN + GITHUB_REPO are set; `off` disables it.
+  ERROR_ISSUES: z.enum(['on', 'off']).default('on'),
 
   // botpanel RPC command-bus — shared HMAC secret used to verify inbound
   // `cmd.otter.*` envelopes from the panel. Optional: if unset, the RPC
