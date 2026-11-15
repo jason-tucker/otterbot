@@ -223,7 +223,7 @@ registerVerb('business_messages.update', async (params, ctx) => {
   }
 
   const allow = getEditableKeysForSlug(slug.businessSlug)
-  if (!(messageKey in allow)) {
+  if (!Object.hasOwn(allow, messageKey)) {
     return { ok: false, error: 'unknown-key' }
   }
 
@@ -246,7 +246,7 @@ registerVerb('business_messages.update', async (params, ctx) => {
       },
     }
   } catch (err) {
-    return { ok: false, error: 'write-failed', details: err instanceof Error ? err.message : String(err) }
+    return { ok: false, error: 'write-failed' }
   }
 })
 
@@ -272,7 +272,7 @@ registerVerb('business_messages.reset', async (params, ctx) => {
   // unknown row even though it could only have got there via a write
   // verb we also gate, just keeping the surface symmetric.
   const allow = getEditableKeysForSlug(slug.businessSlug)
-  if (!(messageKey in allow)) {
+  if (!Object.hasOwn(allow, messageKey)) {
     return { ok: false, error: 'unknown-key' }
   }
 
@@ -288,6 +288,6 @@ registerVerb('business_messages.reset', async (params, ctx) => {
     const deleted = await deleteBusinessMessage(biz.id, messageKey)
     return { ok: true, data: { key: messageKey, deleted } }
   } catch (err) {
-    return { ok: false, error: 'delete-failed', details: err instanceof Error ? err.message : String(err) }
+    return { ok: false, error: 'delete-failed' }
   }
 })

@@ -7,6 +7,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Security
+- RPC `business.sync_roles` is now additive-only: it never removes roles, refuses McKenzie (`mke-not-supported`) and inactive businesses (`business-inactive`), keeps the base employee role on managers/owners when `higherRolesAutoGrantEmployee` is on, and only grants it for custom roles with `autoGrantEmployee`.
+- RPC `employee.hire/fire/promote/demote` refuse McKenzie (`mke-not-supported`) and the bot / `BOT_OWNER_ID` as targets (`protected-target`), and write one `rpc.<verb>` audit row per mutation attempt.
+- RPC `employee.demote` of a DB-only owner (no owner role mapped) now grants manager and removes the `business_owners` row instead of throwing and leaving the row.
+- RPC `oc.stock_post` / `caked.message_post` only post into a channel of the owning business's guild (`channel-not-allowed` for DMs and other guilds) and require the business to exist and be active.
+- RPC error replies no longer carry raw error messages (`handler-threw`, `send-failed`, `db-error`, `write-failed`, `delete-failed`, `role-missing`, `role-hierarchy`, `discord-error`); details are logged server-side only.
+- `business_messages.update/reset` and `getDefaultBody` use own-property checks, so keys like `constructor` or `__proto__` are rejected as `unknown-key`.
+- The RPC subscriber logs `REDIS_URL` with credentials masked (`src/utils/redact.ts`).
+
 ### Added
 - **Runtime errors are now filed as GitHub issues** (`src/utils/errorIssueSink.ts`), so they can be read without VPS access. Every `errorReport()` call (interaction errors, `/oc` fallbacks, `unhandledRejection`, `uncaughtException`) files a redacted issue on `GITHUB_REPO` titled `[auto-error] … [err:<fingerprint>]`; repeats of the same error (any user) add a comment instead. Max one post per error per 30 min and 10 new issues per hour per process. Uses the existing `/report` `GITHUB_TOKEN`; on by default when `GITHUB_TOKEN` + `GITHUB_REPO` are set — new optional `ERROR_ISSUES=off` disables it.
 - chore: add `/project-manager` Claude Code skill (`.claude/skills/project-manager/SKILL.md`) — delegates all requested work to agents with written prompts: Opus for planning, Sonnet for coding, Haiku for lookups and low-level tasks.

@@ -33,6 +33,7 @@ import { env } from '../config/env'
 import { createLogger } from '../utils/logger'
 import { hmacSha256, timingSafeCompare } from '../utils/hmac'
 import { publish } from './eventBus'
+import { redactUrlCredentials } from '../utils/redact'
 import { getVerb } from './rpc/registry'
 
 // Side-effect imports — registering verbs at module-load is how the registry
@@ -143,7 +144,7 @@ function buildSubscriber(): Redis {
     logger.warn('redis subscriber error', { error: err.message })
   })
   sub.on('connect', () => {
-    logger.info('redis subscriber connecting', { url: REDIS_URL })
+    logger.info('redis subscriber connecting', { url: redactUrlCredentials(REDIS_URL) })
   })
   sub.on('ready', () => {
     logger.info('redis subscriber ready')
@@ -298,7 +299,7 @@ async function handleMessage(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     logger.warn('rpc handler threw', { verb, requestId, error: msg })
-    await sendReply(requestId, { ok: false, error: 'handler-threw', details: msg })
+    await sendReply(requestId, { ok: false, error: 'handler-threw' })
   }
 }
 

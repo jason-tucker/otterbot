@@ -176,8 +176,8 @@ export const OC_EDITABLE_KEYS = Object.keys(OC_DEFAULTS)
  * — this is mainly for the RPC list verb when no override exists.
  */
 export function getDefaultBody(messageKey: string): string {
-  if (messageKey in CAKED_DEFAULTS) return CAKED_DEFAULTS[messageKey].body
-  if (messageKey in OC_DEFAULTS) return OC_DEFAULTS[messageKey].body
+  if (Object.hasOwn(CAKED_DEFAULTS, messageKey)) return CAKED_DEFAULTS[messageKey].body
+  if (Object.hasOwn(OC_DEFAULTS, messageKey)) return OC_DEFAULTS[messageKey].body
   return ''
 }
 
