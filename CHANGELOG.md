@@ -8,6 +8,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Security
+- Every RPC reply on `res.<requestId>` is now HMAC-SHA256 signed (`{...result, ts, hmac}` over `res.<id>|<id>|<ts>|<body>` with `BOTPANEL_RPC_SECRET`), including error and unknown-verb replies; botpanel verifies it and can require it via `BOTPANEL_RPC_REQUIRE_SIGNED_REPLIES`. Limitation: the secret is shared by all bots, so this only stops Redis clients without the secret, not one bot forging another's reply.
 - Auto-filed GitHub error issues now replace Discord snowflakes with `<id>`, break runs of backticks so text cannot close the code fence, and defuse `@mentions`; the LOG_CHANNEL post gets the same fence escape and sends with `allowedMentions: { parse: [] }`.
 - Error redaction also masks `REDIS_URL`, `UPTIME_KUMA_PUSH_URL`, `POSTGRES_PASSWORD` and any `scheme://user:pass@` credentials in error text.
 - The event bus logs `REDIS_URL` with credentials masked, and `redactUrlCredentials` also masks `?password=` / `?username=` query parameters.
