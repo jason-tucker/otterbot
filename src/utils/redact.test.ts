@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { redactUrlCredentials } from './redact'
+import { redactUrlCredentials, stripUrlCredentialsInText } from './redact'
 
 describe('redactUrlCredentials', () => {
   it('masks user and password', () => {
@@ -15,5 +15,18 @@ describe('redactUrlCredentials', () => {
   })
   it('returns [redacted] for unparseable input', () => {
     expect(redactUrlCredentials('not a url:pass@@')).toBe('[redacted]')
+  })
+  it('masks password and username query parameters', () => {
+    const out = redactUrlCredentials('redis://h:6379/?password=hunter2&username=bob&db=1')
+    expect(out).not.toContain('hunter2')
+    expect(out).not.toContain('bob')
+    expect(out).toContain('db=1')
+  })
+})
+
+describe('stripUrlCredentialsInText', () => {
+  it('masks userinfo in free text', () => {
+    const out = stripUrlCredentialsInText('connect postgres://u:p%40ss@db:5432/x failed')
+    expect(out).toBe('connect postgres://***@db:5432/x failed')
   })
 })

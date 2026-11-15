@@ -19,6 +19,10 @@ export function redactUrlCredentials(url: string): string {
   } catch {
     return '[redacted]'
   }
+  // ioredis also accepts `?password=` / `?username=` query parameters.
+  for (const key of ['password', 'username']) {
+    if (parsed.searchParams.has(key)) parsed.searchParams.set(key, '***')
+  }
   if (!parsed.username && !parsed.password) return parsed.toString()
   parsed.username = ''
   parsed.password = ''
@@ -27,4 +31,14 @@ export function redactUrlCredentials(url: string): string {
   const s = parsed.toString()
   const sep = `${parsed.protocol}//`
   return s.startsWith(sep) ? `${sep}***@${s.slice(sep.length)}` : '[redacted]'
+}
+
+/** Replace any `scheme://user:pass@` userinfo inside free text. */
+export function stripUrlCredentialsInText(text: string): string {
+  return text.replace(/\b([a-z][a-z0-9+.-]*:\/\/)[^\s/@]+@/gi, '$1***@')
+}
+
+/** Break runs of 3+ backticks so text cannot close a surrounding code fence. */
+export function breakCodeFences(text: string): string {
+  return text.replace(/`{3,}/g, (m) => m.split('').join('​'))
 }

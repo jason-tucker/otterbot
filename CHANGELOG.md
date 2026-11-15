@@ -8,6 +8,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Security
+- Auto-filed GitHub error issues now replace Discord snowflakes with `<id>`, break runs of backticks so text cannot close the code fence, and defuse `@mentions`; the LOG_CHANNEL post gets the same fence escape and sends with `allowedMentions: { parse: [] }`.
+- Error redaction also masks `REDIS_URL`, `UPTIME_KUMA_PUSH_URL`, `POSTGRES_PASSWORD` and any `scheme://user:pass@` credentials in error text.
+- The event bus logs `REDIS_URL` with credentials masked, and `redactUrlCredentials` also masks `?password=` / `?username=` query parameters.
+- The cache-invalidate subscriber rejects envelopes whose `ts` is more than 30 s from now and drops replays (dedupe on the hmac, 1000-entry cap).
+- `report.submit` no longer returns raw error messages in `details` for the `unknown` and `owner-dm-failed` replies.
+- Dependencies: `zod` ^4.6.6, and `pnpm.overrides` pin `undici` >=6.29.1 and `ws` >=8.21.0 (`pnpm audit --prod` is clean).
 - RPC `business.sync_roles` is now additive-only: it never removes roles, refuses McKenzie (`mke-not-supported`) and inactive businesses (`business-inactive`), keeps the base employee role on managers/owners when `higherRolesAutoGrantEmployee` is on, and only grants it for custom roles with `autoGrantEmployee`.
 - RPC `employee.hire/fire/promote/demote` refuse McKenzie (`mke-not-supported`) and the bot / `BOT_OWNER_ID` as targets (`protected-target`), and write one `rpc.<verb>` audit row per mutation attempt.
 - RPC `employee.demote` of a DB-only owner (no owner role mapped) now grants manager and removes the `business_owners` row instead of throwing and leaving the row.
@@ -31,6 +37,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Portal unique-violation detection no longer matches "already exists" in the top-level drizzle query message (it carries the query params).
 
 ### Fixed
+- Graceful shutdown now closes the RPC subscriber, the cache-invalidate subscriber and the interaction-cache sweep before `client.destroy()`, then the event bus and DB, each step isolated (`src/shutdown.ts`); the cache-invalidate subscriber gained a `closeCacheInvalidator()`.
+- `business_messages.update` / `reset` RPC failures are now logged server-side instead of swallowed.
 - Lookup Employee select on rosters with more than 25 members no longer fails (first 25 shown with a count; labels/descriptions clipped to 100 characters).
 - Portal business edit validates name and slug, shows an error for a duplicate name/slug instead of crashing, refuses slug changes on `original-clothing`, `caked-up` and `mckenzie`, and limits the modal title/inputs to Discord's length caps.
 - `/employee` business-select error replies no longer mix `content` with Components V2.

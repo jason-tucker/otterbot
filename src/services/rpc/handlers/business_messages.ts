@@ -32,6 +32,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { db } from '../../../db/client'
 import { businesses, businessRoleMappings, businessOwners } from '../../../db/schema'
 import { env } from '../../../config/env'
+import { createLogger } from '../../../utils/logger'
 import { registerVerb, type VerbContext, type VerbResult } from '../registry'
 import {
   deleteBusinessMessage,
@@ -39,6 +40,8 @@ import {
   listBusinessMessages,
   upsertBusinessMessage,
 } from '../../businessMessagesService'
+
+const logger = createLogger('rpc.business_messages')
 
 const SNOWFLAKE_RE = /^\d{17,20}$/
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
@@ -246,6 +249,7 @@ registerVerb('business_messages.update', async (params, ctx) => {
       },
     }
   } catch (err) {
+    logger.warn('business_messages.update failed', { error: err instanceof Error ? err.message : String(err) })
     return { ok: false, error: 'write-failed' }
   }
 })
@@ -288,6 +292,7 @@ registerVerb('business_messages.reset', async (params, ctx) => {
     const deleted = await deleteBusinessMessage(biz.id, messageKey)
     return { ok: true, data: { key: messageKey, deleted } }
   } catch (err) {
+    logger.warn('business_messages.reset failed', { error: err instanceof Error ? err.message : String(err) })
     return { ok: false, error: 'delete-failed' }
   }
 })

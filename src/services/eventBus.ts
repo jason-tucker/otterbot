@@ -27,6 +27,7 @@ import { Redis } from 'ioredis'
 import type { Client } from 'discord.js'
 import { createLogger } from '../utils/logger'
 import { env } from '../config/env'
+import { redactUrlCredentials } from '../utils/redact'
 
 const logger = createLogger('eventBus')
 
@@ -62,7 +63,7 @@ function getPublisher(): Redis {
     logger.warn('redis publisher error', { error: err.message })
   })
   publisher.on('connect', () => {
-    logger.info('redis publisher connecting', { url: REDIS_URL })
+    logger.info('redis publisher connecting', { url: redactUrlCredentials(REDIS_URL) })
   })
   publisher.on('ready', () => {
     logger.info('redis publisher ready')

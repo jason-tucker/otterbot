@@ -1,6 +1,7 @@
 import type { Client, TextChannel } from 'discord.js'
 import { env } from '../config/env'
 import { reportErrorToIssue } from './errorIssueSink'
+import { breakCodeFences, stripUrlCredentialsInText } from './redact'
 
 /**
  * Discord-visible error reporting.
@@ -45,6 +46,11 @@ const SECRET_PATTERNS: Array<{ value: string | undefined; label: string }> = [
   { value: env.DATABASE_URL, label: '[REDACTED:DATABASE_URL]' },
   { value: env.GITHUB_TOKEN, label: '[REDACTED:GITHUB_TOKEN]' },
   { value: env.BOTPANEL_RPC_SECRET, label: '[REDACTED:BOTPANEL_RPC_SECRET]' },
+  { value: env.REDIS_URL, label: '[REDACTED:REDIS_URL]' },
+  { value: env.UPTIME_KUMA_PUSH_URL, label: '[REDACTED:UPTIME_KUMA_PUSH_URL]' },
+  // Not in the env schema (only the db container reads it) but it can still
+  // appear in a connection error message.
+  { value: process.env.POSTGRES_PASSWORD, label: '[REDACTED:POSTGRES_PASSWORD]' },
 ]
 
 function redact(s: string): string {
@@ -54,7 +60,7 @@ function redact(s: string): string {
       out = out.split(value).join(label)
     }
   }
-  return out
+  return stripUrlCredentialsInText(out)
 }
 
 // Dedup/rate-limit window for LOG_CHANNEL_ID posts — keyed by
@@ -109,9 +115,9 @@ export function errorReport(context: string, err: unknown): void {
 
   // Cap each component so the composed body stays under Discord's 2000-char
   // limit without the final slice cutting the closing code fence.
-  const message = (err instanceof Error ? err.message : String(err)).slice(0, 300)
+  const message = breakCodeFences((err instanceof Error ? err.message : String(err)).slice(0, 300))
   const stack = err instanceof Error && err.stack ? err.stack : ''
-  const stackLines = stack.split('\n').slice(0, 8).join('\n').slice(0, 1000)
+  const stackLines = breakCodeFences(stack.split('\n').slice(0, 8).join('\n').slice(0, 1000))
 
   const key = `${context}|${message}`
   const now = Date.now()
@@ -138,7 +144,7 @@ export function errorReport(context: string, err: unknown): void {
     .then((channel) => {
       const textChannel = channel as TextChannel | null
       if (textChannel?.isTextBased()) {
-        return textChannel.send({ content: body })
+        return textChannel.send({ content: body, allowedMentions: { parse: [] } })
       }
     })
     .catch(() => {

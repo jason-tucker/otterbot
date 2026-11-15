@@ -12,11 +12,14 @@
  *   hmac = HMAC-SHA256(BOTPANEL_RPC_SECRET, `${channel}|${ts}|${stringified-params}`)
  *
  * Note: this envelope is *not* the same shape as the rpcServer envelope
- * (which carries `requestId` for request/reply). Invalidate is one-way,
- * idempotent, fire-and-forget — no requestId, no replay window.
+ * (which carries `requestId` for request/reply). Invalidate is one-way and
+ * fire-and-forget — no requestId. `ts` is epoch milliseconds, so replay is
+ * bounded by a ±30 s window, and the hmac itself is the dedupe key (a captured
+ * envelope replayed inside the window is dropped as a duplicate).
  *
  * Posture:
  *  - Bad HMAC → drop silently + warn (same as rpcServer).
+ *  - `ts` outside ±30 s of now → drop as stale; repeated hmac → drop as duplicate.
  *  - Missing `BOTPANEL_RPC_SECRET` → don't subscribe; log once at boot.
  *  - Reload errors caught and warned; never crash the bot.
  */
@@ -82,6 +85,45 @@ async function handleInvalidate(params: { table?: unknown; key?: unknown }): Pro
   }
 }
 
+const REPLAY_WINDOW_MS = 30_000
+const SEEN_CAP = 1000
+/** hmac hex → ts, insertion-ordered so the oldest entry is evicted first. */
+const seen = new Map<string, number>()
+
+/** Test hook — reset dedupe state. */
+export function _resetInvalidatorState(): void {
+  seen.clear()
+}
+
+export type AcceptResult =
+  | { ok: true; params: { table?: unknown; key?: unknown } }
+  | { ok: false; reason: 'malformed' | 'hmac' | 'stale' | 'duplicate' }
+
+/**
+ * Parse + authenticate one envelope. Order: parse, HMAC, window, dedupe (the
+ * window is checked before the dedupe map so stale envelopes never occupy it).
+ */
+export function acceptInvalidate(channel: string, raw: string, secret: string, now: number): AcceptResult {
+  let envelope: InvalidateEnvelope
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (!isValidEnvelope(parsed)) return { ok: false, reason: 'malformed' }
+    envelope = parsed
+  } catch {
+    return { ok: false, reason: 'malformed' }
+  }
+  const wire = `${channel}|${envelope.ts}|${JSON.stringify(envelope.params)}`
+  if (!timingSafeCompare(hmacSha256(secret, wire), envelope.hmac)) return { ok: false, reason: 'hmac' }
+  if (Math.abs(now - envelope.ts) > REPLAY_WINDOW_MS) return { ok: false, reason: 'stale' }
+  if (seen.has(envelope.hmac)) return { ok: false, reason: 'duplicate' }
+  seen.set(envelope.hmac, envelope.ts)
+  if (seen.size > SEEN_CAP) {
+    const oldest = seen.keys().next().value
+    if (oldest !== undefined) seen.delete(oldest)
+  }
+  return { ok: true, params: envelope.params }
+}
+
 let subscriber: Redis | null = null
 
 export function startCacheInvalidator(): void {
@@ -104,26 +146,13 @@ export function startCacheInvalidator(): void {
   })
   r.on('message', async (channel: string, message: string) => {
     if (channel !== CHANNEL) return
-    let envelope: InvalidateEnvelope
-    try {
-      const parsed: unknown = JSON.parse(message)
-      if (!isValidEnvelope(parsed)) {
-        logger.warn(`cacheInvalidator: malformed envelope on ${channel}`)
-        return
-      }
-      envelope = parsed
-    } catch (err) {
-      logger.warn(`cacheInvalidator: JSON parse failed on ${channel}: ${(err as Error).message}`)
-      return
-    }
-    const wire = `${channel}|${envelope.ts}|${JSON.stringify(envelope.params)}`
-    const expected = hmacSha256(env.BOTPANEL_RPC_SECRET!, wire)
-    if (!timingSafeCompare(expected, envelope.hmac)) {
-      logger.warn(`cacheInvalidator: HMAC mismatch on ${channel} — dropping`)
+    const result = acceptInvalidate(channel, message, env.BOTPANEL_RPC_SECRET!, Date.now())
+    if (!result.ok) {
+      logger.warn(`cacheInvalidator: dropping envelope on ${channel} (${result.reason})`)
       return
     }
     try {
-      await handleInvalidate(envelope.params)
+      await handleInvalidate(result.params)
     } catch (err) {
       logger.warn(`cacheInvalidator: handler error: ${(err as Error)?.message ?? err}`)
     }
@@ -137,4 +166,16 @@ export function startCacheInvalidator(): void {
       logger.warn(`cacheInvalidator: subscribe failed: ${err.message}`)
     })
   subscriber = r
+}
+
+/** Close the subscriber connection. Idempotent. */
+export async function closeCacheInvalidator(): Promise<void> {
+  const r = subscriber
+  if (!r) return
+  subscriber = null
+  try {
+    await r.quit()
+  } catch (err) {
+    logger.warn(`cacheInvalidator: quit failed: ${(err as Error)?.message ?? err}`)
+  }
 }
