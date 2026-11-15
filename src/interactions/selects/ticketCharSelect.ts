@@ -3,7 +3,6 @@ import { buildTicketCharacterEmbed } from '../../embeds/ticketCharacterEmbed'
 import { storeLookupSession } from '../../services/interactionCache'
 import { resolveBusinesses } from '../../services/permissionService'
 import { fetchCharacters, getMckenzieBusinessId } from '../../services/ticketLookup'
-import { v2Text } from '../../utils/cv2'
 
 /**
  * Who may reveal a customer's MKE PII (CSN / phone / bank) from the ticket
@@ -50,13 +49,13 @@ export async function handleTicketCharSelect(interaction: StringSelectMenuIntera
   try {
     characters = await fetchCharacters(targetDiscordId)
   } catch {
-    await interaction.editReply(v2Text('Could not reach the MKE API. Try again in a moment.') as any)
+    await interaction.followUp({ content: 'Could not reach the MKE API. Try again in a moment.', ephemeral: true })
     return
   }
 
   const character = characters.find((c) => c.id === selectedCharacterId)
   if (!character) {
-    await interaction.editReply(v2Text('Character not found. Please try again.') as any)
+    await interaction.followUp({ content: 'Character not found. Please try again.', ephemeral: true })
     return
   }
 

@@ -48,7 +48,10 @@ class RoleCache<V> extends Map<string, V> {
   }
 }
 
-type FakeRole = { id: string; name: string }
+type FakeRole = { id: string; name: string; managed?: boolean; position?: number; permissions?: { has(p: bigint): boolean } }
+
+// Live role as the grant-time re-check sees it: harmless, below the bot.
+const safeRole = (id: string): FakeRole => ({ id, name: id, managed: false, position: 1, permissions: { has: () => false } })
 
 function makeMember(id: string, roleIds: string[]) {
   const cache = new Map<string, FakeRole>(roleIds.map((r) => [r, { id: r, name: r }]))
@@ -94,9 +97,10 @@ function setup(memberRoles: string[], guildRoles: string[], userId = USER) {
   const member = makeMember(userId, memberRoles)
   const guild = {
     id: GUILD,
-    roles: { cache: new RoleCache<FakeRole>(guildRoles.map((r) => [r, { id: r, name: r }])) },
-    members: { fetch: vi.fn(async () => member) },
+    roles: { cache: new RoleCache<FakeRole>(guildRoles.map((r) => [r, safeRole(r)])) },
+    members: { fetch: vi.fn(async () => member), me: { roles: { highest: { position: 100 } } } },
   }
+  ;(member as unknown as { guild: unknown }).guild = guild
   const client = { guilds: { cache: new Map([[GUILD, guild]]) }, user: { id: BOT_ID } }
   return { member, guild, ctx: { client, requestId: 'r1', ts: Date.now() } }
 }

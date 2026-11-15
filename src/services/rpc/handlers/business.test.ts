@@ -126,6 +126,7 @@ describe('business.sync_roles handler', () => {
   const A = '200000000000000001'
   const B = '200000000000000002'
   let members: Map<string, ReturnType<typeof makeMember>>
+  let guildRoles: Map<string, { id: string; name: string; managed: boolean; position: number; permissions: { has(p: bigint): boolean } }>
   let ctx: { client: unknown; requestId: string; ts: number }
 
   beforeEach(() => {
@@ -143,8 +144,15 @@ describe('business.sync_roles handler', () => {
       // DB owner holding only the employee role.
       [B, makeMember(B, ['emp'])],
     ])
+    // Live roles for the grant-time re-check: harmless and below the bot.
+    guildRoles = new Map(
+      ['own', 'mgr', 'emp'].map((id) => [id, { id, name: id, managed: false, position: 1, permissions: { has: () => false } }]),
+    )
     const guild = {
+      id: GUILD,
+      roles: { cache: guildRoles },
       members: {
+        me: { roles: { highest: { position: 100 } } },
         cache: members,
         fetch: async (id: string) => {
           const m = members.get(id)
@@ -161,6 +169,23 @@ describe('business.sync_roles handler', () => {
     expect(res).toEqual({ ok: true, data: { added: 1, removed: 0, skipped: [] } })
     for (const m of members.values()) expect(m.roles.remove).not.toHaveBeenCalled()
     expect(members.get(B)!.roles.add).toHaveBeenCalledWith('own')
+  })
+
+  it('refuses to grant a role that now carries a dangerous permission, counting the user as skipped', async () => {
+    // The owner role gained Administrator after it was mapped.
+    guildRoles.get('own')!.permissions = { has: () => true }
+    const res = await handlers.get('business.sync_roles')!({ businessSlug: 'original-clothing' }, ctx)
+    expect(res).toEqual({ ok: true, data: { added: 0, removed: 0, skipped: [B] } })
+    expect(members.get(B)!.roles.add).not.toHaveBeenCalled()
+  })
+
+  it('refuses a managed role and a role at or above the bot', async () => {
+    guildRoles.get('own')!.managed = true
+    expect(await handlers.get('business.sync_roles')!({ businessSlug: 'original-clothing' }, ctx)).toEqual({ ok: true, data: { added: 0, removed: 0, skipped: [B] } })
+    guildRoles.get('own')!.managed = false
+    guildRoles.get('own')!.position = 100
+    expect(await handlers.get('business.sync_roles')!({ businessSlug: 'original-clothing' }, ctx)).toEqual({ ok: true, data: { added: 0, removed: 0, skipped: [B] } })
+    expect(members.get(B)!.roles.add).not.toHaveBeenCalled()
   })
 
   it('refuses McKenzie and inactive businesses', async () => {

@@ -33,12 +33,17 @@ export function redactUrlCredentials(url: string): string {
   return s.startsWith(sep) ? `${sep}***@${s.slice(sep.length)}` : '[redacted]'
 }
 
-/** Replace any `scheme://user:pass@` userinfo inside free text. */
+/**
+ * Replace any `scheme://user:pass@` userinfo inside free text, and mask
+ * `?password=` / `&username=` / token / key / secret / access_token / api_key / apikey query values (ioredis accepts them).
+ */
 export function stripUrlCredentialsInText(text: string): string {
-  return text.replace(/\b([a-z][a-z0-9+.-]*:\/\/)[^\s/@]+@/gi, '$1***@')
+  return text
+    .replace(/\b([a-z][a-z0-9+.-]*:\/\/)[^\s/@]+@/gi, '$1***@')
+    .replace(/([?&](?:password|username|token|key|secret|access_token|api_key|apikey)=)[^&\s]+/gi, '$1***')
 }
 
 /** Break runs of 3+ backticks so text cannot close a surrounding code fence. */
 export function breakCodeFences(text: string): string {
-  return text.replace(/`{3,}/g, (m) => m.split('').join('​'))
+  return text.replace(/`{3,}/g, (m) => m.split('').join('\u200b'))
 }

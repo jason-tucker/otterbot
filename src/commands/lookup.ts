@@ -23,6 +23,8 @@ import { storeLookupSession } from '../services/interactionCache'
 import { refreshKnownMckenzieBusinesses, type KnownBusiness } from '../services/mckenzieBusinessCache'
 import { isSudoUser } from '../services/sudoService'
 import { panelLinkDisplay } from '../utils/panelLink'
+import { lookupSendAuthorizer } from '../services/lookupSendAccess'
+import type { SendAuthorizer } from '../utils/sendable'
 
 /**
  * Per-user rate limit for `/lookup` (and the right-click Lookup context
@@ -218,10 +220,18 @@ export async function showCharacterEmbed(
   character: Character,
   targetDiscordId: string | null,
   viewerMode: ViewerMode = 'staff',
+  authorizeSend?: SendAuthorizer,
 ): Promise<void> {
   const { business, rank } = resolved
 
   const provider = getProvider(business)
+
+  // The card carries PII, so Send to Channel re-checks the viewer on click.
+  // Self lookups show the viewer their own character and need no check; staff
+  // lookups default to McKenzie staff / sudo; callers that granted the view by
+  // another rule (roster) pass their own authorizer.
+  const sendAuthorizer =
+    authorizeSend ?? (viewerMode === 'self' ? undefined : lookupSendAuthorizer(interaction.user.id))
 
   const [notesCountRow, apiNotes, extendedProfile, knownBusinesses] = await Promise.all([
     db
@@ -280,7 +290,7 @@ export async function showCharacterEmbed(
   const response = buildCustomerEmbed(character, business, standingTyped, rank, targetDiscordId, Number(notesCount), sessionKey, viewerMode, {
     matchedBusinesses,
     unknownBusinessCount: unknownBusinessIds.length,
-  })
+  }, sendAuthorizer)
   response.components.push(panelLinkDisplay('/otter/mke', 'Open McKenzie on the website') as any)
   await interaction.editReply({ ...response, content: null } as any)
 }

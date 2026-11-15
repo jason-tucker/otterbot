@@ -12,6 +12,7 @@ import {
   markerTypeEmoji,
 } from '../../services/providers/IBusinessProvider'
 import { safeMarkdown } from '../../utils/escape'
+import { buildNoteFields, type NoteFieldInput } from '../../embeds/noteFields'
 
 export async function handleNoteViewButton(interaction: ButtonInteraction): Promise<void> {
   const sessionKey = interaction.customId.split(':')[1]
@@ -74,32 +75,33 @@ export async function handleNoteViewButton(interaction: ButtonInteraction): Prom
     return
   }
 
+  // MKE API markers first (newest), labeled with type; bot-added notes after.
+  // Built through the pure helper so no field/embed length limit can be hit.
+  const inputs: NoteFieldInput[] = [
+    ...visibleApi.slice(0, 8).map((note) => {
+      const date = new Date(note.created).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      return {
+        name: `${markerTypeEmoji(note.type)} ${markerTypeLabel(note.type)} — Employee #${note.employeeId} — ${date}`,
+        value: note.content ?? '',
+      }
+    }),
+    ...localVisible.slice(0, 5).map((note) => {
+      const date = note.createdAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      const label = note.visibility !== 'staff' ? ` [${note.visibility}]` : ''
+      return {
+        name: `${safeMarkdown(note.authorName)} — ${date}${label}`,
+        value: note.content,
+      }
+    }),
+  ]
+  const { fields, omitted } = buildNoteFields(inputs)
+
   const embed = new EmbedBuilder()
     .setColor(0x5865f2)
-    .setTitle(`Notes — ${session.characterName}`)
-    .setFooter({ text: `${business.business.name}` })
+    .setTitle(`Notes — ${session.characterName}`.slice(0, 256))
+    .setFooter({ text: `${business.business.name}${omitted > 0 ? ` · ${omitted} more not shown` : ''}`.slice(0, 2048) })
     .setTimestamp()
-
-  // MKE API markers first (newest), labeled with type
-  for (const note of visibleApi.slice(0, 8)) {
-    const date = new Date(note.created).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    embed.addFields({
-      name: `${markerTypeEmoji(note.type)} ${markerTypeLabel(note.type)} — Employee #${note.employeeId} — ${date}`,
-      value: note.content ? safeMarkdown(note.content) : '*(empty)*',
-      inline: false,
-    })
-  }
-
-  // Bot-added notes after
-  for (const note of localVisible.slice(0, 5)) {
-    const date = note.createdAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    const label = note.visibility !== 'staff' ? ` [${note.visibility}]` : ''
-    embed.addFields({
-      name: `${safeMarkdown(note.authorName)} — ${date}${label}`,
-      value: safeMarkdown(note.content),
-      inline: false,
-    })
-  }
+    .addFields(fields)
 
   await interaction.editReply({ embeds: [embed] })
 }

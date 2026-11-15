@@ -60,6 +60,7 @@ import {
   handleTicketAccountHelpButton,
 } from '../../interactions/buttons/ticketAccountMade'
 import { errorReport } from '../../utils/errorReport'
+import { v2Text } from '../../utils/cv2'
 
 const commandHandlers = new Map<string, (i: ChatInputCommandInteraction) => Promise<void>>([
   [lookupData.name, executeLookup],
@@ -228,7 +229,19 @@ export function registerInteractionCreate(client: Client) {
             if (onPublicMessage) {
               await interaction.followUp({ content: payload.content, ephemeral: true })
             } else {
-              await (interaction as ChatInputCommandInteraction).editReply({ content: payload.content })
+              // Components V2 messages cannot carry `content`, so a plain
+              // content edit is rejected (50035) and the user stays on
+              // "thinking…". Send a CV2 text card and clear content/embeds;
+              // if Discord still refuses, fall back to an ephemeral follow-up.
+              try {
+                await (interaction as ChatInputCommandInteraction).editReply({
+                  ...v2Text(payload.content),
+                  content: null,
+                  embeds: [],
+                } as never)
+              } catch {
+                await interaction.followUp({ content: payload.content, ephemeral: true })
+              }
             }
           } else {
             await interaction.reply(payload)

@@ -115,9 +115,11 @@ export function errorReport(context: string, err: unknown): void {
 
   // Cap each component so the composed body stays under Discord's 2000-char
   // limit without the final slice cutting the closing code fence.
-  const message = breakCodeFences((err instanceof Error ? err.message : String(err)).slice(0, 300))
+  // Redact the whole string BEFORE cutting: slicing first can split a secret so
+  // the redactor no longer recognises it.
+  const message = breakCodeFences(redact(err instanceof Error ? err.message : String(err)).slice(0, 300))
   const stack = err instanceof Error && err.stack ? err.stack : ''
-  const stackLines = breakCodeFences(stack.split('\n').slice(0, 8).join('\n').slice(0, 1000))
+  const stackLines = breakCodeFences(redact(stack.split('\n').slice(0, 8).join('\n')).slice(0, 1000))
 
   const key = `${context}|${message}`
   const now = Date.now()

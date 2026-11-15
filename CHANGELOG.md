@@ -21,12 +21,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - RPC error replies no longer carry raw error messages (`handler-threw`, `send-failed`, `db-error`, `write-failed`, `delete-failed`, `role-missing`, `role-hierarchy`, `discord-error`); details are logged server-side only.
 - `business_messages.update/reset` and `getDefaultBody` use own-property checks, so keys like `constructor` or `__proto__` are rejected as `unknown-key`.
 - The RPC subscriber logs `REDIS_URL` with credentials masked (`src/utils/redact.ts`).
-- `/business` roster sessions are bound to the staff member who ran the search; Lookup Employee and the employee select deny other users, re-resolve the viewer's rank on every click (unmatched roster = employee rank at most, never a cached rank) and write a `lookup` audit row per character viewed.
+- `/business` roster sessions are bound to the staff member who ran the search; Lookup Employee and the employee select deny other users, re-resolve the viewer's rank on every click (a viewer with no matching business is denied, McKenzie staff keep their own rank; never a cached rank) and write a `lookup` audit row per character viewed.
 - Roster Lookup Employee now only works for staff of the searched business, McKenzie staff (own rank) and sudo; staff of unrelated businesses are denied (no employee-rank fallback) because roster characters carry customer PII.
 - `/portal` role mapping also refuses roles that cannot be fetched, are at or above the bot's highest role, or carry Administrator / Manage Roles / Manage Server / Ban / Kick. Unique-violation detection now sees through drizzle's wrapped errors, and raw error text is no longer shown in portal replies.
 - The Search Business button and modal re-check staff status on use, check the guild before calling the roster API, share the `/business` 30 s cooldown and audit denials.
-- `/movechannel` is limited for non-sudo managers to channels inside, and moves into, the categories in the new optional `MOVECHANNEL_CATEGORY_IDS` (default: the ticket category); sudo is unrestricted. Moves are audited (`move_channel`).
+- `/movechannel`: non-sudo managers may only move channels whose current category is in the new optional `MOVECHANNEL_CATEGORY_IDS` (default: the ticket category), and may move them to any category in the guild; sudo is unrestricted. Moves are audited (`move_channel`).
 - `/portal` refuses to map `@everyone` or managed (bot/integration) roles to a business rank.
+- Owner demotions validate every role to be granted before removing the owner role, so a refused grant cannot strip the target of all roles; the `/caked` `/info` `/oc` fewer-buttons fallback also drops the custom rows from Send to Channel; free-text redaction also masks `token` / `key` / `secret` / `access_token` / `api_key` / `apikey` query values.
 - Audit rows are now written for OC stock status/add/remove/URL changes and custom-button add/edit/style/toggle/move/remove (`auditSafe`: an audit failure never breaks the reply).
 - `/employee` business picker no longer encodes the target Discord ID in its customId (random session key) and only the command user can use it.
 - `/business` and the Search Business modal show CSN, phone and bank only to sudo, staff of the searched business and McKenzie staff; other staff get a names-only roster card without Lookup Employee or Send to Channel.
@@ -35,8 +36,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Roster Lookup Employee for sudo with no matching business now views at employee rank (was owner); a sudo user who is also McKenzie staff keeps their McKenzie rank.
 - `/portal` role mapping also refuses roles with Manage Channels, Manage Webhooks, Mention Everyone, Moderate Members, Manage Messages, Manage Nicknames, Manage Threads, Manage Events, Manage Expressions, View Audit Log, Move, Mute or Deafen Members, and refuses the mapping when the bot's highest role cannot be read.
 - Portal unique-violation detection no longer matches "already exists" in the top-level drizzle query message (it carries the query params).
+- Customer card `lookup:` Send to Channel now has a click-time `authorize` check: only the original viewer, and only while still entitled (roster access for roster lookups, McKenzie staff or sudo for `/lookup`), may post the PII card.
+- Roles are re-checked at grant time (Administrator, Manage Roles, Manage Server, Manage Webhooks or Ban Members; above the bot; managed; @everyone), so roles mapped earlier with ordinary moderation bits still work in `employeeService.safeAdd`, RPC `business.sync_roles` and the employee action buttons; refused roles are logged and `sync_roles` counts them as `skipped`.
 
 ### Fixed
+- Ticket Retry (from the ephemeral reply) now finds and edits the public ticket message instead of failing to edit the ephemeral and falsely saying "updated the message above"; if the public message cannot be edited the character card is shown ephemerally and the reply says so.
+- Ticket "Ask for Help" now requires the ticket creator or ManageChannels staff and pings the support role at most once per 10 minutes per channel.
+- Ticket character selector errors are sent as ephemeral follow-ups so the public selector message is no longer replaced.
+- MKE 5xx / other non-404 non-2xx responses on the ticket lookup now throw `MkeUnavailableError` instead of reading as "no account"; the auto-lookup posts the Account Made card (retry path) in that case.
+- View Notes builds its embed through a length-safe field builder (name 256, value 1024, 5500 total, "N more not shown" footer), so long notes no longer make Discord reject the reply.
+- `/info` and `/caked` retry with a minimal card (built-in buttons only for `/caked`, card only for `/info`) and report the error when Discord rejects the full card.
+- The global interaction error handler replies with a Components V2 text card (then an ephemeral follow-up) instead of a `content` edit that Discord rejects on V2 messages.
+- Caked Up event modal inputs now have max lengths (items 1000, restrictions 500, date/time 100) and the submit handler clamps the same, so a long submission can no longer exceed the message limit.
+- `updateBusinessSettings` / `toggleBusinessSetting` are single atomic UPDATE statements (jsonb merge / flip), so concurrent writes cannot lose each other's changes.
+- Adding a custom button or an OC stock item runs under a Postgres advisory lock in a transaction (count, sort order and insert), so concurrent adds cannot exceed the cap or share a sort order.
+- `userLookup` (Lookup context menu) checks McKenzie staff by `providerType` like `/lookup`, not the `mckenzie` slug.
+- Error issue / LOG_CHANNEL text is redacted and sanitised before it is cut to length, so a secret straddling the cut can no longer leak; the snowflake mask only matches whole 17-20 digit runs, `?password=` / `?username=` in free text are masked, and the zero-width space is written as an escape.
 - Graceful shutdown now closes the RPC subscriber, the cache-invalidate subscriber and the interaction-cache sweep before `client.destroy()`, then the event bus and DB, each step isolated (`src/shutdown.ts`); the cache-invalidate subscriber gained a `closeCacheInvalidator()`.
 - `business_messages.update` / `reset` RPC failures are now logged server-side instead of swallowed.
 - Lookup Employee select on rosters with more than 25 members no longer fails (first 25 shown with a count; labels/descriptions clipped to 100 characters).

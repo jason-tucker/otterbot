@@ -23,15 +23,18 @@ describe('allowedMoveCategories', () => {
 describe('canMoveChannel', () => {
   const base = { sudo: false, isManager: true, sourceParentId: T, targetCategoryId: T, allowed: [T] }
 
-  it('allows a manager moving within allowed categories', () => {
+  it('allows a manager reordering within an allowed category', () => {
     expect(canMoveChannel(base)).toBe(true)
   })
-  it('refuses when the target category is not allowed', () => {
-    expect(canMoveChannel({ ...base, targetCategoryId: OTHER })).toBe(false)
+  it('allows a manager moving a channel from an allowed source to any category', () => {
+    expect(canMoveChannel({ ...base, targetCategoryId: OTHER })).toBe(true)
   })
   it('refuses when the source category is not allowed or missing', () => {
     expect(canMoveChannel({ ...base, sourceParentId: OTHER })).toBe(false)
     expect(canMoveChannel({ ...base, sourceParentId: null })).toBe(false)
+  })
+  it('refuses pulling a channel out of a non-allowed category into an allowed one', () => {
+    expect(canMoveChannel({ ...base, sourceParentId: OTHER, targetCategoryId: T })).toBe(false)
   })
   it('refuses non-managers', () => {
     expect(canMoveChannel({ ...base, isManager: false })).toBe(false)

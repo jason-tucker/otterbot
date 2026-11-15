@@ -88,4 +88,21 @@ describe('errorIssueSink sanitization', () => {
     expect(body).not.toContain('@octocat')
     expect(sanitizeForIssue('a ````` b')).not.toContain('```')
   })
+
+  it('redacts a secret that straddles the 80-char title cut', async () => {
+    const calls = mockFetch([{ ok: true, json: [] }, { ok: true, json: { number: 1 } }])
+    // 70 chars of filler, then SECRET (6) ends at 76 and runs past nothing; push
+    // it so the 80-char cut lands inside the secret.
+    const message = `${'x'.repeat(77)}SECRETSECRET tail`
+    await reportErrorToIssue(cfg, input('cmd=x', message))
+    const sent = JSON.stringify(calls[1].body)
+    expect(sent).not.toContain('SECRET')
+    expect(sent).not.toMatch(/SEC(?!RET)/)
+    expect(calls[1].body.title).toContain('[R]')
+  })
+
+  it('masks a snowflake glued to a prefix (user_<18 digits>) but not longer digit runs', () => {
+    expect(sanitizeForIssue('user_123456789012345678 x')).toBe('user_<id> x')
+    expect(sanitizeForIssue('1'.repeat(25))).toBe('1'.repeat(25))
+  })
 })

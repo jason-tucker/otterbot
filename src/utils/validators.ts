@@ -131,9 +131,46 @@ export function checkMappableRole(
   role: MappableRoleInfo | null,
   botTopPosition: number | null,
 ): string | null {
-  if (roleId === guildId) return '@everyone cannot be mapped to a business rank.'
+  return checkRole(roleId, guildId, role, botTopPosition, DANGEROUS_ROLE_PERMISSIONS, 'mapped to a business rank')
+}
+
+/**
+ * Permissions that make a role a true privilege escalation if a manager can
+ * hand it out. This is the GRANT-time list (hire / promote / custom roles /
+ * sync_roles). It is deliberately much shorter than DANGEROUS_ROLE_PERMISSIONS
+ * (the stricter MAPPING-time list): business roles mapped before that list grew
+ * may legitimately carry ordinary moderation bits (ManageMessages, KickMembers,
+ * ...), and refusing them at grant time would lock existing staff out.
+ */
+export const ESCALATION_ROLE_PERMISSIONS: readonly bigint[] = [
+  PermissionFlagsBits.Administrator,
+  PermissionFlagsBits.ManageRoles,
+  PermissionFlagsBits.ManageGuild,
+  PermissionFlagsBits.ManageWebhooks,
+  PermissionFlagsBits.BanMembers,
+]
+
+/** Grant-time counterpart of checkMappableRole: same structural checks, but only ESCALATION_ROLE_PERMISSIONS are refused. */
+export function checkGrantableRole(
+  roleId: string,
+  guildId: string,
+  role: MappableRoleInfo | null,
+  botTopPosition: number | null,
+): string | null {
+  return checkRole(roleId, guildId, role, botTopPosition, ESCALATION_ROLE_PERMISSIONS, 'granted')
+}
+
+function checkRole(
+  roleId: string,
+  guildId: string,
+  role: MappableRoleInfo | null,
+  botTopPosition: number | null,
+  blocked: readonly bigint[],
+  verb: string,
+): string | null {
+  if (roleId === guildId) return `@everyone cannot be ${verb}.`
   if (!role) return 'That role could not be found in this server.'
-  if (role.managed) return 'Managed (bot/integration) roles cannot be mapped to a business rank.'
+  if (role.managed) return `Managed (bot/integration) roles cannot be ${verb}.`
   if (botTopPosition === null || role.position === undefined) {
     return 'Could not verify the role position against the bot highest role. Try again.'
   }
@@ -142,8 +179,10 @@ export function checkMappableRole(
   }
   const perms = role.permissions
   if (!perms) return 'Could not read that role permissions. Try again.'
-  if (DANGEROUS_ROLE_PERMISSIONS.some((p) => perms.has(p))) {
-    return 'Roles with moderation or server-management permissions (for example Administrator, Manage Roles, Manage Channels, Manage Webhooks, Ban or Kick) cannot be mapped to a business rank.'
+  if (blocked.some((p) => perms.has(p))) {
+    return verb === 'granted'
+      ? 'Roles with Administrator, Manage Roles, Manage Server, Manage Webhooks or Ban Members cannot be granted.'
+      : 'Roles with moderation or server-management permissions (for example Administrator, Manage Roles, Manage Channels, Manage Webhooks, Ban or Kick) cannot be mapped to a business rank.'
   }
   return null
 }

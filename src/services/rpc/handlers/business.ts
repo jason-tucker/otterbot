@@ -47,6 +47,7 @@ import { registerVerb, type VerbContext, type VerbResult } from '../registry'
 import { getEmployeeBusinessConfig, type DbEmployeeBusinessConfig } from '../../employeeService'
 import { auditRpc, isMckenzieBusiness } from '../rpcGuards'
 import { createLogger } from '../../../utils/logger'
+import { grantRoleProblem } from '../../../utils/roleGrant'
 
 const logger = createLogger('rpc.business')
 
@@ -200,6 +201,14 @@ registerVerb('business.sync_roles', async (params, ctx: VerbContext): Promise<Ve
       ownerAndManagerMappingRoleIds,
     })
     for (const rid of plan.add) {
+      // Re-check the live role before every grant (dangerous / managed / above
+      // the bot are refused and counted as skipped; the reply shape is kept).
+      const refused = await grantRoleProblem(guild, rid).catch(() => 'Could not verify the role.')
+      if (refused) {
+        logger.warn('sync_roles refused role', { businessId: biz.id, roleId: rid, userId })
+        if (!skipped.includes(userId)) skipped.push(userId)
+        continue
+      }
       const ok = await member.roles.add(rid).then(() => true).catch(() => null)
       if (ok) added += 1
     }

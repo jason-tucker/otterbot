@@ -26,8 +26,8 @@ const envSchema = z.object({
       },
       { message: 'each entry must be a Discord snowflake' },
     ),
-  // Comma-separated category IDs /movechannel may move channels out of / into
-  // for non-sudo managers. Unset → defaults to the ticket category (see
+  // Comma-separated category IDs /movechannel may move channels OUT OF
+  // (to any category) for non-sudo managers. Unset → defaults to the ticket category (see
   // commands/moveChannel.ts). Sudo is unrestricted.
   MOVECHANNEL_CATEGORY_IDS: z
     .string()

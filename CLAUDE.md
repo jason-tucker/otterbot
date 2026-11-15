@@ -134,7 +134,7 @@ const isManager = oc ? hasMinRank(oc.rank, 'manager') : false
 | `business_buttons` | businessId, type (link/info), label, emoji, style, url, body, sortOrder, enabled | Manager-configurable custom buttons on `/oc` `/caked` `/info`. 30 s read cache; cap 10/business. UUIDs encoded directly in customIds (OC exception). |
 | `business_messages` | businessId, key, body | Per-business overridable card body copy. Used by `/caked` (Contact/Event/Pricing sections) and `/oc` (Requirements). Renderers call `getBusinessMessageOverrides()` and fall back to built-in defaults. 60 s in-process LRU cache; invalidated on update/reset. |
 
-**Schema application:** The container ENTRYPOINT (`scripts/docker-entrypoint.sh`) runs `drizzle-kit push --force` against the compiled schema on every container start — this is the single authoritative mechanism for production schema changes. `src/db/migrations/*.sql` and `src/db/migrations/meta/_journal.json` are kept for local/manual use (`pnpm db:migrate`) but are NOT run in the container. The journal currently references `idx: 3` (`0003_perf_indexes`) whose `.sql` file is absent on disk — this is a known gap tracked as **OB-D3** in `REMEDIATION_PLAN.md`. Do NOT renumber existing entries; the next migration is `idx 6`.
+**Schema application:** The container ENTRYPOINT (`scripts/docker-entrypoint.sh`) runs `drizzle-kit push --force` against the compiled schema on every container start — this is the single authoritative mechanism for production schema changes. `src/db/migrations/*.sql` and `src/db/migrations/meta/_journal.json` are kept for local/manual use (`pnpm db:migrate`) but are NOT run in the container. The journal currently references `idx: 3` (`0003_perf_indexes`) whose `.sql` file is absent on disk — this is a known gap tracked as **OB-D3** in `REMEDIATION_PLAN.md`. Do NOT renumber existing entries; the next migration is `idx 7`.
 
 ---
 
@@ -287,7 +287,7 @@ await interaction.editReply({ ...withSendButtonV2(sendKey, container, extraButto
 1. Create `src/db/schema/yourTable.ts`
 2. Export from `src/db/schema/index.ts`
 3. **Production schema is applied by `drizzle-kit push --force`** at container start (`scripts/docker-entrypoint.sh`) — no migration runner. The schema files are the single authoritative source; any new table or column lands on the next container restart automatically.
-4. For local/manual use only: create `src/db/migrations/XXXX_tag.sql` and add an entry to `src/db/migrations/meta/_journal.json` with `idx` = next number and `when` > all existing timestamps, then run `pnpm db:migrate`. **Note:** `_journal.json` currently references `idx: 3` (`0003_perf_indexes`) whose `.sql` file is absent on disk — this is a known gap tracked as **OB-D3** in `REMEDIATION_PLAN.md`. Do NOT renumber; the next migration is `idx 6`.
+4. For local/manual use only: create `src/db/migrations/XXXX_tag.sql` and add an entry to `src/db/migrations/meta/_journal.json` with `idx` = next number and `when` > all existing timestamps, then run `pnpm db:migrate`. **Note:** `_journal.json` currently references `idx: 3` (`0003_perf_indexes`) whose `.sql` file is absent on disk — this is a known gap tracked as **OB-D3** in `REMEDIATION_PLAN.md`. Do NOT renumber; the next migration is `idx 7`.
 5. If a local migration doesn't apply (already tracked as done in `__drizzle_migrations`), run the SQL via a temp `scripts/yourScript.ts`, then delete it.
 
 ### New business
@@ -318,7 +318,7 @@ await interaction.editReply({ ...withSendButtonV2(sendKey, container, extraButto
 | `BOTPANEL_RPC_SECRET` | No | HMAC-SHA256 secret shared with botpanel. Must match the value in the botpanel stack. If unset, the RPC subscriber and cache-invalidate subscriber log a warning at startup and never connect — the bot still runs as a publish-only client. The command bus fails closed on a mismatch (envelope dropped with a warn, no information leak). |
 | `REDIS_URL` | No | Redis connection string for the pub/sub command bus and cache invalidation. Validated at startup via the env schema (not read raw). Default: `redis://redis:6379` (the docker-network hostname). Override for local or non-docker runs. |
 | `PANEL_BASE_URL` | No | Base URL of the botpanel website for the "do this on the website" links appended to slash command replies. Defaults to `https://bots.tucker.host`. |
-| `MOVECHANNEL_CATEGORY_IDS` | No | Comma-separated category snowflakes non-sudo managers may move channels out of / into with `/movechannel`. Unset → defaults to the ticket category `1101739267908177991`. Sudo is unrestricted. |
+| `MOVECHANNEL_CATEGORY_IDS` | No | Comma-separated category snowflakes non-sudo managers may move channels OUT OF with `/movechannel` (they may move them to any category). Unset → defaults to the ticket category `1101739267908177991`. Sudo is unrestricted. |
 
 ---
 

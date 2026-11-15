@@ -72,7 +72,7 @@ export function fingerprint(context: string, message: string): string {
  * Runs after `cfg.redact`.
  */
 export function sanitizeForIssue(s: string): string {
-  return breakCodeFences(s.replace(/\b\d{17,20}\b/g, '<id>')).replace(/@(?=\w)/g, '@\u200b')
+  return breakCodeFences(s.replace(/(?<!\d)\d{17,20}(?!\d)/g, '<id>')).replace(/@(?=\w)/g, '@\u200b')
 }
 
 function ghHeaders(token: string): Record<string, string> {
@@ -103,8 +103,10 @@ async function findOpenIssue(cfg: IssueSinkConfig, fp: string): Promise<number |
 }
 
 function buildBody(cfg: IssueSinkConfig, input: ErrorIssueInput, heading: string): string {
-  const stack = input.stack.split('\n').slice(0, 20).join('\n').slice(0, 4000)
+  // Redact + sanitise the FULL string first, then cut: slicing first can split
+  // a secret (or a snowflake) so the redactor no longer recognises it.
   const clean = (t: string) => sanitizeForIssue(cfg.redact(t))
+  const stack = clean(input.stack.split('\n').slice(0, 20).join('\n')).slice(0, 4000)
   return [
     heading,
     '',
@@ -112,8 +114,8 @@ function buildBody(cfg: IssueSinkConfig, input: ErrorIssueInput, heading: string
     `**Time (UTC):** ${new Date().toISOString()}`,
     '',
     '```',
-    clean(input.message.slice(0, 1000)),
-    clean(stack),
+    clean(input.message).slice(0, 1000),
+    stack,
     '```',
   ].join('\n')
 }
@@ -153,11 +155,8 @@ export async function reportErrorToIssue(cfg: IssueSinkConfig, input: ErrorIssue
     if (createTimes.length >= MAX_CREATES_PER_WINDOW) return
     createTimes.push(now)
 
-    const title = sanitizeForIssue(
-      cfg.redact(
-        `${TITLE_PREFIX} ${normalizeForFingerprint(input.context).slice(0, 80)}: ${input.message.slice(0, 80)} [err:${fp}]`,
-      ),
-    )
+    const cleanTitlePart = (t: string) => sanitizeForIssue(cfg.redact(t))
+    const title = `${TITLE_PREFIX} ${normalizeForFingerprint(cleanTitlePart(input.context)).slice(0, 80)}: ${cleanTitlePart(input.message).slice(0, 80)} [err:${fp}]`
     const res = await gh(cfg, '/issues', {
       method: 'POST',
       body: {

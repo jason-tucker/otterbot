@@ -12,16 +12,16 @@ import { env } from '../config/env'
 import { TICKET_CATEGORY_ID } from '../services/ticketLookup'
 import { auditSafe } from '../services/auditService'
 
-/** Categories non-sudo managers may move channels out of / into. */
+/** Categories non-sudo managers may move channels OUT OF (source categories). */
 export function allowedMoveCategories(configured: readonly string[]): string[] {
   return configured.length > 0 ? [...configured] : [TICKET_CATEGORY_ID]
 }
 
 /**
- * Pure guard for /movechannel. Sudo is unrestricted. Managers may only move a
- * channel that currently sits in an allowed category into another allowed
- * category (so they cannot pull arbitrary channels into or out of private
- * categories).
+ * Pure guard for /movechannel. Sudo is unrestricted. A manager may move a
+ * channel whose CURRENT category is in the allowed (source) list into any
+ * category of the guild (so a ticket can be filed to an archive/department
+ * category), but cannot pull channels out of other, e.g. private, categories.
  */
 export function canMoveChannel(args: {
   sudo: boolean
@@ -33,7 +33,7 @@ export function canMoveChannel(args: {
   if (args.sudo) return true
   if (!args.isManager) return false
   if (!args.sourceParentId) return false
-  return args.allowed.includes(args.sourceParentId) && args.allowed.includes(args.targetCategoryId)
+  return args.allowed.includes(args.sourceParentId)
 }
 
 export const data = new SlashCommandBuilder()
@@ -113,7 +113,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       success: false,
       details: { reason: 'category_not_allowed', to: targetCategory.id },
     })
-    await interaction.editReply('You can only move channels between the approved ticket categories.')
+    await interaction.editReply('You can only move channels that are currently in an approved ticket category.')
     return
   }
 

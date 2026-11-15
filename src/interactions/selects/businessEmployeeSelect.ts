@@ -10,6 +10,7 @@ import { auditSafe } from '../../services/auditService'
 import { showCharacterEmbed } from '../../commands/lookup'
 import type { LookupInteraction } from '../../commands/lookup'
 import { v2Text } from '../../utils/cv2'
+import { rosterSendAuthorizer } from '../../services/rosterDetailAccess'
 
 export async function handleBusinessEmployeeSelect(interaction: StringSelectMenuInteraction): Promise<void> {
   if (!interaction.inGuild() || !interaction.guild) return
@@ -79,5 +80,5 @@ export async function handleBusinessEmployeeSelect(interaction: StringSelectMenu
     details: { source: 'business_roster', roster: session.roster.businessName },
   })
 
-  await showCharacterEmbed(interaction as LookupInteraction, resolved, member.character, null)
+  await showCharacterEmbed(interaction as LookupInteraction, resolved, member.character, null, 'staff', rosterSendAuthorizer(interaction.user.id, session.roster.businessName))
 }

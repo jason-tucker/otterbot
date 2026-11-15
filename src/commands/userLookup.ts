@@ -33,7 +33,7 @@ export async function execute(interaction: UserContextMenuCommandInteraction): P
   const resolved = await resolveBusinesses(member)
 
   // Only MKE staff can use the right-click lookup
-  const mke = resolved.find((r) => r.business.slug === 'mckenzie')
+  const mke = resolved.find((r) => r.business.providerType === 'mckenzie')
 
   if (!mke) {
     await interaction.editReply('This command is only available to McKenzie Enterprises staff.')
