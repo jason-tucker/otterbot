@@ -1,6 +1,7 @@
 import { type ModalSubmitInteraction } from 'discord.js'
 import { resolveBusinesses, hasMinRank } from '../../services/permissionService'
 import { getStockById, updateStockUrl } from '../../services/ocStockService'
+import { auditSafe } from '../../services/auditService'
 import { buildOCEditItemEmbed } from '../../embeds/ocEmbed'
 import { parseHttpUrlDetailed } from '../../utils/url'
 
@@ -37,6 +38,15 @@ export async function handleOCUrlSubmit(interaction: ModalSubmitInteraction): Pr
   }
 
   await updateStockUrl(itemId, url, interaction.user.id)
+  await auditSafe({
+    actorDiscordId: interaction.user.id,
+    actorName: interaction.user.username,
+    businessId: oc.business.id,
+    action: 'oc_stock_url',
+    targetType: 'oc_stock',
+    targetId: itemId,
+    details: { url },
+  })
 
   const item = await getStockById(itemId)
   if (!item) {

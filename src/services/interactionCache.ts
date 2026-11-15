@@ -1,7 +1,6 @@
 import { randomBytes } from 'crypto'
 import { and, eq, gt, lt } from 'drizzle-orm'
 import type { StaffRank } from '../types/domain'
-import type { ResolvedBusiness } from '../types/domain'
 import type { BusinessRoster } from './providers/IBusinessProvider'
 import { db } from '../db/client'
 import { lookupSessions } from '../db/schema'
@@ -82,7 +81,8 @@ export async function getLookupSession(key: string): Promise<LookupSession | nul
 // ---------------------------------------------------------------------------
 
 export interface BusinessRosterSession {
-  resolved: ResolvedBusiness | null
+  /** The staff member who ran the search — only they may use the roster buttons/select. */
+  actorDiscordId: string
   roster: BusinessRoster
 }
 
@@ -143,6 +143,39 @@ function evictEmployee() {
 }
 
 // ---------------------------------------------------------------------------
+// Employee pick session — carries the target of /employee across the
+// "which business are you acting as?" select, so no raw Discord ID is encoded
+// in the customId and the select can verify the clicker is the command user.
+// ---------------------------------------------------------------------------
+
+export interface EmployeePickSession {
+  commandUserDiscordId: string
+  targetDiscordId: string
+}
+
+interface EmployeePickCacheEntry { data: EmployeePickSession; expiresAt: number }
+const employeePickCache = new Map<string, EmployeePickCacheEntry>()
+
+export function storeEmployeePickSession(data: EmployeePickSession): string {
+  const key = makeKey()
+  employeePickCache.set(key, { data, expiresAt: Date.now() + TTL_MS })
+  trimToMax(employeePickCache)
+  return key
+}
+
+export function getEmployeePickSession(key: string): EmployeePickSession | null {
+  const entry = employeePickCache.get(key)
+  if (!entry) return null
+  if (entry.expiresAt < Date.now()) { employeePickCache.delete(key); return null }
+  return entry.data
+}
+
+function evictEmployeePick() {
+  const now = Date.now()
+  for (const [k, e] of employeePickCache) if (e.expiresAt < now) employeePickCache.delete(k)
+}
+
+// ---------------------------------------------------------------------------
 // Portal session
 // ---------------------------------------------------------------------------
 
@@ -185,6 +218,7 @@ function evictPortal() {
 const sweepTimer = setInterval(() => {
   evictRoster()
   evictEmployee()
+  evictEmployeePick()
   evictPortal()
 }, SWEEP_INTERVAL_MS)
 sweepTimer.unref()

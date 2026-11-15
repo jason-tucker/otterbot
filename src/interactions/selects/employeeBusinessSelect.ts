@@ -4,16 +4,32 @@ import { isSudoUser } from '../../services/sudoService'
 import { showEmployeeManageEmbed } from '../../commands/employee'
 import { getBusinessById } from '../../services/portalService'
 import { v2Text } from '../../utils/cv2'
+import { getEmployeePickSession } from '../../services/interactionCache'
+import { cmd } from '../../utils/cmdMention'
 
 export async function handleEmployeeBusinessSelect(
   interaction: StringSelectMenuInteraction,
 ): Promise<void> {
   if (!interaction.guild) return
 
-  const targetDiscordId = interaction.customId.split(':')[1]
+  const pickKey = interaction.customId.split(':')[1]
   const selectedBusinessId = interaction.values[0]
 
   await interaction.deferUpdate()
+
+  const pick = pickKey ? getEmployeePickSession(pickKey) : null
+  if (!pick) {
+    await interaction.editReply({
+      ...(v2Text(`This session has expired. Run ${cmd('employee', interaction.guildId!)} again.`) as any),
+      content: null,
+    })
+    return
+  }
+  if (pick.commandUserDiscordId !== interaction.user.id) {
+    await interaction.followUp({ content: 'This menu belongs to another user.', ephemeral: true })
+    return
+  }
+  const targetDiscordId = pick.targetDiscordId
 
   const commandMember = await interaction.guild.members.fetch(interaction.user.id)
   const sudo = isSudoUser(commandMember)
@@ -44,7 +60,7 @@ export async function handleEmployeeBusinessSelect(
   }
 
   if (!selectedBusiness) {
-    await interaction.editReply(v2Text('You no longer have management access to that business.') as any)
+    await interaction.editReply({ ...(v2Text('You no longer have management access to that business.') as any), content: null })
     return
   }
 
@@ -52,7 +68,7 @@ export async function handleEmployeeBusinessSelect(
   try {
     targetMember = await interaction.guild.members.fetch(targetDiscordId)
   } catch {
-    await interaction.editReply(v2Text('That user is no longer in this server.') as any)
+    await interaction.editReply({ ...(v2Text('That user is no longer in this server.') as any), content: null })
     return
   }
 

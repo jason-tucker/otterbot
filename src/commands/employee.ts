@@ -13,7 +13,7 @@ import { isSudoUser } from '../services/sudoService'
 import { cmd } from '../utils/cmdMention'
 import { getEmployeeBusinessConfig, getEmployeeBusinessConfigsForGuild } from '../services/employeeService'
 import { buildEmployeeManageEmbed } from '../embeds/employeeManageEmbed'
-import { storeEmployeeSession } from '../services/interactionCache'
+import { storeEmployeeSession, storeEmployeePickSession } from '../services/interactionCache'
 import { getTargetStatus } from '../services/employeeService'
 import { getAllBusinesses } from '../services/portalService'
 import type { ResolvedBusiness } from '../types/domain'
@@ -104,8 +104,15 @@ export async function runEmployeeManage(
     return
   }
 
+  // Random key instead of the raw target Discord ID; also binds the select to
+  // the command user.
+  const pickKey = storeEmployeePickSession({
+    commandUserDiscordId: interaction.user.id,
+    targetDiscordId,
+  })
+
   const select = new StringSelectMenuBuilder()
-    .setCustomId(`emp_business_select:${targetDiscordId}`)
+    .setCustomId(`emp_business_select:${pickKey}`)
     .setPlaceholder('Which business are you acting as?')
     .addOptions(
       manageable.map((r) =>

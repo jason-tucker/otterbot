@@ -2,9 +2,13 @@ import type { StringSelectMenuInteraction } from 'discord.js'
 import { getBusinessRosterSession } from '../../services/interactionCache'
 import { cmd } from '../../utils/cmdMention'
 import { resolveBusinesses } from '../../services/permissionService'
+import { isSudoUser } from '../../services/sudoService'
+import { getAllBusinesses } from '../../services/portalService'
+import type { ResolvedBusiness } from '../../types/domain'
+import { pickRosterViewer } from '../../services/rosterAccess'
+import { auditSafe } from '../../services/auditService'
 import { showCharacterEmbed } from '../../commands/lookup'
 import type { LookupInteraction } from '../../commands/lookup'
-import type { ResolvedBusiness } from '../../types/domain'
 import { v2Text } from '../../utils/cv2'
 
 export async function handleBusinessEmployeeSelect(interaction: StringSelectMenuInteraction): Promise<void> {
@@ -19,6 +23,12 @@ export async function handleBusinessEmployeeSelect(interaction: StringSelectMenu
     return
   }
 
+  // Only the staff member who ran the search may use its roster.
+  if (session.actorDiscordId !== interaction.user.id) {
+    await interaction.followUp({ content: 'This roster belongs to another user. Run the search yourself.', ephemeral: true })
+    return
+  }
+
   const memberId = interaction.values[0]
   const member = session.roster.members.find((m) => m.id === memberId)
 
@@ -27,33 +37,47 @@ export async function handleBusinessEmployeeSelect(interaction: StringSelectMenu
     return
   }
 
-  // Resolve staff rank — try cached first, then re-resolve at click time
-  let resolved: ResolvedBusiness | null = session.resolved
-  if (!resolved) {
-    const guildMember = await interaction.guild.members.fetch(interaction.user.id)
-    const allResolved = await resolveBusinesses(guildMember)
-
-    if (allResolved.length === 0) {
-      await interaction.editReply(v2Text('You need a staff role to look up employees.') as any)
-      return
+  // Re-validate on every click — never trust a cached rank. Only staff of the
+  // searched business, McKenzie staff and sudo may see roster PII.
+  const guildMember = await interaction.guild.members.fetch(interaction.user.id)
+  const sudo = isSudoUser(guildMember)
+  const allResolved = await resolveBusinesses(guildMember)
+  // A sudo user who is also staff of this business or McKenzie keeps that rank;
+  // with no match, sudo views under McKenzie at employee rank (least privilege).
+  let resolved: ResolvedBusiness | null = pickRosterViewer(allResolved, session.roster.businessName)
+  if (!resolved && sudo) {
+    const mke = (await getAllBusinesses(interaction.guild.id)).find((b) => b.providerType === 'mckenzie' && b.active)
+    if (mke) {
+      resolved = {
+        business: {
+          id: mke.id,
+          name: mke.name,
+          slug: mke.slug,
+          providerType: mke.providerType,
+          guildId: mke.guildId,
+          active: mke.active,
+          settings: mke.settings,
+          createdAt: mke.createdAt,
+        },
+        rank: 'employee',
+      }
     }
-
-    const rosterName = session.roster.businessName.trim().toLowerCase()
-    const matched = allResolved.find((r) => {
-      const apiName = ((r.business.settings?.apiBusinessName as string | undefined) ?? r.business.name).trim().toLowerCase()
-      return apiName === rosterName || r.business.name.trim().toLowerCase() === rosterName
-    })
-    // If the user isn't actually staff of the searched business, view at
-    // least-privilege (employee) rather than inheriting their highest-ranked
-    // unrelated business's manager/owner rank, which would surface
-    // higher-visibility notes. See REMEDIATION_PLAN F-05.
-    resolved = matched ?? (allResolved[0] ? { business: allResolved[0].business, rank: 'employee' } : null)
   }
 
   if (!resolved) {
-    await interaction.editReply(v2Text('You need a staff role to look up employees.') as any)
+    await interaction.editReply(v2Text('You do not have access to look up employees of this business.') as any)
     return
   }
+
+  await auditSafe({
+    actorDiscordId: interaction.user.id,
+    actorName: interaction.user.username,
+    businessId: resolved.business.id,
+    action: 'lookup',
+    targetType: 'character',
+    targetId: member.character.id,
+    details: { source: 'business_roster', roster: session.roster.businessName },
+  })
 
   await showCharacterEmbed(interaction as LookupInteraction, resolved, member.character, null)
 }

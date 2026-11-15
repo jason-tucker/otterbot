@@ -8,6 +8,33 @@ import {
 } from 'discord.js'
 import { resolveBusinesses, hasMinRank } from '../services/permissionService'
 import { isSudoUser } from '../services/sudoService'
+import { env } from '../config/env'
+import { TICKET_CATEGORY_ID } from '../services/ticketLookup'
+import { auditSafe } from '../services/auditService'
+
+/** Categories non-sudo managers may move channels out of / into. */
+export function allowedMoveCategories(configured: readonly string[]): string[] {
+  return configured.length > 0 ? [...configured] : [TICKET_CATEGORY_ID]
+}
+
+/**
+ * Pure guard for /movechannel. Sudo is unrestricted. Managers may only move a
+ * channel that currently sits in an allowed category into another allowed
+ * category (so they cannot pull arbitrary channels into or out of private
+ * categories).
+ */
+export function canMoveChannel(args: {
+  sudo: boolean
+  isManager: boolean
+  sourceParentId: string | null
+  targetCategoryId: string
+  allowed: readonly string[]
+}): boolean {
+  if (args.sudo) return true
+  if (!args.isManager) return false
+  if (!args.sourceParentId) return false
+  return args.allowed.includes(args.sourceParentId) && args.allowed.includes(args.targetCategoryId)
+}
 
 export const data = new SlashCommandBuilder()
   .setName('movechannel')
@@ -53,12 +80,13 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const member = await interaction.guild.members.fetch(interaction.user.id)
   const sudo = isSudoUser(member)
 
+  let isManagerSomewhere = false
   if (!sudo) {
     // CLAUDE.md says this is "Manager+" — but the previous gate accepted any
     // employee of any business, including unrelated ones. Tighten to "manager
     // of at least one business OR sudo".
     const resolved = await resolveBusinesses(member)
-    const isManagerSomewhere = resolved.some(r => hasMinRank(r.rank, 'manager'))
+    isManagerSomewhere = resolved.some(r => hasMinRank(r.rank, 'manager'))
     if (!isManagerSomewhere) {
       await interaction.editReply('You need to be a Manager of at least one business (or sudo) to move channels.')
       return
@@ -69,12 +97,33 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const targetCategory = interaction.options.getChannel('category', true) as CategoryChannel
   const placement = interaction.options.getString('position', true) as 'top' | 'bottom'
 
+  if (!canMoveChannel({
+    sudo,
+    isManager: isManagerSomewhere,
+    sourceParentId: targetChannel.parentId ?? null,
+    targetCategoryId: targetCategory.id,
+    allowed: allowedMoveCategories(env.moveChannelCategoryIds),
+  })) {
+    await auditSafe({
+      actorDiscordId: interaction.user.id,
+      actorName: interaction.user.username,
+      action: 'move_channel',
+      targetType: 'channel',
+      targetId: targetChannel.id,
+      success: false,
+      details: { reason: 'category_not_allowed', to: targetCategory.id },
+    })
+    await interaction.editReply('You can only move channels between the approved ticket categories.')
+    return
+  }
+
   const botMember = await interaction.guild.members.fetchMe()
   if (!targetChannel.permissionsFor(botMember)?.has(PermissionFlagsBits.ManageChannels)) {
     await interaction.editReply("I don't have permission to manage that channel.")
     return
   }
 
+  const previousCategoryId = targetChannel.parentId ?? null
   const previousCategoryName = targetChannel.parent?.name ?? 'no category'
 
   // Move to the new category (places at bottom by default)
@@ -91,6 +140,15 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       await targetChannel.setPosition(siblings.first()!.rawPosition)
     }
   }
+
+  await auditSafe({
+    actorDiscordId: interaction.user.id,
+    actorName: interaction.user.username,
+    action: 'move_channel',
+    targetType: 'channel',
+    targetId: targetChannel.id,
+    details: { from: previousCategoryId, fromName: previousCategoryName, to: targetCategory.id, toName: targetCategory.name, placement },
+  })
 
   await interaction.editReply(
     `Moved **#${targetChannel.name}** from **${previousCategoryName}** → **${targetCategory.name}** (${placement}).`

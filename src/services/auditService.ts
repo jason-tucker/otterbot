@@ -62,3 +62,15 @@ export async function audit(params: AuditParams): Promise<void> {
     ts: new Date().toISOString(),
   })
 }
+
+/**
+ * audit() that never throws. Use after a mutation has already succeeded so an
+ * audit-log outage cannot turn a completed action into an error reply.
+ */
+export async function auditSafe(params: AuditParams): Promise<void> {
+  try {
+    await audit(params)
+  } catch (err) {
+    console.error('[audit] failed to write audit row', params.action, err instanceof Error ? err.message : err)
+  }
+}

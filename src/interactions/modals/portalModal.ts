@@ -22,7 +22,15 @@ import {
   buildPortalPermsView,
 } from '../../embeds/portalEmbed'
 import { audit } from '../../services/auditService'
-import { parseSlug, parseSnowflake } from '../../utils/validators'
+import {
+  parseSlug,
+  parseSnowflake,
+  parseBusinessName,
+  checkMappableRole,
+  type MappableRoleInfo,
+  isUniqueViolation,
+  PROTECTED_BUSINESS_SLUGS,
+} from '../../utils/validators'
 import { v2Text } from '../../utils/cv2'
 
 const VALID_RANKS: StaffRank[] = ['employee', 'manager', 'owner']
@@ -94,7 +102,8 @@ export async function handlePortalModal(interaction: ModalSubmitInteraction): Pr
       })
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
-      const isDuplicate = msg.includes('unique') || msg.includes('duplicate') || msg.includes('already exists')
+      console.error('[portal] createBusiness failed:', msg, (err as { cause?: unknown })?.cause ?? '')
+      const isDuplicate = isUniqueViolation(err)
       const businesses = await getAllBusinesses(session.guildId)
       await interaction.editReply(
         buildPortalMainMenu(
@@ -102,7 +111,7 @@ export async function handlePortalModal(interaction: ModalSubmitInteraction): Pr
           sessionKey,
           isDuplicate
             ? `❌ A business with that name or slug already exists.`
-            : `❌ Failed to create business: ${msg}`,
+            : '❌ Failed to create business.',
         ),
       )
       return
@@ -160,12 +169,54 @@ export async function handlePortalModal(interaction: ModalSubmitInteraction): Pr
       return
     }
 
-    await updateBusinessBasic(businessId, {
-      name,
-      slug,
-      providerType: providerTypeRaw as 'mckenzie' | 'discord-only',
-      updatedBy: interaction.user.id,
-    })
+    const showDetail = async (): Promise<boolean> => {
+      const [biz, owners, mappings] = await Promise.all([
+        getBusinessById(businessId),
+        getBusinessOwners(businessId),
+        getRoleMappings(businessId, session.guildId),
+      ])
+      if (!biz) {
+        await interaction.editReply(v2Text('Business not found.') as any)
+        return false
+      }
+      await interaction.editReply(buildPortalBusinessDetail(biz, owners, mappings, sessionKey))
+      return true
+    }
+    const reject = async (message: string): Promise<void> => {
+      if (await showDetail()) {
+        await interaction.followUp({ content: `❌ ${message}`, ephemeral: true })
+      }
+    }
+
+    const parsedName = parseBusinessName(name)
+    if (!parsedName) {
+      await reject('Invalid name — must be 1-100 characters.')
+      return
+    }
+    const parsedSlug = parseSlug(slug)
+    if (!parsedSlug) {
+      await reject('Invalid slug — must start with a letter and use only lowercase letters, numbers and hyphens (max 50).')
+      return
+    }
+    const current = await getBusinessById(businessId)
+    if (current && current.slug !== parsedSlug && PROTECTED_BUSINESS_SLUGS.includes(current.slug)) {
+      await reject(`The slug \`${current.slug}\` is referenced by bot code and cannot be changed.`)
+      return
+    }
+
+    try {
+      await updateBusinessBasic(businessId, {
+        name: parsedName,
+        slug: parsedSlug,
+        providerType: providerTypeRaw as 'mckenzie' | 'discord-only',
+        updatedBy: interaction.user.id,
+      })
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('[portal] updateBusinessBasic failed:', msg, (err as { cause?: unknown })?.cause ?? '')
+      await reject(isUniqueViolation(err) ? 'A business with that name or slug already exists.' : 'Failed to update the business.')
+      return
+    }
 
     await audit({
       actorDiscordId: interaction.user.id,
@@ -173,19 +224,10 @@ export async function handlePortalModal(interaction: ModalSubmitInteraction): Pr
       businessId,
       action: 'update_business',
       success: true,
-      details: { name, slug, providerType: providerTypeRaw },
+      details: { name: parsedName, slug: parsedSlug, providerType: providerTypeRaw },
     })
 
-    const [biz, owners, mappings] = await Promise.all([
-      getBusinessById(businessId),
-      getBusinessOwners(businessId),
-      getRoleMappings(businessId, session.guildId),
-    ])
-    if (!biz) {
-      await interaction.editReply(v2Text('Business not found.') as any)
-      return
-    }
-    await interaction.editReply(buildPortalBusinessDetail(biz, owners, mappings, sessionKey))
+    await showDetail()
     return
   }
 
@@ -235,12 +277,39 @@ export async function handlePortalModal(interaction: ModalSubmitInteraction): Pr
 
     // Try to resolve role name from guild cache or API
     let roleName = roleId
+    let fetchedRole: MappableRoleInfo | null = null
     try {
       const role = interaction.guild!.roles.cache.get(roleId)
         ?? await interaction.guild!.roles.fetch(roleId)
-      if (role) roleName = role.name
+      if (role) {
+        roleName = role.name
+        fetchedRole = { managed: role.managed, position: role.position, permissions: role.permissions }
+      }
     } catch {
       // keep roleId as fallback
+    }
+
+    // Refuse @everyone, managed, dangerous and too-high roles. If the bot's own
+    // top role cannot be read, botTop stays null and checkMappableRole refuses.
+    let botTop: number | null = null
+    try {
+      botTop = (interaction.guild!.members.me ?? await interaction.guild!.members.fetchMe()).roles.highest.position
+    } catch {
+      botTop = null
+    }
+    const roleProblem = checkMappableRole(roleId, interaction.guild!.id, fetchedRole, botTop)
+    if (roleProblem) {
+      const [biz, mappings] = await Promise.all([
+        getBusinessById(businessId),
+        getRoleMappings(businessId, session.guildId),
+      ])
+      if (!biz) {
+        await interaction.editReply(v2Text('Business not found.') as any)
+        return
+      }
+      await interaction.editReply(buildPortalRolesView(biz, mappings, sessionKey))
+      await interaction.followUp({ content: `❌ ${roleProblem}`, ephemeral: true })
+      return
     }
 
     try {
@@ -257,7 +326,8 @@ export async function handlePortalModal(interaction: ModalSubmitInteraction): Pr
       })
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
-      const isDuplicate = msg.includes('unique') || msg.includes('duplicate')
+      console.error('[portal] addRoleMapping failed:', msg, (err as { cause?: unknown })?.cause ?? '')
+      const isDuplicate = isUniqueViolation(err)
       const [biz, mappings] = await Promise.all([
         getBusinessById(businessId),
         getRoleMappings(businessId, session.guildId),
@@ -270,7 +340,7 @@ export async function handlePortalModal(interaction: ModalSubmitInteraction): Pr
       await interaction.followUp({
         content: isDuplicate
           ? `❌ That role is already mapped to a business in this server.`
-          : `❌ Failed to add role: ${msg}`,
+          : '❌ Failed to add role.',
         ephemeral: true,
       })
       return

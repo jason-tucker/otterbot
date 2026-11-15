@@ -26,6 +26,19 @@ const envSchema = z.object({
       },
       { message: 'each entry must be a Discord snowflake' },
     ),
+  // Comma-separated category IDs /movechannel may move channels out of / into
+  // for non-sudo managers. Unset → defaults to the ticket category (see
+  // commands/moveChannel.ts). Sudo is unrestricted.
+  MOVECHANNEL_CATEGORY_IDS: z
+    .string()
+    .optional()
+    .refine(
+      (val) => {
+        if (val === undefined) return true
+        return val.split(',').map((s) => s.trim()).filter(Boolean).every((t) => SNOWFLAKE_RE.test(t))
+      },
+      { message: 'each entry must be a Discord snowflake' },
+    ),
   // Legacy — treated as an additional sudo role if present.
   DISCORD_PORTAL_ADMIN_ROLE_ID: z.string().regex(SNOWFLAKE_RE, 'must be a Discord snowflake').optional(),
   UPTIME_KUMA_PUSH_URL: z.string().url().optional(),
@@ -78,4 +91,8 @@ const sudoRoleIds = [
   ...(raw.DISCORD_PORTAL_ADMIN_ROLE_ID ? [raw.DISCORD_PORTAL_ADMIN_ROLE_ID] : []),
 ].filter((id, idx, arr) => arr.indexOf(id) === idx) // deduplicate
 
-export const env = { ...raw, sudoRoleIds }
+const moveChannelCategoryIds = (raw.MOVECHANNEL_CATEGORY_IDS ?? '')
+  .split(',').map((s) => s.trim()).filter(Boolean)
+  .filter((id, idx, arr) => arr.indexOf(id) === idx)
+
+export const env = { ...raw, sudoRoleIds, moveChannelCategoryIds }

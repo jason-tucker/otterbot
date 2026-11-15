@@ -119,7 +119,8 @@ describe('businessEmbed roster escaping', () => {
     // buildBusinessEmbed accepts a BusinessRoster-shaped object.
     const { components } = buildBusinessEmbed(
       { name: 'Acme', providerType: 'mckenzie' },
-      roster as unknown as Parameters<typeof buildBusinessEmbed>[1]
+      roster as unknown as Parameters<typeof buildBusinessEmbed>[1],
+      { full: true }
     )
     const text = renderText(components)
     expect(text).toContain('\\*\\*Corp\\*\\*')

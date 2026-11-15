@@ -15,6 +15,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - RPC error replies no longer carry raw error messages (`handler-threw`, `send-failed`, `db-error`, `write-failed`, `delete-failed`, `role-missing`, `role-hierarchy`, `discord-error`); details are logged server-side only.
 - `business_messages.update/reset` and `getDefaultBody` use own-property checks, so keys like `constructor` or `__proto__` are rejected as `unknown-key`.
 - The RPC subscriber logs `REDIS_URL` with credentials masked (`src/utils/redact.ts`).
+- `/business` roster sessions are bound to the staff member who ran the search; Lookup Employee and the employee select deny other users, re-resolve the viewer's rank on every click (unmatched roster = employee rank at most, never a cached rank) and write a `lookup` audit row per character viewed.
+- Roster Lookup Employee now only works for staff of the searched business, McKenzie staff (own rank) and sudo; staff of unrelated businesses are denied (no employee-rank fallback) because roster characters carry customer PII.
+- `/portal` role mapping also refuses roles that cannot be fetched, are at or above the bot's highest role, or carry Administrator / Manage Roles / Manage Server / Ban / Kick. Unique-violation detection now sees through drizzle's wrapped errors, and raw error text is no longer shown in portal replies.
+- The Search Business button and modal re-check staff status on use, check the guild before calling the roster API, share the `/business` 30 s cooldown and audit denials.
+- `/movechannel` is limited for non-sudo managers to channels inside, and moves into, the categories in the new optional `MOVECHANNEL_CATEGORY_IDS` (default: the ticket category); sudo is unrestricted. Moves are audited (`move_channel`).
+- `/portal` refuses to map `@everyone` or managed (bot/integration) roles to a business rank.
+- Audit rows are now written for OC stock status/add/remove/URL changes and custom-button add/edit/style/toggle/move/remove (`auditSafe`: an audit failure never breaks the reply).
+- `/employee` business picker no longer encodes the target Discord ID in its customId (random session key) and only the command user can use it.
+- `/business` and the Search Business modal show CSN, phone and bank only to sudo, staff of the searched business and McKenzie staff; other staff get a names-only roster card without Lookup Employee or Send to Channel.
+- Roster Send to Channel and Lookup Employee re-check roster access on click (only the searching user, and only while still entitled), so a revoked user cannot post or open the roster.
+- Send to Channel entries can carry a click-time `authorize` check (`registerSendable(..., { authorize })`); a failed or throwing check refuses the post.
+- Roster Lookup Employee for sudo with no matching business now views at employee rank (was owner); a sudo user who is also McKenzie staff keeps their McKenzie rank.
+- `/portal` role mapping also refuses roles with Manage Channels, Manage Webhooks, Mention Everyone, Moderate Members, Manage Messages, Manage Nicknames, Manage Threads, Manage Events, Manage Expressions, View Audit Log, Move, Mute or Deafen Members, and refuses the mapping when the bot's highest role cannot be read.
+- Portal unique-violation detection no longer matches "already exists" in the top-level drizzle query message (it carries the query params).
+
+### Fixed
+- Lookup Employee select on rosters with more than 25 members no longer fails (first 25 shown with a count; labels/descriptions clipped to 100 characters).
+- Portal business edit validates name and slug, shows an error for a duplicate name/slug instead of crashing, refuses slug changes on `original-clothing`, `caked-up` and `mckenzie`, and limits the modal title/inputs to Discord's length caps.
+- `/employee` business-select error replies no longer mix `content` with Components V2.
 
 ### Added
 - **Runtime errors are now filed as GitHub issues** (`src/utils/errorIssueSink.ts`), so they can be read without VPS access. Every `errorReport()` call (interaction errors, `/oc` fallbacks, `unhandledRejection`, `uncaughtException`) files a redacted issue on `GITHUB_REPO` titled `[auto-error] … [err:<fingerprint>]`; repeats of the same error (any user) add a comment instead. Max one post per error per 30 min and 10 new issues per hour per process. Uses the existing `/report` `GITHUB_TOKEN`; on by default when `GITHUB_TOKEN` + `GITHUB_REPO` are set — new optional `ERROR_ISSUES=off` disables it.
