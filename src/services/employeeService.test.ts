@@ -15,9 +15,12 @@ import {
   canManageOwner,
   canManageCustomRole,
   hireEmployee,
+  assignCustomRole,
   demoteOwnerToManager,
   demoteOwnerToEmployee,
   demoteToEmployee,
+  promoteToManager,
+  promoteToOwner,
   RoleNotGrantableError,
   RoleHierarchyError,
   type DbEmployeeBusinessConfig,
@@ -369,6 +372,62 @@ describe('safeAdd grant-time role check', () => {
       await expect(demoteToEmployee(guild as never, member as never, makeConfig())).rejects.toBeInstanceOf(RoleNotGrantableError)
       expect(member.roles.remove).not.toHaveBeenCalled()
       expect(member.roles.add).not.toHaveBeenCalled()
+    })
+
+    function promoteSetup() {
+      const { guild, member } = demoteSetup()
+      // Manager is harmless here; the base employee role is the one refused.
+      ;(guild.roles.cache.get('r2') as { permissions: unknown }).permissions = { has: () => false }
+      ;(guild.roles.cache.get('r1') as { permissions: unknown }).permissions = {
+        has: (p: bigint) => p === PermissionFlagsBits.Administrator,
+      }
+      member.roles.cache.clear()
+      return { guild, member }
+    }
+
+    it('promoteToManager refuses before adding manager when employee role is refused', async () => {
+      const { guild, member } = promoteSetup()
+      await expect(promoteToManager(guild as never, member as never, makeConfig())).rejects.toBeInstanceOf(RoleNotGrantableError)
+      expect(member.roles.add).not.toHaveBeenCalled()
+      expect(member.roles.remove).not.toHaveBeenCalled()
+    })
+
+    it('promoteToOwner refuses before adding owner when employee role is refused', async () => {
+      const { guild, member } = promoteSetup()
+      await expect(promoteToOwner(guild as never, member as never, makeConfig())).rejects.toBeInstanceOf(RoleNotGrantableError)
+      expect(member.roles.add).not.toHaveBeenCalled()
+      expect(member.roles.remove).not.toHaveBeenCalled()
+    })
+
+    it('promoteToManager grants both roles when both are grantable', async () => {
+      const { guild, member } = demoteSetup()
+      ;(guild.roles.cache.get('r2') as { permissions: unknown }).permissions = { has: () => false }
+      member.roles.cache.clear()
+      await promoteToManager(guild as never, member as never, makeConfig())
+      expect(member.roles.add).toHaveBeenCalledTimes(2)
+    })
+
+    function customSetup() {
+      const { guild, member } = promoteSetup()
+      guild.roles.cache.set('cr1', {
+        id: 'cr1', name: 'Designer', managed: false, position: 1, permissions: { has: () => false },
+      } as never)
+      return { guild, member }
+    }
+
+    it('assignCustomRole refuses before adding the custom role when employee role is refused', async () => {
+      const { guild, member } = customSetup()
+      await expect(
+        assignCustomRole(guild as never, member as never, makeConfig(), makeCustomRole({ autoGrantEmployee: true })),
+      ).rejects.toBeInstanceOf(RoleNotGrantableError)
+      expect(member.roles.add).not.toHaveBeenCalled()
+    })
+
+    it('assignCustomRole grants custom and employee roles when both are grantable', async () => {
+      const { guild, member } = customSetup()
+      ;(guild.roles.cache.get('r1') as { permissions: unknown }).permissions = { has: () => false }
+      await assignCustomRole(guild as never, member as never, makeConfig(), makeCustomRole({ autoGrantEmployee: true }))
+      expect(member.roles.add).toHaveBeenCalledTimes(2)
     })
 
     it('demoteOwnerToEmployee removes owner and grants employee when grantable', async () => {

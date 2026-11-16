@@ -471,11 +471,16 @@ export async function promoteToManager(
 ): Promise<void> {
   if (!config.roles.manager) throw new RoleMissingError('(no manager role configured)')
   const managerRole = findRole(guild, config.roles.manager)
-  await safeAdd(target, managerRole)
-  if (config.permissions.higherRolesAutoGrantEmployee && config.roles.employee) {
-    const empRole = findRole(guild, config.roles.employee)
-    await ensureRole(target, empRole)
-  }
+  const empRole =
+    config.permissions.higherRolesAutoGrantEmployee && config.roles.employee
+      ? findRole(guild, config.roles.employee)
+      : null
+  // Validate every grant BEFORE the first mutation so a refused employee role
+  // cannot leave the manager role applied on its own.
+  if (!target.roles.cache.has(managerRole.id)) await assertGrantable(target, managerRole)
+  if (empRole && !target.roles.cache.has(empRole.id)) await assertGrantable(target, empRole)
+  await ensureRole(target, managerRole)
+  if (empRole) await ensureRole(target, empRole)
 }
 
 export async function demoteToEmployee(
@@ -499,11 +504,16 @@ export async function promoteToOwner(
 ): Promise<void> {
   if (!config.roles.owner) throw new RoleMissingError('(no owner role configured)')
   const ownerRole = findRole(guild, config.roles.owner)
-  await safeAdd(target, ownerRole)
-  if (config.permissions.higherRolesAutoGrantEmployee && config.roles.employee) {
-    const empRole = findRole(guild, config.roles.employee)
-    await ensureRole(target, empRole)
-  }
+  const empRole =
+    config.permissions.higherRolesAutoGrantEmployee && config.roles.employee
+      ? findRole(guild, config.roles.employee)
+      : null
+  // Validate every grant BEFORE the first mutation so a refused employee role
+  // cannot leave the owner role applied on its own.
+  if (!target.roles.cache.has(ownerRole.id)) await assertGrantable(target, ownerRole)
+  if (empRole && !target.roles.cache.has(empRole.id)) await assertGrantable(target, empRole)
+  await ensureRole(target, ownerRole)
+  if (empRole) await ensureRole(target, empRole)
 }
 
 export async function demoteOwnerToManager(
@@ -551,11 +561,16 @@ export async function assignCustomRole(
   customRole: DbCustomRole,
 ): Promise<void> {
   const role = findRole(guild, customRole)
-  await safeAdd(target, role)
-  if (customRole.autoGrantEmployee && config.roles.employee) {
-    const empRole = findRole(guild, config.roles.employee)
-    await ensureRole(target, empRole)
-  }
+  const empRole =
+    customRole.autoGrantEmployee && config.roles.employee
+      ? findRole(guild, config.roles.employee)
+      : null
+  // Validate every grant BEFORE the first mutation so a refused employee role
+  // cannot leave the custom role applied on its own.
+  if (!target.roles.cache.has(role.id)) await assertGrantable(target, role)
+  if (empRole && !target.roles.cache.has(empRole.id)) await assertGrantable(target, empRole)
+  await ensureRole(target, role)
+  if (empRole) await ensureRole(target, empRole)
 }
 
 export async function removeCustomRole(
