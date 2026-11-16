@@ -14,6 +14,4 @@ instructions.txt
 .claude/*
 !.claude/skills/
 
-# Migration SQL files are never committed — schema is managed via drizzle-kit push
-src/db/migrations/*.sql
-src/db/migrations/meta
+# (src/db/migrations is tracked: migrations are applied by src/db/migrate.ts)

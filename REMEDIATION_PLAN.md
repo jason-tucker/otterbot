@@ -107,6 +107,8 @@ Roll out behind the same `RPC_ENFORCE_ACTOR` flag (warn-only first).
 
 ### OB-D3 — Migration drift + `drizzle-kit push --force` at boot  *(High, operational)*
 
+> **STATUS: addressed by branch `fix/schema-migrations` (not yet merged or deployed).** The broken chain is squashed into one generated `0000_baseline.sql`; the entrypoint now runs the guarded migrator `dist/db/migrate.js` instead of `push --force`; CI (`db-check.yml`) fails on schema changes without a migration. **Production needs the one-time steps P0-P5 in `docs/DEPLOYMENT.md` (backup + baseline marker) BEFORE the merge.** The "Problem" and "Recommended steps" below are the original analysis and are superseded. In particular the hand-written `lookup_sessions` SQL in step 1 is WRONG (it has `NOT NULL target_discord_id`, `timestamptz`, and no `created_at`, none of which match `src/db/schema/lookupSessions.ts`); do not use it, the generated baseline is correct.
+
 **Problem.**
 - `src/db/migrations/meta/_journal.json` references `0003_perf_indexes` but **no `0003_perf_indexes.sql` exists on disk**, and **`lookup_sessions` has no CREATE TABLE migration at all** (it exists only in `src/db/schema/lookupSessions.ts`). On a clean DB, `pnpm db:migrate` will not create `lookup_sessions`, so `/lookup`'s Add-Note / View-Notes buttons 500.
 - `scripts/docker-entrypoint.sh:7-9` runs `drizzle-kit push --force` on every container start, which auto-approves destructive changes (column drops) against the production DB with no migration gate.

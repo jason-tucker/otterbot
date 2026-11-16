@@ -134,7 +134,7 @@ const isManager = oc ? hasMinRank(oc.rank, 'manager') : false
 | `business_buttons` | businessId, type (link/info), label, emoji, style, url, body, sortOrder, enabled | Manager-configurable custom buttons on `/oc` `/caked` `/info`. 30 s read cache; cap 10/business. UUIDs encoded directly in customIds (OC exception). |
 | `business_messages` | businessId, key, body | Per-business overridable card body copy. Used by `/caked` (Contact/Event/Pricing sections) and `/oc` (Requirements). Renderers call `getBusinessMessageOverrides()` and fall back to built-in defaults. 60 s in-process LRU cache; invalidated on update/reset. |
 
-**Schema application:** The container ENTRYPOINT (`scripts/docker-entrypoint.sh`) runs `drizzle-kit push --force` against the compiled schema on every container start — this is the single authoritative mechanism for production schema changes. `src/db/migrations/*.sql` and `src/db/migrations/meta/_journal.json` are kept for local/manual use (`pnpm db:migrate`) but are NOT run in the container. The journal currently references `idx: 3` (`0003_perf_indexes`) whose `.sql` file is absent on disk — this is a known gap tracked as **OB-D3** in `REMEDIATION_PLAN.md`. Do NOT renumber existing entries; the next migration is `idx 7`.
+**Schema application:** The container ENTRYPOINT (`scripts/docker-entrypoint.sh`) runs `node dist/db/migrate.js` (`src/db/migrate.ts`) on every start; the bot does not start if it exits non-zero. It applies the tracked SQL in `src/db/migrations/` (copied into the image) in one transaction under an advisory lock, recorded in `drizzle.__drizzle_migrations`. `drizzle-kit push` is NOT used at boot or in production. The chain starts at the generated `0000_baseline.sql` (OB-D3, resolved by branch `fix/schema-migrations`; production needed the one-time marker steps in `docs/DEPLOYMENT.md`). The migrator refuses to run (exit 1) if public tables exist without the baseline marker, or the marker exists without the tables. CI (`.github/workflows/db-check.yml`) fails a PR that changes `src/db/schema` without a migration. Never hand-edit or renumber an applied migration.
 
 ---
 
@@ -286,9 +286,9 @@ await interaction.editReply({ ...withSendButtonV2(sendKey, container, extraButto
 ### New database table
 1. Create `src/db/schema/yourTable.ts`
 2. Export from `src/db/schema/index.ts`
-3. **Production schema is applied by `drizzle-kit push --force`** at container start (`scripts/docker-entrypoint.sh`) — no migration runner. The schema files are the single authoritative source; any new table or column lands on the next container restart automatically.
-4. For local/manual use only: create `src/db/migrations/XXXX_tag.sql` and add an entry to `src/db/migrations/meta/_journal.json` with `idx` = next number and `when` > all existing timestamps, then run `pnpm db:migrate`. **Note:** `_journal.json` currently references `idx: 3` (`0003_perf_indexes`) whose `.sql` file is absent on disk — this is a known gap tracked as **OB-D3** in `REMEDIATION_PLAN.md`. Do NOT renumber; the next migration is `idx 7`.
-5. If a local migration doesn't apply (already tracked as done in `__drizzle_migrations`), run the SQL via a temp `scripts/yourScript.ts`, then delete it.
+3. Generate the migration: `pnpm db:generate --name short_name` (never hand-write the snapshot or journal). Review the SQL and commit the `.sql`, `meta/*_snapshot.json` and `meta/_journal.json` together with the schema change. CI fails if you forget.
+4. Production applies it automatically at the next container start via `src/db/migrate.ts`. Test locally with `pnpm db:migrate` on a scratch database; never run `drizzle-kit push` against production.
+5. Destructive SQL (DROP, TRUNCATE, ALTER COLUMN TYPE, RENAME, DELETE FROM) needs a `-- obd3:allow-destructive <reason>` comment inside that statement (enforced by `src/db/migrations.test.ts`). Drop columns in two phases: stop using the column in the bot and botpanel and merge that first, then drop it in a later migration. Do not use `CREATE INDEX CONCURRENTLY` (migrations run in a transaction).
 
 ### New business
 1. Add to `src/config/businesses.config.ts`

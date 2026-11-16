@@ -1,12 +1,10 @@
 #!/bin/sh
 set -e
 
-echo "▶ Applying database schema (drizzle-kit push)..."
-# --force auto-approves all changes including column drops.
-# Safe here because the developer controls both schema and data.
-node_modules/.bin/drizzle-kit push \
-  --config=drizzle.docker.config.cjs \
-  --force
+echo "Applying database migrations..."
+# Tracked, reviewed SQL migrations only (src/db/migrations). Exits non-zero on any
+# failure, and `set -e` then stops the container before the bot starts.
+node dist/db/migrate.js
 
-echo "▶ Starting Otterbot..."
+echo "Starting Otterbot..."
 exec node dist/index.js

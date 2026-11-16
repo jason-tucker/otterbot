@@ -1,0 +1,45 @@
+name: DB Migration Check
+
+# OB-D3 guard. Production applies only the tracked SQL in src/db/migrations
+# (src/db/migrate.ts), so a schema change without a migration would never reach
+# the database. This job fails when:
+#   - src/db/schema changed but `drizzle-kit generate` still has something to emit
+#     (scripts/db/drift-check.sh; drizzle-kit exits 0 on errors, so it checks the output)
+#   - the migration tests fail (journal/file mismatch, unannotated destructive SQL, ...)
+# It only runs on PRs and manual dispatch; it does not touch the deploy workflow.
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  migrations:
+    name: Schema drift + migration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+
+      - name: Migration tests
+        run: pnpm exec vitest run src/db/migrations.test.ts
+
+      - name: Schema drift check (drizzle-kit must report nothing to migrate)
+        run: bash scripts/db/drift-check.sh
