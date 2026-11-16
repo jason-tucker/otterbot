@@ -25,6 +25,7 @@ import {
   TICKET_CATEGORY_ID,
   fetchCharacters,
   getMckenzieBusinessId,
+  MkeUnavailableError,
 } from '../../services/ticketLookup'
 
 // channelId → registered-at timestamp. Ticket Tool normally posts its intro
@@ -169,11 +170,16 @@ export function registerTicketChannelCreate(client: Client): void {
     }
 
     let characters: Awaited<ReturnType<typeof fetchCharacters>>
+    let apiUnavailable = false
     try {
       characters = await fetchCharacters(targetDiscordId)
     } catch (err) {
       console.error('Ticket lookup API error:', err)
-      return
+      // MKE answered but is unhealthy (5xx etc.): post the Account Made card so
+      // the user keeps the Retry path. Network errors/timeouts stay silent.
+      if (!(err instanceof MkeUnavailableError)) return
+      apiUnavailable = true
+      characters = []
     }
 
     if (characters.length === 0) {
@@ -190,7 +196,9 @@ export function registerTicketChannelCreate(client: Client): void {
             .setAccentColor(0xed4245)
             .addTextDisplayComponents(
               new TextDisplayBuilder().setContent(
-                `Hey <@${targetDiscordId}>! It looks like you don't have a character linked to your Discord account.\n\nPlease visit **https://mke.euphoric.gg/account** to create one, then click **Account Made** below so we can verify and help you further.`
+                apiUnavailable
+                  ? `Hey <@${targetDiscordId}>! We couldn't reach the character service just now.\n\nClick **Account Made** below in a moment and we'll look up your character again. If you still need an account, visit **https://mke.euphoric.gg/account**.`
+                  : `Hey <@${targetDiscordId}>! It looks like you don't have a character linked to your Discord account.\n\nPlease visit **https://mke.euphoric.gg/account** to create one, then click **Account Made** below so we can verify and help you further.`
               )
             )
             .addActionRowComponents(accountMadeRow)

@@ -24,6 +24,7 @@ import {
   buildEditButtonModal,
   nextStyle,
 } from '../../embeds/businessButtons'
+import { auditSafe } from '../../services/auditService'
 import { registerSendable, withSendButtonV2 } from '../../utils/sendable'
 
 const NO_PERMISSION = 'You need to be a manager of this business to manage its buttons.'
@@ -165,12 +166,26 @@ export async function handleBusinessButtonsButton(interaction: ButtonInteraction
       return
     }
 
+    let mutated = true
     if (action === 'style' && button.type === 'info') {
       await updateButton(id, { style: nextStyle(button.style) }, interaction.user.id)
     } else if (action === 'toggle') {
       await updateButton(id, { enabled: !button.enabled }, interaction.user.id)
     } else if (action === 'up' || action === 'down') {
-      await moveButton(button.businessId, id, action)
+      mutated = await moveButton(button.businessId, id, action)
+    } else {
+      mutated = false
+    }
+
+    if (mutated) {
+      await auditSafe({
+        actorDiscordId: interaction.user.id,
+        actorName: interaction.user.username,
+        businessId: button.businessId,
+        action: `business_button_${action}`,
+        targetType: 'business_button',
+        targetId: id,
+      })
     }
 
     const updated = await getButton(id)
@@ -192,6 +207,15 @@ export async function handleBusinessButtonsButton(interaction: ButtonInteraction
       return
     }
     await removeButton(id)
+    await auditSafe({
+      actorDiscordId: interaction.user.id,
+      actorName: interaction.user.username,
+      businessId: button.businessId,
+      action: 'business_button_remove',
+      targetType: 'business_button',
+      targetId: id,
+      details: { label: button.label },
+    })
     await renderManagePanel(interaction, button.businessId)
     return
   }

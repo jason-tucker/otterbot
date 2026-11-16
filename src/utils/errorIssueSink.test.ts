@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { _resetIssueSink, fingerprint, reportErrorToIssue } from './errorIssueSink'
+import { _resetIssueSink, fingerprint, reportErrorToIssue, sanitizeForIssue } from './errorIssueSink'
 
 const cfg = { token: 'tok', repo: 'o/r', redact: (s: string) => s.split('SECRET').join('[R]') }
 const input = (context = 'cmd=oc step=x user=111 guild=222', message = 'boom SECRET') => ({
@@ -62,5 +62,47 @@ describe('errorIssueSink', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     await expect(reportErrorToIssue(cfg, input())).resolves.toBeUndefined()
     expect(warn).toHaveBeenCalled()
+  })
+})
+
+describe('errorIssueSink sanitization', () => {
+  beforeEach(() => _resetIssueSink())
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('never sends Discord snowflakes in the issue body or title', async () => {
+    const calls = mockFetch([{ ok: true, json: [] }, { ok: true, json: { number: 1 } }])
+    await reportErrorToIssue(
+      cfg,
+      input('cmd=x user=123456789012345678', 'fail for 123456789012345678 and 98765432109876543'),
+    )
+    const sent = JSON.stringify(calls[1].body)
+    expect(sent).not.toMatch(/\d{17,20}/)
+    expect(sent).toContain('<id>')
+  })
+
+  it('a triple-backtick message cannot close the code fence, and @mentions are defused', async () => {
+    const calls = mockFetch([{ ok: true, json: [] }, { ok: true, json: { number: 1 } }])
+    await reportErrorToIssue(cfg, input('cmd=x', 'oops ``` ping @octocat'))
+    const body: string = calls[1].body.body
+    expect(body.split('\n').filter((l) => l.trim() === '```')).toHaveLength(2)
+    expect(body).not.toContain('@octocat')
+    expect(sanitizeForIssue('a ````` b')).not.toContain('```')
+  })
+
+  it('redacts a secret that straddles the 80-char title cut', async () => {
+    const calls = mockFetch([{ ok: true, json: [] }, { ok: true, json: { number: 1 } }])
+    // 70 chars of filler, then SECRET (6) ends at 76 and runs past nothing; push
+    // it so the 80-char cut lands inside the secret.
+    const message = `${'x'.repeat(77)}SECRETSECRET tail`
+    await reportErrorToIssue(cfg, input('cmd=x', message))
+    const sent = JSON.stringify(calls[1].body)
+    expect(sent).not.toContain('SECRET')
+    expect(sent).not.toMatch(/SEC(?!RET)/)
+    expect(calls[1].body.title).toContain('[R]')
+  })
+
+  it('masks a snowflake glued to a prefix (user_<18 digits>) but not longer digit runs', () => {
+    expect(sanitizeForIssue('user_123456789012345678 x')).toBe('user_<id> x')
+    expect(sanitizeForIssue('1'.repeat(25))).toBe('1'.repeat(25))
   })
 })

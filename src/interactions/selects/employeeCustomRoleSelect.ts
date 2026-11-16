@@ -17,6 +17,7 @@ import {
   canManageCustomRole,
   RoleMissingError,
   RoleHierarchyError,
+  RoleNotGrantableError,
 } from '../../services/employeeService'
 
 export async function handleEmployeeCustomRoleSelect(
@@ -101,6 +102,10 @@ export async function handleEmployeeCustomRoleSelect(
   } catch (err) {
     if (err instanceof RoleMissingError) {
       await interaction.editReply(v2Text(`**Role not found:** \`${err.roleName}\`\nCheck role config in ${cmd('portal', interaction.guildId!)}.`) as any)
+      return
+    }
+    if (err instanceof RoleNotGrantableError) {
+      await interaction.editReply(v2Text(`**Role not grantable:** \`${err.roleName}\` — ${err.reason}`) as any)
       return
     }
     if (err instanceof RoleHierarchyError) {

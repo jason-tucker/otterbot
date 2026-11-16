@@ -3,6 +3,7 @@ import type { Guild, GuildMember, Role } from 'discord.js'
 import { db } from '../db/client'
 import { businesses, businessRoleMappings } from '../db/schema'
 import type { StaffRank } from '../types/domain'
+import { grantRoleProblem } from '../utils/roleGrant'
 
 // ---------------------------------------------------------------------------
 // DB-backed business config — replaces the static employee-businesses.config.ts
@@ -364,6 +365,16 @@ export class RoleHierarchyError extends Error {
   }
 }
 
+/** Grant-time refusal (dangerous permissions, managed, above the bot). Extends
+ *  RoleHierarchyError so existing callers surface it as a role error. */
+export class RoleNotGrantableError extends RoleHierarchyError {
+  constructor(roleName: string, public readonly reason: string) {
+    super(roleName)
+    this.name = 'RoleNotGrantableError'
+    this.message = `Refused to grant role "${roleName}": ${reason}`
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Role resolution helpers
 // ---------------------------------------------------------------------------
@@ -378,7 +389,15 @@ function findRole(guild: Guild, entry: DbRoleEntry): Role {
   throw new RoleMissingError(entry.roleName)
 }
 
+async function assertGrantable(member: GuildMember, role: Role): Promise<void> {
+  // Re-check the live role before every grant (the /portal check only ran when
+  // the mapping was added). Fails closed.
+  const problem = await grantRoleProblem(member.guild, role.id).catch(() => 'Could not verify the role.')
+  if (problem) throw new RoleNotGrantableError(role.name, problem)
+}
+
 async function safeAdd(member: GuildMember, role: Role): Promise<void> {
+  await assertGrantable(member, role)
   try {
     await member.roles.add(role)
   } catch (err: unknown) {
@@ -452,11 +471,16 @@ export async function promoteToManager(
 ): Promise<void> {
   if (!config.roles.manager) throw new RoleMissingError('(no manager role configured)')
   const managerRole = findRole(guild, config.roles.manager)
-  await safeAdd(target, managerRole)
-  if (config.permissions.higherRolesAutoGrantEmployee && config.roles.employee) {
-    const empRole = findRole(guild, config.roles.employee)
-    await ensureRole(target, empRole)
-  }
+  const empRole =
+    config.permissions.higherRolesAutoGrantEmployee && config.roles.employee
+      ? findRole(guild, config.roles.employee)
+      : null
+  // Validate every grant BEFORE the first mutation so a refused employee role
+  // cannot leave the manager role applied on its own.
+  if (!target.roles.cache.has(managerRole.id)) await assertGrantable(target, managerRole)
+  if (empRole && !target.roles.cache.has(empRole.id)) await assertGrantable(target, empRole)
+  await ensureRole(target, managerRole)
+  if (empRole) await ensureRole(target, empRole)
 }
 
 export async function demoteToEmployee(
@@ -466,11 +490,11 @@ export async function demoteToEmployee(
 ): Promise<void> {
   if (!config.roles.manager) throw new RoleMissingError('(no manager role configured)')
   const managerRole = findRole(guild, config.roles.manager)
+  const empRole = config.roles.employee ? findRole(guild, config.roles.employee) : null
+  // Validate the grant BEFORE removing the manager role (see demoteOwnerToManager).
+  if (empRole && !target.roles.cache.has(empRole.id)) await assertGrantable(target, empRole)
   if (target.roles.cache.has(managerRole.id)) await safeRemove(target, managerRole)
-  if (config.roles.employee) {
-    const empRole = findRole(guild, config.roles.employee)
-    await ensureRole(target, empRole)
-  }
+  if (empRole) await ensureRole(target, empRole)
 }
 
 export async function promoteToOwner(
@@ -480,11 +504,16 @@ export async function promoteToOwner(
 ): Promise<void> {
   if (!config.roles.owner) throw new RoleMissingError('(no owner role configured)')
   const ownerRole = findRole(guild, config.roles.owner)
-  await safeAdd(target, ownerRole)
-  if (config.permissions.higherRolesAutoGrantEmployee && config.roles.employee) {
-    const empRole = findRole(guild, config.roles.employee)
-    await ensureRole(target, empRole)
-  }
+  const empRole =
+    config.permissions.higherRolesAutoGrantEmployee && config.roles.employee
+      ? findRole(guild, config.roles.employee)
+      : null
+  // Validate every grant BEFORE the first mutation so a refused employee role
+  // cannot leave the owner role applied on its own.
+  if (!target.roles.cache.has(ownerRole.id)) await assertGrantable(target, ownerRole)
+  if (empRole && !target.roles.cache.has(empRole.id)) await assertGrantable(target, empRole)
+  await ensureRole(target, ownerRole)
+  if (empRole) await ensureRole(target, empRole)
 }
 
 export async function demoteOwnerToManager(
@@ -494,15 +523,19 @@ export async function demoteOwnerToManager(
 ): Promise<void> {
   if (!config.roles.owner) throw new RoleMissingError('(no owner role configured)')
   const ownerRole = findRole(guild, config.roles.owner)
+  const managerRole = config.roles.manager ? findRole(guild, config.roles.manager) : null
+  const empRole =
+    config.permissions.higherRolesAutoGrantEmployee && config.roles.employee
+      ? findRole(guild, config.roles.employee)
+      : null
+  // Validate every grant BEFORE removing the owner role, so a refusal cannot
+  // leave the target with no role at all.
+  for (const r of [managerRole, empRole]) {
+    if (r && !target.roles.cache.has(r.id)) await assertGrantable(target, r)
+  }
   if (target.roles.cache.has(ownerRole.id)) await safeRemove(target, ownerRole)
-  if (config.roles.manager) {
-    const managerRole = findRole(guild, config.roles.manager)
-    await ensureRole(target, managerRole)
-  }
-  if (config.permissions.higherRolesAutoGrantEmployee && config.roles.employee) {
-    const empRole = findRole(guild, config.roles.employee)
-    await ensureRole(target, empRole)
-  }
+  if (managerRole) await ensureRole(target, managerRole)
+  if (empRole) await ensureRole(target, empRole)
 }
 
 export async function demoteOwnerToEmployee(
@@ -512,15 +545,13 @@ export async function demoteOwnerToEmployee(
 ): Promise<void> {
   if (!config.roles.owner) throw new RoleMissingError('(no owner role configured)')
   const ownerRole = findRole(guild, config.roles.owner)
+  const managerRole = config.roles.manager ? findRole(guild, config.roles.manager) : null
+  const empRole = config.roles.employee ? findRole(guild, config.roles.employee) : null
+  // Validate the grant BEFORE any removal (see demoteOwnerToManager).
+  if (empRole && !target.roles.cache.has(empRole.id)) await assertGrantable(target, empRole)
   if (target.roles.cache.has(ownerRole.id)) await safeRemove(target, ownerRole)
-  if (config.roles.manager) {
-    const managerRole = findRole(guild, config.roles.manager)
-    if (target.roles.cache.has(managerRole.id)) await safeRemove(target, managerRole)
-  }
-  if (config.roles.employee) {
-    const empRole = findRole(guild, config.roles.employee)
-    await ensureRole(target, empRole)
-  }
+  if (managerRole && target.roles.cache.has(managerRole.id)) await safeRemove(target, managerRole)
+  if (empRole) await ensureRole(target, empRole)
 }
 
 export async function assignCustomRole(
@@ -530,11 +561,16 @@ export async function assignCustomRole(
   customRole: DbCustomRole,
 ): Promise<void> {
   const role = findRole(guild, customRole)
-  await safeAdd(target, role)
-  if (customRole.autoGrantEmployee && config.roles.employee) {
-    const empRole = findRole(guild, config.roles.employee)
-    await ensureRole(target, empRole)
-  }
+  const empRole =
+    customRole.autoGrantEmployee && config.roles.employee
+      ? findRole(guild, config.roles.employee)
+      : null
+  // Validate every grant BEFORE the first mutation so a refused employee role
+  // cannot leave the custom role applied on its own.
+  if (!target.roles.cache.has(role.id)) await assertGrantable(target, role)
+  if (empRole && !target.roles.cache.has(empRole.id)) await assertGrantable(target, empRole)
+  await ensureRole(target, role)
+  if (empRole) await ensureRole(target, empRole)
 }
 
 export async function removeCustomRole(

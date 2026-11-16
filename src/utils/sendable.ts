@@ -60,7 +60,13 @@ interface RegistryEntry {
    *  PERSISTENT doc-comment above. Skipped by both `sweepSendables()` and the
    *  hard-cap eviction loop in `registerSendable`. */
   persistent?: boolean
+  /** Optional click-time permission re-check. When it returns false (or throws)
+   *  the payload is not posted and the clicker gets an ephemeral refusal. */
+  authorize?: SendAuthorizer
 }
+
+/** Re-checks, at click time, that the clicker may still post this payload. */
+export type SendAuthorizer = (interaction: ButtonInteraction) => Promise<boolean>
 
 const registry = new Map<string, RegistryEntry>()
 /** Send-to-channel is hit immediately after the ephemeral arrives — 1 h is
@@ -80,7 +86,7 @@ function sweepSendables(): void {
 export function registerSendable(
   key: string,
   builder: () => SendablePayload,
-  opts?: { persistent?: boolean }
+  opts?: { persistent?: boolean; authorize?: SendAuthorizer }
 ): void {
   const persistent = !!opts?.persistent
   // Sweep expired entries first — cheap and frees space before the hard-cap kicks in.
@@ -89,6 +95,7 @@ export function registerSendable(
     builder,
     expiresAt: persistent ? Number.POSITIVE_INFINITY : Date.now() + SENDABLE_TTL_MS,
     persistent,
+    authorize: opts?.authorize,
   })
   // Hard-cap regardless of TTL: drop oldest NON-persistent entries (Map
   // iteration is insertion-ordered) until we're back under the limit.
@@ -209,6 +216,21 @@ export async function handleSendToChannel(interaction: ButtonInteraction): Promi
     if (entry) registry.delete(key)  // expired — clean up while we're here
     await interaction.reply({ content: 'This section is no longer available — re-run the command and try again.', ephemeral: true })
     return
+  }
+
+  if (entry.authorize) {
+    let allowed = false
+    try {
+      allowed = await entry.authorize(interaction)
+    } catch (err) {
+      // Fail closed: a permission lookup error must never post the payload.
+      console.error('[sendable] authorize failed:', err instanceof Error ? err.message : String(err))
+      allowed = false
+    }
+    if (!allowed) {
+      await interaction.reply({ content: 'You no longer have access to post this.', ephemeral: true })
+      return
+    }
   }
 
   const payload = entry.builder()

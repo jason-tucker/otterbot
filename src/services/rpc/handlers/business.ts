@@ -7,28 +7,20 @@
  * `/otter/businesses/[slug]`. Those edits change the DB but leave actual
  * Discord roles on members untouched. After such an edit, the panel fires
  * this verb so the bot walks the business roster (DB owners ∪ everyone
- * currently holding any mapped role for the business) and reconciles:
- *
- *  - Each member's expected rank is derived from
- *      DB owner → 'owner'
- *      else manager role mapping present → 'manager'
- *      else any employee mapping present → 'employee'
- *      else null (not in business).
- *  - The expected Discord role per rank is the `isBase` mapping for that
- *    rank (or the first one if no isBase) — same logic
- *    `employeeService.getEmployeeBusinessConfig()` uses, so the panel and
- *    `/employee` agree on which role to grant.
- *  - For each member with a non-null expected rank, ensure they have the
- *    expected role and DON'T have any other-rank base roles for this
- *    business. Custom (non-base employee) roles are left alone — the
- *    panel doesn't manage those individually.
+ * currently holding any mapped role for the business) and grants the roles
+ * each member is missing (see `planRoleSync`). It is ADDITIVE ONLY: rank is
+ * derived from the roles themselves (permissionService), so stripping roles
+ * here would fight that or duplicate `employee.demote` / `employee.fire`,
+ * which remove roles explicitly. McKenzie and inactive businesses are
+ * refused. Base roles come from `getEmployeeBusinessConfig()` so the panel
+ * and `/employee` agree on which role to grant.
  *
  * Everything Discord-side is `.catch(() => null)`'d — one missing-member
  * or hierarchy error never tanks the whole sync. Returns audit counts +
  * a list of userIds that couldn't be resolved.
  *
  * Params: `{ businessSlug: string }` — kebab-case, ≤64 chars.
- * Reply:  `{ok:true, data:{added, removed, skipped[]}} | {ok:false, error}`.
+ * Reply:  `{ok:true, data:{added, removed: 0, skipped[]}} | {ok:false, error}`.
  *
  * ── `business.roster` — read-only member listing grouped by rank ──
  *
@@ -52,29 +44,57 @@ import { eq, and } from 'drizzle-orm'
 import { db } from '../../../db/client'
 import { businesses, businessRoleMappings, businessOwners } from '../../../db/schema'
 import { registerVerb, type VerbContext, type VerbResult } from '../registry'
+import { getEmployeeBusinessConfig, type DbEmployeeBusinessConfig } from '../../employeeService'
+import { auditRpc, isMckenzieBusiness } from '../rpcGuards'
+import { createLogger } from '../../../utils/logger'
+import { grantRoleProblem } from '../../../utils/roleGrant'
+
+const logger = createLogger('rpc.business')
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 
 type Rank = 'employee' | 'manager' | 'owner'
 
-interface RoleMappingRow {
-  id: string
-  roleId: string
-  rank: Rank
-  isBase: boolean
-}
-
 /**
- * Pick the canonical Discord role for a rank: prefer `isBase`, else the
- * first mapping for that rank. Returns null if the business has no
- * mapping for the rank at all — caller skips reconciliation for that
- * rank rather than guessing.
+ * Decide which roles `business.sync_roles` grants one member. PURE.
+ *
+ *  - DB owner without the configured owner role -> add the owner role.
+ *  - Effective rank >= manager (DB owner, or holds any owner/manager mapping)
+ *    and `higherRolesAutoGrantEmployee` -> add the base employee role.
+ *  - Holds a custom role with `autoGrantEmployee` -> add the base employee role.
+ *
+ * Never removes anything: a Discord-role owner without a `business_owners`
+ * row, or a manager holding the base employee role, keeps every role.
  */
-function pickBaseRole(mappings: RoleMappingRow[], rank: Rank): string | null {
-  const forRank = mappings.filter((m) => m.rank === rank)
-  if (forRank.length === 0) return null
-  const base = forRank.find((m) => m.isBase)
-  return (base ?? forRank[0]).roleId
+export function planRoleSync(input: {
+  heldRoleIds: Set<string>
+  isDbOwner: boolean
+  config: Pick<DbEmployeeBusinessConfig, 'roles' | 'permissions'>
+  ownerAndManagerMappingRoleIds: Set<string>
+}): { add: string[] } {
+  const { heldRoleIds, isDbOwner, config, ownerAndManagerMappingRoleIds } = input
+  const add: string[] = []
+
+  const ownerRoleId = config.roles.owner?.roleId
+  if (isDbOwner && ownerRoleId && !heldRoleIds.has(ownerRoleId)) add.push(ownerRoleId)
+
+  const baseEmployee = config.roles.employee?.roleId
+  if (baseEmployee && !heldRoleIds.has(baseEmployee)) {
+    let holdsHigher = isDbOwner
+    for (const rid of ownerAndManagerMappingRoleIds) {
+      if (heldRoleIds.has(rid)) {
+        holdsHigher = true
+        break
+      }
+    }
+    const higherGrant = holdsHigher && config.permissions.higherRolesAutoGrantEmployee
+    const customGrant = config.roles.custom.some(
+      (cr) => cr.autoGrantEmployee && heldRoleIds.has(cr.roleId),
+    )
+    if (higherGrant || customGrant) add.push(baseEmployee)
+  }
+
+  return { add }
 }
 
 function isValidSlug(v: unknown): v is string {
@@ -101,8 +121,15 @@ registerVerb('business.sync_roles', async (params, ctx: VerbContext): Promise<Ve
     return { ok: false, error: 'business-not-found' }
   }
   const biz = bizRows[0]
+  // MKE staff are managed on the external portal; same codes as
+  // business.roster / employee.* so the panel renders one message.
+  if (isMckenzieBusiness(biz)) return { ok: false, error: 'mke-not-supported' }
+  if (!biz.active) return { ok: false, error: 'business-inactive' }
 
-  // ── Load owners + mappings ─────────────────────────────────────────
+  // ── Load config (base roles + flags), owners + mappings ────────────
+  const config = await getEmployeeBusinessConfig(biz.id, biz.guildId)
+  if (!config) return { ok: false, error: 'business-not-configured' }
+
   const [ownerRows, mappingRows] = await Promise.all([
     db
       .select()
@@ -119,19 +146,9 @@ registerVerb('business.sync_roles', async (params, ctx: VerbContext): Promise<Ve
       ),
   ])
 
-  const mappings: RoleMappingRow[] = mappingRows.map((m) => ({
-    id: m.id,
-    roleId: m.roleId,
-    rank: m.rank,
-    isBase: m.isBase,
-  }))
-
-  // Canonical base role per rank. If a rank has no mapping at all we
-  // skip reconciliation for it rather than wiping every member of that
-  // rank — a "no manager role" config shouldn't fire-and-forget.
-  const baseEmployee = pickBaseRole(mappings, 'employee')
-  const baseManager = pickBaseRole(mappings, 'manager')
-  const baseOwner = pickBaseRole(mappings, 'owner')
+  const ownerAndManagerMappingRoleIds = new Set(
+    mappingRows.filter((m) => m.rank === 'owner' || m.rank === 'manager').map((m) => m.roleId),
+  )
 
   // ── Fetch the guild ────────────────────────────────────────────────
   const guild = await ctx.client.guilds.fetch(biz.guildId).catch(() => null)
@@ -142,13 +159,13 @@ registerVerb('business.sync_roles', async (params, ctx: VerbContext): Promise<Ve
   // The "members in this business" universe is:
   //   - everyone in `business_owners`
   //   - every guild member currently holding any mapped role for this
-  //     business (so we can fix wrong-rank role grants too)
+  //     business
   //
   // To enumerate role-holders we use the cached members collection
   // filtered by role membership; we don't `guild.members.fetch()` the
   // whole guild here because that's a 500 K-member hammer on large
   // guilds. The bot keeps members cached via the GUILD_MEMBERS intent.
-  const mappedRoleIds = new Set(mappings.map((m) => m.roleId))
+  const mappedRoleIds = new Set(mappingRows.map((m) => m.roleId))
   const candidateIds = new Set<string>()
   for (const o of ownerRows) candidateIds.add(o.discordUserId)
   if (mappedRoleIds.size > 0) {
@@ -165,7 +182,6 @@ registerVerb('business.sync_roles', async (params, ctx: VerbContext): Promise<Ve
   const dbOwnerSet = new Set(ownerRows.map((o) => o.discordUserId))
 
   let added = 0
-  let removed = 0
   const skipped: string[] = []
 
   for (const userId of candidateIds) {
@@ -178,56 +194,37 @@ registerVerb('business.sync_roles', async (params, ctx: VerbContext): Promise<Ve
       continue
     }
 
-    // Determine expected rank for this member.
-    let expectedRank: Rank | null = null
-    if (dbOwnerSet.has(userId)) {
-      expectedRank = 'owner'
-    } else if (baseManager && member.roles.cache.has(baseManager)) {
-      expectedRank = 'manager'
-    } else {
-      // Any employee-rank mapping role they hold counts as "employee".
-      const employeeMappings = mappings.filter((m) => m.rank === 'employee')
-      const holdsEmployee = employeeMappings.some((m) => member.roles.cache.has(m.roleId))
-      if (holdsEmployee) expectedRank = 'employee'
-    }
-
-    if (expectedRank === null) {
-      // Holds a mapped role for this business but is neither DB owner,
-      // nor manager-role holder, nor any employee mapping — nothing to
-      // do (shouldn't really happen given the candidate set, but safe).
-      continue
-    }
-
-    // ── Reconciliation ────────────────────────────────────────────────
-    const expectedRoleId =
-      expectedRank === 'owner' ? baseOwner
-      : expectedRank === 'manager' ? baseManager
-      : baseEmployee
-
-    if (expectedRoleId && !member.roles.cache.has(expectedRoleId)) {
-      const ok = await member.roles.add(expectedRoleId).then(() => true).catch(() => null)
+    const plan = planRoleSync({
+      heldRoleIds: new Set(member.roles.cache.keys()),
+      isDbOwner: dbOwnerSet.has(userId),
+      config,
+      ownerAndManagerMappingRoleIds,
+    })
+    for (const rid of plan.add) {
+      // Re-check the live role before every grant (dangerous / managed / above
+      // the bot are refused and counted as skipped; the reply shape is kept).
+      const refused = await grantRoleProblem(guild, rid).catch(() => 'Could not verify the role.')
+      if (refused) {
+        logger.warn('sync_roles refused role', { businessId: biz.id, roleId: rid, userId })
+        if (!skipped.includes(userId)) skipped.push(userId)
+        continue
+      }
+      const ok = await member.roles.add(rid).then(() => true).catch(() => null)
       if (ok) added += 1
-    }
-
-    // Remove other-rank BASE roles. We don't strip custom (non-base
-    // employee) roles — those are operator-curated, not derived from
-    // rank, and stripping them would surprise managers using /portal
-    // custom-role grants.
-    const stripIds: (string | null)[] = []
-    if (expectedRank !== 'owner') stripIds.push(baseOwner)
-    if (expectedRank !== 'manager') stripIds.push(baseManager)
-    if (expectedRank !== 'employee') stripIds.push(baseEmployee)
-
-    for (const rid of stripIds) {
-      if (!rid) continue
-      if (rid === expectedRoleId) continue
-      if (!member.roles.cache.has(rid)) continue
-      const ok = await member.roles.remove(rid).then(() => true).catch(() => null)
-      if (ok) removed += 1
     }
   }
 
-  return { ok: true, data: { added, removed, skipped } }
+  await auditRpc({
+    verb: 'business.sync_roles',
+    requestId: ctx.requestId,
+    businessId: biz.id,
+    after: { added, skipped: skipped.length },
+    success: true,
+    actorUserId: (params as { actorUserId?: unknown }).actorUserId,
+  })
+
+  // `removed` stays in the reply for the botpanel contract; always 0 now.
+  return { ok: true, data: { added, removed: 0, skipped } }
 })
 
 // ─── business.roster ──────────────────────────────────────────────────
@@ -420,7 +417,10 @@ registerVerb('business.user_ranks', async (params, ctx: VerbContext): Promise<Ve
       .from(businessOwners)
       .where(eq(businessOwners.discordUserId, userId))
   } catch (err) {
-    return { ok: false, error: 'db-error', details: err instanceof Error ? err.message : String(err) }
+    logger.warn('business.user_ranks db query failed', {
+      error: err instanceof Error ? err.message : String(err),
+    })
+    return { ok: false, error: 'db-error' }
   }
 
   // Index mappings by businessId → {ownerRoles, managerRoles, employeeRoles}

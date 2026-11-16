@@ -1,4 +1,4 @@
-import { eq, and } from 'drizzle-orm'
+import { eq, and, sql } from 'drizzle-orm'
 import { db } from '../db/client'
 import { businesses, businessRoleMappings, businessOwners } from '../db/schema'
 import type { StaffRank } from '../types/domain'
@@ -152,11 +152,18 @@ export async function updateBusinessSettings(
   settings: BusinessSettings,
   updatedBy: string,
 ): Promise<void> {
-  const current = await getBusinessById(id)
-  const merged = { ...(current?.settings ?? {}), ...settings }
+  // One atomic UPDATE merges the patch server-side (jsonb ||) so two concurrent
+  // writers touching different keys can't lose each other's change, which a
+  // read-merge-write in JS would. `::text::jsonb` keeps postgres-js from
+  // JSON-encoding the already-serialised string a second time.
+  const patch = JSON.stringify(settings)
   await db
     .update(businesses)
-    .set({ settings: merged as Record<string, unknown>, updatedAt: new Date(), updatedBy })
+    .set({
+      settings: sql`coalesce(${businesses.settings}, '{}'::jsonb) || ${patch}::text::jsonb`,
+      updatedAt: new Date(),
+      updatedBy,
+    })
     .where(eq(businesses.id, id))
   // settings.apiBusinessName feeds the MKE cache lookup — bust on every
   // settings write to be safe (cheap; cache rebuilds on next /lookup).
@@ -175,10 +182,27 @@ export async function toggleBusinessSetting(
   flag: keyof BusinessSettings,
   updatedBy: string,
 ): Promise<boolean> {
-  const current = await getBusinessById(id)
-  const currentVal = Boolean((current?.settings ?? {})[flag] ?? false)
-  const newVal = !currentVal
-  await updateBusinessSettings(id, { [flag]: newVal }, updatedBy)
+  // Single UPDATE ... RETURNING: the flip is computed from the row's own
+  // current value under the row lock, so concurrent toggles can't both read the
+  // same old value. A missing flag counts as false (unchanged semantics).
+  const rows = await db
+    .update(businesses)
+    .set({
+      settings: sql`jsonb_set(coalesce(${businesses.settings}, '{}'::jsonb), ARRAY[${flag}::text], to_jsonb(NOT coalesce((coalesce(${businesses.settings}, '{}'::jsonb) -> ${flag}::text) = 'true'::jsonb, false)), true)`,
+      updatedAt: new Date(),
+      updatedBy,
+    })
+    .where(eq(businesses.id, id))
+    .returning({ settings: businesses.settings })
+  const newVal = rows.length > 0 ? Boolean((rows[0].settings ?? {})[flag]) : false
+  const { invalidateKnownMckenzieBusinesses } = await import('./mckenzieBusinessCache')
+  invalidateKnownMckenzieBusinesses()
+  void publish(businessCh('updated'), {
+    businessId: id,
+    by: updatedBy,
+    ts: new Date().toISOString(),
+    delta: { settings: { [flag]: newVal } },
+  })
   return newVal
 }
 

@@ -146,33 +146,40 @@ export type AddResult =
 
 /**
  * Insert a button at the end of the order. Enforces the per-business cap.
- * sortOrder is derived atomically inside the INSERT so two concurrent adds
- * can't collide on the same MAX.
+ * The count + MAX(sortOrder) + INSERT run in one transaction behind a
+ * per-business advisory lock: under READ COMMITTED the INSERT subquery alone is
+ * NOT atomic, so two concurrent adds could otherwise pass the cap check or
+ * share a sortOrder.
  */
 export async function addButton(
   businessId: string,
   fields: NewButtonFields,
   actorDiscordId: string | null,
 ): Promise<AddResult> {
-  if ((await countButtons(businessId)) >= MAX_BUTTONS_PER_BUSINESS) {
-    return { ok: false, error: 'limit-reached' }
-  }
-
-  const rows = await db
-    .insert(businessButtons)
-    .values({
-      businessId,
-      type: fields.type,
-      label: fields.label.trim().slice(0, MAX_LABEL_LEN),
-      emoji: fields.emoji?.trim() || null,
-      style: fields.style ?? 'primary',
-      url: fields.type === 'link' ? (fields.url ?? null) : null,
-      body: fields.type === 'info' ? (fields.body ?? null) : null,
-      sortOrder: sql<number>`COALESCE((SELECT MAX(${businessButtons.sortOrder}) FROM ${businessButtons} WHERE ${businessButtons.businessId} = ${businessId}), 0) + 1`,
-      createdByDiscordId: actorDiscordId,
-      updatedByDiscordId: actorDiscordId,
-    })
-    .returning()
+  const rows = await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${'business_buttons:' + businessId}))`)
+    const counted = await tx
+      .select({ n: sql<number>`count(*)::int` })
+      .from(businessButtons)
+      .where(eq(businessButtons.businessId, businessId))
+    if ((counted[0]?.n ?? 0) >= MAX_BUTTONS_PER_BUSINESS) return null
+    return tx
+      .insert(businessButtons)
+      .values({
+        businessId,
+        type: fields.type,
+        label: fields.label.trim().slice(0, MAX_LABEL_LEN),
+        emoji: fields.emoji?.trim() || null,
+        style: fields.style ?? 'primary',
+        url: fields.type === 'link' ? (fields.url ?? null) : null,
+        body: fields.type === 'info' ? (fields.body ?? null) : null,
+        sortOrder: sql<number>`COALESCE((SELECT MAX(${businessButtons.sortOrder}) FROM ${businessButtons} WHERE ${businessButtons.businessId} = ${businessId}), 0) + 1`,
+        createdByDiscordId: actorDiscordId,
+        updatedByDiscordId: actorDiscordId,
+      })
+      .returning()
+  })
+  if (!rows) return { ok: false, error: 'limit-reached' }
 
   invalidateBusinessButtonsCache(businessId)
   return { ok: true, button: rowTo(rows[0]) }

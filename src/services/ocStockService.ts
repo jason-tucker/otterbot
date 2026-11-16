@@ -51,15 +51,18 @@ export async function updateStockUrl(id: string, url: string | null, actorDiscor
 }
 
 export async function addStockItem(name: string, actorDiscordId: string): Promise<void> {
-  // Derive next sortOrder atomically inside the INSERT so two concurrent adds
-  // can't both read the same MAX and produce duplicate sort orders. COALESCE
-  // handles the empty-table case.
-  const rows = await db.insert(ocStock).values({
-    name: name.trim(),
-    status: 'in_stock',
-    sortOrder: sql<number>`COALESCE((SELECT MAX(${ocStock.sortOrder}) FROM ${ocStock}), 0) + 1`,
-    updatedByDiscordId: actorDiscordId,
-  }).returning({ id: ocStock.id })
+  // The MAX(sortOrder) subquery inside the INSERT is NOT atomic under READ
+  // COMMITTED (two concurrent adds can read the same MAX), so serialise adds
+  // with a transaction-scoped advisory lock. COALESCE handles the empty table.
+  const rows = await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${'oc_stock:add'}))`)
+    return tx.insert(ocStock).values({
+      name: name.trim(),
+      status: 'in_stock',
+      sortOrder: sql<number>`COALESCE((SELECT MAX(${ocStock.sortOrder}) FROM ${ocStock}), 0) + 1`,
+      updatedByDiscordId: actorDiscordId,
+    }).returning({ id: ocStock.id })
+  })
   const itemId = rows[0]?.id
   if (itemId) {
     void publish(ocStockCh('item_added'), {

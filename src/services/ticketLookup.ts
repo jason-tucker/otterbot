@@ -39,11 +39,19 @@ export interface TicketCharacter {
   bankNumber: string | null
 }
 
+export class MkeUnavailableError extends Error {
+  constructor(public readonly status: number) {
+    super(`MKE API unavailable (HTTP ${status})`)
+    this.name = 'MkeUnavailableError'
+  }
+}
+
 /**
  * GET /character-profiles/discord/{discordId} — returns the MKE characters
  * linked to a Discord account, filtered to active (`status === true`) only.
- * Returns an empty array on any non-2xx response or invalid payload; throws
- * only when fetch itself rejects (network / timeout).
+ * Returns an empty array on 404 or an invalid payload. Any other non-2xx
+ * response throws {@link MkeUnavailableError} (so a 5xx outage is not mistaken
+ * for "no account"); network errors / timeouts reject as before.
  */
 export async function fetchCharacters(discordId: string): Promise<TicketCharacter[]> {
   // Goes through the MKE gateway: identical concurrent lookups (e.g. ticket
@@ -51,7 +59,8 @@ export async function fetchCharacters(discordId: string): Promise<TicketCharacte
   // and the character-select click right after the ticket message reuses the
   // 15 s-cached response instead of re-fetching.
   const res = await mkeGetJson(`/character-profiles/discord/${encodeURIComponent(discordId)}`)
-  if (!res.ok) return []
+  if (res.status === 404) return []
+  if (!res.ok) throw new MkeUnavailableError(res.status)
   const data = res.data as MkCharacterProfile[] | null
   if (!Array.isArray(data)) return []
   return data

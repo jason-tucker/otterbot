@@ -11,7 +11,7 @@ import {
 import { sep,sepLarge,sepBlank } from '../utils/cv2'
 import type { Character, Business, StaffRank, CustomerStanding, Standing } from '../types/domain'
 import { STANDING_COLORS } from '../types/domain'
-import { registerSendable } from '../utils/sendable'
+import { registerSendable, type SendAuthorizer } from '../utils/sendable'
 import { safeMarkdown, safeMarkdownLinkLabel } from '../utils/escape'
 
 export type ViewerMode = 'staff' | 'self'
@@ -136,6 +136,7 @@ export function buildCustomerEmbed(
   sessionKey: string,
   viewerMode: ViewerMode = 'staff',
   businessAccounts?: BusinessAccountsInfo,
+  authorizeSend?: SendAuthorizer,
 ) {
   const infoContainer = buildInfoContainer(character, business, standing, linkedDiscordId, notesCount, { businessAccounts })
 
@@ -144,7 +145,7 @@ export function buildCustomerEmbed(
   registerSendable(sendKey, () => ({
     components: [buildInfoContainer(character, business, standing, linkedDiscordId, notesCount, { hideNotes: true, businessAccounts })],
     flags: MessageFlags.IsComponentsV2,
-  }))
+  }), { authorize: authorizeSend })
 
   const components: any[] = [infoContainer]
 

@@ -90,6 +90,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     // Log the real cause, then retry with only the stock card and the
     // built-in buttons so the user still gets the stock view.
     reportOcFailure(interaction, 'editReply (full card)', err)
+    // The Send-to-Channel snapshot must drop the custom rows too, or it fails with the same 50035.
+    registerSendable(sendKey, () => ({ components: [container], flags: 32768 }))
     const fallbackRows = [new ActionRowBuilder<ButtonBuilder>().addComponents(...builtinButtons)]
     await interaction.editReply({
       ...withSendButtonV2Rows(sendKey, container, fallbackRows, []),

@@ -8,6 +8,7 @@ import { audit } from '../../services/auditService'
 import { addBusinessOwner, removeBusinessOwner, getBusinessById } from '../../services/portalService'
 import { publish, employeeCh, type EmployeeEvent } from '../../services/eventBus'
 import { v2Text } from '../../utils/cv2'
+import { grantRoleProblem } from '../../utils/roleGrant'
 import {
   getEmployeeBusinessConfig,
   getEmployeeBusinessConfigsForGuild,
@@ -26,6 +27,7 @@ import {
   canManageOwner,
   RoleMissingError,
   RoleHierarchyError,
+  RoleNotGrantableError,
 } from '../../services/employeeService'
 
 type EmployeeButtonAction =
@@ -153,7 +155,9 @@ export async function handleEmployeeActionButton(interaction: ButtonInteraction)
           try {
             const ownerRole = interaction.guild.roles.cache.get(config.roles.owner.roleId)
               ?? await interaction.guild.roles.fetch(config.roles.owner.roleId)
-            if (ownerRole) await targetMember.roles.add(ownerRole)
+            if (ownerRole && !(await grantRoleProblem(interaction.guild, ownerRole.id))) {
+              await targetMember.roles.add(ownerRole)
+            }
           } catch { /* role assignment is best-effort; DB record is the authoritative change */ }
         }
         auditAction = 'make_db_owner'
@@ -191,6 +195,10 @@ export async function handleEmployeeActionButton(interaction: ButtonInteraction)
   } catch (err) {
     if (err instanceof RoleMissingError) {
       await interaction.editReply(v2Text(`**Role not found:** \`${err.roleName}\`\nCheck the business role config in ${cmd('portal', interaction.guildId!)}.`) as any)
+      return
+    }
+    if (err instanceof RoleNotGrantableError) {
+      await interaction.editReply(v2Text(`**Role not grantable:** \`${err.roleName}\` — ${err.reason}`) as any)
       return
     }
     if (err instanceof RoleHierarchyError) {

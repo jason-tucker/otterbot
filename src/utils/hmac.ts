@@ -36,3 +36,44 @@ export function timingSafeCompare(a: string, b: string): boolean {
   if (aBuf.length !== bBuf.length) return false
   return timingSafeEqual(aBuf, bBuf)
 }
+
+/**
+ * Sign an RPC reply for publication on `res.<requestId>`.
+ *
+ *   body = JSON.stringify(result)
+ *   hmac = HMAC-SHA256(secret, `res.${requestId}|${requestId}|${ts}|${body}`)
+ *   payload = { ...result, ts, hmac }
+ *
+ * The panel strips `ts`/`hmac`, re-stringifies and compares, so the body must
+ * round-trip through JSON.parse/stringify byte-for-byte. We therefore sign the
+ * JSON-normalised form (parse(stringify(result))): undefined fields vanish,
+ * Dates become strings, and key order is already what the panel will see.
+ * Anything that cannot be signed faithfully (non-object result, a top-level
+ * `ts`/`hmac` key, or a value JSON cannot encode) is replaced by a signed
+ * `{ ok: false, error: 'bad-reply-shape' }`.
+ */
+export function signRpcReply(
+  secret: string,
+  requestId: string,
+  result: unknown,
+  ts: number = Date.now(),
+): Record<string, unknown> {
+  let normalised: Record<string, unknown>
+  try {
+    const parsed: unknown = JSON.parse(JSON.stringify(result))
+    const ok =
+      !!parsed &&
+      typeof parsed === 'object' &&
+      !Array.isArray(parsed) &&
+      !Object.hasOwn(parsed, 'ts') &&
+      !Object.hasOwn(parsed, 'hmac')
+    normalised = ok
+      ? (parsed as Record<string, unknown>)
+      : { ok: false, error: 'bad-reply-shape' }
+  } catch {
+    normalised = { ok: false, error: 'bad-reply-shape' }
+  }
+  const body = JSON.stringify(normalised)
+  const hmac = hmacSha256(secret, `res.${requestId}|${requestId}|${ts}|${body}`)
+  return { ...normalised, ts, hmac }
+}
