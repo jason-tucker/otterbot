@@ -83,6 +83,7 @@ export async function handleCakedButton(interaction: ButtonInteraction): Promise
             .setPlaceholder('Cake')
             .setStyle(TextInputStyle.Paragraph)
             .setMinLength(2)
+            .setMaxLength(1000)
             .setRequired(true)
         ),
         new ActionRowBuilder<TextInputBuilder>().addComponents(
@@ -101,6 +102,7 @@ export async function handleCakedButton(interaction: ButtonInteraction): Promise
             .setLabel('Any Dietary Restrictions')
             .setPlaceholder('No Wheat')
             .setStyle(TextInputStyle.Paragraph)
+            .setMaxLength(500)
             .setRequired(true)
         ),
         new ActionRowBuilder<TextInputBuilder>().addComponents(
@@ -119,6 +121,7 @@ export async function handleCakedButton(interaction: ButtonInteraction): Promise
             .setLabel('Event Date and Time')
             .setPlaceholder('6/9/1969 4:20AM')
             .setStyle(TextInputStyle.Short)
+            .setMaxLength(100)
             .setRequired(true)
         )
       )

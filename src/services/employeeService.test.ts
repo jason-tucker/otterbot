@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
+import { PermissionFlagsBits } from 'discord.js'
 
 // Stub modules that pull in the env-validating db client / dotenv at import time.
 // The pure permission helpers under test don't touch the db, but the service
@@ -13,6 +14,15 @@ import {
   canDemoteManager,
   canManageOwner,
   canManageCustomRole,
+  hireEmployee,
+  assignCustomRole,
+  demoteOwnerToManager,
+  demoteOwnerToEmployee,
+  demoteToEmployee,
+  promoteToManager,
+  promoteToOwner,
+  RoleNotGrantableError,
+  RoleHierarchyError,
   type DbEmployeeBusinessConfig,
   type DbCustomRole,
 } from './employeeService'
@@ -239,5 +249,192 @@ describe('canManageCustomRole', () => {
   it('sudo bypass — sudo employee can manage owner-rank custom role', () => {
     const cr = makeCustomRole({ minRankToAssign: 'owner' })
     expect(canManageCustomRole('employee', cr, makeConfig(), true)).toEqual({ allowed: true })
+  })
+})
+
+
+// ---------------------------------------------------------------------------
+// Grant-time role re-check (safeAdd, reached through hireEmployee)
+// ---------------------------------------------------------------------------
+
+describe('safeAdd grant-time role check', () => {
+  function setup(role: { managed?: boolean; position?: number; perms?: bigint[] }) {
+    const live = {
+      id: 'r1',
+      name: 'Employee',
+      managed: role.managed ?? false,
+      position: role.position ?? 1,
+      permissions: { has: (p: bigint) => (role.perms ?? []).includes(p) },
+    }
+    const guild = {
+      id: 'g1',
+      roles: { cache: new Map([['r1', live]]) },
+      members: { me: { roles: { highest: { position: 50 } } } },
+    }
+    const member = { guild, roles: { cache: new Map(), add: vi.fn(async () => undefined) } }
+    return { guild, member, live }
+  }
+
+  it('grants a harmless role', async () => {
+    const { guild, member, live } = setup({})
+    await hireEmployee(guild as never, member as never, makeConfig())
+    expect(member.roles.add).toHaveBeenCalledWith(live)
+  })
+
+  it('refuses a role that gained a dangerous permission since it was mapped', async () => {
+    const { guild, member } = setup({ perms: [PermissionFlagsBits.ManageRoles] })
+    const err = await hireEmployee(guild as never, member as never, makeConfig()).catch((e) => e)
+    expect(err).toBeInstanceOf(RoleNotGrantableError)
+    expect(err).toBeInstanceOf(RoleHierarchyError)
+    expect(member.roles.add).not.toHaveBeenCalled()
+  })
+
+  it('grants roles carrying ordinary moderation bits (ManageMessages, KickMembers)', async () => {
+    for (const bit of [PermissionFlagsBits.ManageMessages, PermissionFlagsBits.KickMembers]) {
+      const { guild, member, live } = setup({ perms: [bit] })
+      await hireEmployee(guild as never, member as never, makeConfig())
+      expect(member.roles.add).toHaveBeenCalledWith(live)
+    }
+  })
+
+  it('refuses Administrator with the escalation message', async () => {
+    const { guild, member } = setup({ perms: [PermissionFlagsBits.Administrator] })
+    const err = await hireEmployee(guild as never, member as never, makeConfig()).catch((e) => e)
+    expect(err).toBeInstanceOf(RoleNotGrantableError)
+    expect((err as RoleNotGrantableError).reason).toMatch(/Administrator, Manage Roles.*cannot be granted/)
+    expect(member.roles.add).not.toHaveBeenCalled()
+  })
+
+  it('refuses managed roles and roles at or above the bot', async () => {
+    for (const r of [{ managed: true }, { position: 50 }]) {
+      const { guild, member } = setup(r)
+      await expect(hireEmployee(guild as never, member as never, makeConfig())).rejects.toBeInstanceOf(RoleNotGrantableError)
+      expect(member.roles.add).not.toHaveBeenCalled()
+    }
+  })
+
+  it('fails closed when the bot position cannot be read', async () => {
+    const { guild, member } = setup({})
+    ;(guild.members as { me: unknown }).me = null
+    ;(guild.members as Record<string, unknown>).fetchMe = async () => {
+      throw new Error('boom')
+    }
+    await expect(hireEmployee(guild as never, member as never, makeConfig())).rejects.toBeInstanceOf(RoleNotGrantableError)
+    expect(member.roles.add).not.toHaveBeenCalled()
+  })
+
+  describe('owner demotion', () => {
+    function demoteSetup() {
+      const mk = (id: string, name: string, perms: bigint[] = []) => ({
+        id, name, managed: false, position: 1, permissions: { has: (p: bigint) => perms.includes(p) },
+      })
+      const owner = mk('r3', 'Owner')
+      const manager = mk('r2', 'Manager', [PermissionFlagsBits.ManageRoles])
+      const employee = mk('r1', 'Employee')
+      const guild = {
+        id: 'g1',
+        roles: { cache: new Map([['r1', employee], ['r2', manager], ['r3', owner]]) },
+        members: { me: { roles: { highest: { position: 50 } } } },
+      }
+      const member = {
+        guild,
+        roles: {
+          cache: new Map([['r3', owner]]),
+          add: vi.fn(async () => undefined),
+          remove: vi.fn(async () => undefined),
+        },
+      }
+      return { guild, member }
+    }
+
+    it('demoteOwnerToManager refuses before removing the owner role', async () => {
+      const { guild, member } = demoteSetup()
+      await expect(demoteOwnerToManager(guild as never, member as never, makeConfig())).rejects.toBeInstanceOf(RoleNotGrantableError)
+      expect(member.roles.remove).not.toHaveBeenCalled()
+      expect(member.roles.add).not.toHaveBeenCalled()
+    })
+
+    it('demoteOwnerToEmployee refuses before removing any role', async () => {
+      const { guild, member } = demoteSetup()
+      ;(guild.roles.cache.get('r1') as { permissions: unknown }).permissions = {
+        has: (p: bigint) => p === PermissionFlagsBits.Administrator,
+      }
+      await expect(demoteOwnerToEmployee(guild as never, member as never, makeConfig())).rejects.toBeInstanceOf(RoleNotGrantableError)
+      expect(member.roles.remove).not.toHaveBeenCalled()
+    })
+
+    it('demoteToEmployee refuses before removing the manager role', async () => {
+      const { guild, member } = demoteSetup()
+      member.roles.cache.set('r2', guild.roles.cache.get('r2') as never)
+      ;(guild.roles.cache.get('r1') as { permissions: unknown }).permissions = {
+        has: (p: bigint) => p === PermissionFlagsBits.Administrator,
+      }
+      await expect(demoteToEmployee(guild as never, member as never, makeConfig())).rejects.toBeInstanceOf(RoleNotGrantableError)
+      expect(member.roles.remove).not.toHaveBeenCalled()
+      expect(member.roles.add).not.toHaveBeenCalled()
+    })
+
+    function promoteSetup() {
+      const { guild, member } = demoteSetup()
+      // Manager is harmless here; the base employee role is the one refused.
+      ;(guild.roles.cache.get('r2') as { permissions: unknown }).permissions = { has: () => false }
+      ;(guild.roles.cache.get('r1') as { permissions: unknown }).permissions = {
+        has: (p: bigint) => p === PermissionFlagsBits.Administrator,
+      }
+      member.roles.cache.clear()
+      return { guild, member }
+    }
+
+    it('promoteToManager refuses before adding manager when employee role is refused', async () => {
+      const { guild, member } = promoteSetup()
+      await expect(promoteToManager(guild as never, member as never, makeConfig())).rejects.toBeInstanceOf(RoleNotGrantableError)
+      expect(member.roles.add).not.toHaveBeenCalled()
+      expect(member.roles.remove).not.toHaveBeenCalled()
+    })
+
+    it('promoteToOwner refuses before adding owner when employee role is refused', async () => {
+      const { guild, member } = promoteSetup()
+      await expect(promoteToOwner(guild as never, member as never, makeConfig())).rejects.toBeInstanceOf(RoleNotGrantableError)
+      expect(member.roles.add).not.toHaveBeenCalled()
+      expect(member.roles.remove).not.toHaveBeenCalled()
+    })
+
+    it('promoteToManager grants both roles when both are grantable', async () => {
+      const { guild, member } = demoteSetup()
+      ;(guild.roles.cache.get('r2') as { permissions: unknown }).permissions = { has: () => false }
+      member.roles.cache.clear()
+      await promoteToManager(guild as never, member as never, makeConfig())
+      expect(member.roles.add).toHaveBeenCalledTimes(2)
+    })
+
+    function customSetup() {
+      const { guild, member } = promoteSetup()
+      guild.roles.cache.set('cr1', {
+        id: 'cr1', name: 'Designer', managed: false, position: 1, permissions: { has: () => false },
+      } as never)
+      return { guild, member }
+    }
+
+    it('assignCustomRole refuses before adding the custom role when employee role is refused', async () => {
+      const { guild, member } = customSetup()
+      await expect(
+        assignCustomRole(guild as never, member as never, makeConfig(), makeCustomRole({ autoGrantEmployee: true })),
+      ).rejects.toBeInstanceOf(RoleNotGrantableError)
+      expect(member.roles.add).not.toHaveBeenCalled()
+    })
+
+    it('assignCustomRole grants custom and employee roles when both are grantable', async () => {
+      const { guild, member } = customSetup()
+      ;(guild.roles.cache.get('r1') as { permissions: unknown }).permissions = { has: () => false }
+      await assignCustomRole(guild as never, member as never, makeConfig(), makeCustomRole({ autoGrantEmployee: true }))
+      expect(member.roles.add).toHaveBeenCalledTimes(2)
+    })
+
+    it('demoteOwnerToEmployee removes owner and grants employee when grantable', async () => {
+      const { guild, member } = demoteSetup()
+      await demoteOwnerToEmployee(guild as never, member as never, makeConfig())
+      expect(member.roles.remove).toHaveBeenCalledTimes(1)
+      expect(member.roles.add).toHaveBeenCalledTimes(1)
+    })
   })
 })

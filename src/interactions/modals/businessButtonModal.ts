@@ -7,6 +7,7 @@ import {
   MAX_BUTTONS_PER_BUSINESS,
   type BusinessButtonType,
 } from '../../services/businessButtonsService'
+import { auditSafe } from '../../services/auditService'
 import {
   requireButtonManager,
   renderManagePanel,
@@ -86,6 +87,15 @@ export async function handleBusinessButtonModal(interaction: ModalSubmitInteract
       return
     }
 
+    await auditSafe({
+      actorDiscordId: interaction.user.id,
+      actorName: interaction.user.username,
+      businessId,
+      action: 'business_button_add',
+      targetType: 'business_button',
+      targetId: result.button.id,
+      details: { type, label },
+    })
     await showManageResult(interaction, businessId)
     return
   }
@@ -128,6 +138,15 @@ export async function handleBusinessButtonModal(interaction: ModalSubmitInteract
     }
 
     await updateButton(buttonId, patch, interaction.user.id)
+    await auditSafe({
+      actorDiscordId: interaction.user.id,
+      actorName: interaction.user.username,
+      businessId: button.businessId,
+      action: 'business_button_edit',
+      targetType: 'business_button',
+      targetId: buttonId,
+      details: { label },
+    })
     await showManageResult(interaction, button.businessId)
     return
   }

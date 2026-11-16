@@ -168,7 +168,7 @@ export async function handlePortalButton(interaction: ButtonInteraction): Promis
     }
     const modal = new ModalBuilder()
       .setCustomId(`portal_edit_modal:${sessionKey}`)
-      .setTitle(`Edit: ${biz.name}`)
+      .setTitle(`Edit: ${biz.name}`.slice(0, 45))
       .addComponents(
         new ActionRowBuilder<TextInputBuilder>().addComponents(
           new TextInputBuilder()
@@ -176,7 +176,8 @@ export async function handlePortalButton(interaction: ButtonInteraction): Promis
             .setLabel('Business Name')
             .setStyle(TextInputStyle.Short)
             .setRequired(true)
-            .setValue(biz.name),
+            .setMaxLength(100)
+            .setValue(biz.name.slice(0, 100)),
         ),
         new ActionRowBuilder<TextInputBuilder>().addComponents(
           new TextInputBuilder()
@@ -184,7 +185,8 @@ export async function handlePortalButton(interaction: ButtonInteraction): Promis
             .setLabel('Slug')
             .setStyle(TextInputStyle.Short)
             .setRequired(true)
-            .setValue(biz.slug),
+            .setMaxLength(50)
+            .setValue(biz.slug.slice(0, 50)),
         ),
         new ActionRowBuilder<TextInputBuilder>().addComponents(
           new TextInputBuilder()

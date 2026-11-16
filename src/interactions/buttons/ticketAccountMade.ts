@@ -1,5 +1,6 @@
 import {
   type ButtonInteraction,
+  type Message,
   type TextChannel,
   ActionRowBuilder,
   ButtonBuilder,
@@ -22,7 +23,10 @@ const RETRY_COOLDOWN_MS = 4 * 60 * 1000
 const RETRY_MAP_MAX = 1000
 const lastRetry = new Map<string, number>()
 
-const HELP_ROLE_ID = '1308966159516827688'
+const HELP_COOLDOWN_MS = 10 * 60 * 1000
+const lastHelp = new Map<string, number>()
+
+const HELP_ROLE_ID ='1308966159516827688'
 const SIGNUP_URL = 'https://mke.euphoric.gg/account'
 const SUPPRESS_NOTIFICATIONS = 1 << 12
 
@@ -36,6 +40,61 @@ function rememberRetry(userId: string): void {
     if (oldest) lastRetry.delete(oldest)
   }
   lastRetry.set(userId, Date.now())
+}
+
+function rememberHelp(channelId: string): void {
+  if (lastHelp.size >= RETRY_MAP_MAX) {
+    const oldest = lastHelp.keys().next().value
+    if (oldest) lastHelp.delete(oldest)
+  }
+  lastHelp.set(channelId, Date.now())
+}
+
+interface LooseComponent {
+  customId?: string
+  components?: LooseComponent[]
+}
+
+function hasButton(components: LooseComponent[] | undefined, customId: string): boolean {
+  if (!components) return false
+  for (const c of components) {
+    if (c.customId === customId) return true
+    if (hasButton(c.components, customId)) return true
+  }
+  return false
+}
+
+/**
+ * The public ticket message carrying the Account Made button for this user.
+ * On a normal click that is the clicked message; on the ephemeral Retry the
+ * clicked message is the ephemeral itself (it cannot become the ticket card),
+ * so fall back to the newest bot-authored message in the channel that holds
+ * `ticket_account_made:{targetDiscordId}`.
+ */
+export async function findPublicTicketMessage(
+  interaction: ButtonInteraction,
+  targetDiscordId: string,
+): Promise<Message | null> {
+  const clicked = interaction.message
+  const ephemeral = !!clicked?.flags?.has?.(MessageFlags.Ephemeral)
+  if (clicked && !ephemeral) return clicked
+  const channel = interaction.channel as TextChannel | null
+  if (!channel?.messages) return null
+  const botId = interaction.client?.user?.id
+  const wanted = `ticket_account_made:${targetDiscordId}`
+  try {
+    const recent = await channel.messages.fetch({ limit: 50 })
+    let best: Message | null = null
+    for (const msg of recent.values()) {
+      if (!botId || msg.author?.id !== botId) continue
+      if (!hasButton(msg.components as unknown as LooseComponent[], wanted)) continue
+      if (!best || msg.createdTimestamp > best.createdTimestamp) best = msg
+    }
+    return best
+  } catch (err) {
+    console.error('Failed to search for the ticket message:', err)
+    return null
+  }
 }
 
 function buildNoAccountEphemeral(targetDiscordId: string) {
@@ -113,8 +172,8 @@ export async function handleTicketAccountMadeButton(interaction: ButtonInteracti
   // message in-channel with the proper character embed/selector, then ack.
   const channel = interaction.channel as TextChannel | null
   const businessId = channel?.guildId ? await getMckenzieBusinessId(channel.guildId) : null
-  const originalMsg = interaction.message
 
+  let payload: any
   if (characters.length === 1) {
     const character = characters[0]
     const sessionKey = businessId
@@ -127,8 +186,7 @@ export async function handleTicketAccountMadeButton(interaction: ButtonInteracti
           rank: 'employee',
         })
       : undefined
-    const payload = buildTicketCharacterEmbed(character, targetDiscordId, { sessionKey, lookupMethod: 'discord' })
-    await originalMsg?.edit(payload as any).catch(err => console.error('Failed to edit ticket message:', err))
+    payload = buildTicketCharacterEmbed(character, targetDiscordId, { sessionKey, lookupMethod: 'discord' })
   } else {
     const select = new StringSelectMenuBuilder()
       .setCustomId(`ticket_char_select:${targetDiscordId}`)
@@ -141,7 +199,7 @@ export async function handleTicketAccountMadeButton(interaction: ButtonInteracti
             .setValue(c.id),
         ),
       )
-    await originalMsg?.edit({
+    payload = {
       components: [
         new ContainerBuilder()
           .setAccentColor(0x5865f2)
@@ -158,10 +216,29 @@ export async function handleTicketAccountMadeButton(interaction: ButtonInteracti
           ),
       ] as any[],
       flags: MessageFlags.IsComponentsV2,
-    } as any).catch(err => console.error('Failed to edit ticket message:', err))
+    }
   }
 
-  await interaction.editReply({ content: '✅ Found your character — updated the message above.' })
+  const target = await findPublicTicketMessage(interaction, targetDiscordId)
+  let edited = false
+  if (target) {
+    try {
+      await target.edit(payload)
+      edited = true
+    } catch (err) {
+      console.error('Failed to edit ticket message:', err)
+    }
+  }
+
+  if (edited) {
+    await interaction.editReply({ content: '✅ Found your character — updated the ticket message.' })
+    return
+  }
+
+  // Could not update the public message: show the card here instead. The
+  // payload is Components V2 (no `content`); the deferred reply is already
+  // ephemeral so no explicit ephemeral flag.
+  await interaction.editReply({ components: payload.components, flags: MessageFlags.IsComponentsV2 } as any)
 }
 
 /**
@@ -177,6 +254,29 @@ export async function handleTicketAccountHelpButton(interaction: ButtonInteracti
     await interaction.reply({ content: '❌ Could not find the channel.', ephemeral: true })
     return
   }
+
+  // Same auth as Account Made: the ticket subject or ManageChannels staff.
+  if (interaction.user.id !== targetDiscordId) {
+    const member = interaction.guild?.members.cache.get(interaction.user.id)
+      ?? await interaction.guild?.members.fetch(interaction.user.id).catch(() => null)
+    if (!member?.permissions.has('ManageChannels')) {
+      await interaction.reply({ content: '❌ Only the ticket creator (or staff) can ask for help here.', ephemeral: true })
+      return
+    }
+  }
+
+  // Per-channel cooldown so the role is pinged at most once per window.
+  const last = lastHelp.get(channel.id) ?? 0
+  const elapsed = Date.now() - last
+  if (elapsed < HELP_COOLDOWN_MS) {
+    const waitMin = Math.ceil((HELP_COOLDOWN_MS - elapsed) / 60000)
+    await interaction.reply({
+      content: `⏳ The team was already pinged in this ticket. Try again in about ${waitMin} min.`,
+      ephemeral: true,
+    })
+    return
+  }
+  rememberHelp(channel.id)
 
   await channel.send({
     content: `<@&${HELP_ROLE_ID}> — <@${targetDiscordId}> needs help linking their character.`,

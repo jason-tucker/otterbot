@@ -8,8 +8,10 @@ import { setDnd, shutdownPresence } from './services/presence'
 import { stopHealthPush } from './bot/healthPush'
 import { closeDb } from './db/client'
 import { startRpcServer, closeRpcServer } from './services/rpcServer'
-import { startCacheInvalidator } from './services/cacheInvalidator'
+import { startCacheInvalidator, closeCacheInvalidator } from './services/cacheInvalidator'
 import { closeEventBus } from './services/eventBus'
+import { stopInteractionCacheSweep } from './services/interactionCache'
+import { runShutdown } from './shutdown'
 import { attachErrorReportClient, errorReport } from './utils/errorReport'
 
 // Earliest reliable point to hand the client to errorReport — `client` is
@@ -54,12 +56,19 @@ async function gracefulShutdown(signal: NodeJS.Signals): Promise<void> {
   console.log(`Received ${signal} — shutting down gracefully`)
   shutdownPresence()
   stopHealthPush()
-  try { await client.destroy() } catch (err) { console.warn('client.destroy failed', err) }
-  try { await closeRpcServer() } catch (err) { console.warn('closeRpcServer failed', err) }
-  // The lazily-opened Redis publisher (audit/event bus) was never closed —
-  // leaked the socket on shutdown and could keep the event loop alive.
-  try { await closeEventBus() } catch (err) { console.warn('closeEventBus failed', err) }
-  try { await closeDb() } catch (err) { console.warn('closeDb failed', err) }
+  // Order matters: stop inbound work (RPC + cache-invalidate subscribers, the
+  // interaction-cache sweep) before the gateway client goes away, then close
+  // the publisher and DB last. Each step is isolated (see shutdown.ts).
+  await runShutdown([
+    ['closeRpcServer', closeRpcServer],
+    ['closeCacheInvalidator', closeCacheInvalidator],
+    ['stopInteractionCacheSweep', stopInteractionCacheSweep],
+    ['client.destroy', () => client.destroy()],
+    // The lazily-opened Redis publisher (audit/event bus) would otherwise leak
+    // its socket and could keep the event loop alive.
+    ['closeEventBus', closeEventBus],
+    ['closeDb', closeDb],
+  ])
   // SIGTERM → mimic the natural "unhandled signal" exit code (128 + 15 = 143)
   // so systemd's Restart=on-failure still triggers. SIGINT → clean exit.
   const code = signal === 'SIGTERM' ? 143 : 0

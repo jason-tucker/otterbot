@@ -15,6 +15,7 @@ import { buildCustomButtonRows, manageButtonsButton } from '../embeds/businessBu
 import { registerSendable, withSendButtonV2Rows } from '../utils/sendable'
 import { sep } from '../utils/cv2'
 import { appendPanelLink } from '../utils/panelLink'
+import { errorReport } from '../utils/errorReport'
 
 // Businesses with their own richer command surface are excluded from /info —
 // their managers get custom buttons on /oc and /caked instead. MKE is excluded
@@ -119,8 +120,22 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   }))
 
   const trailing: ButtonBuilder[] = isManager ? [manageButtonsButton(biz.id)] : []
-  await interaction.editReply({
-    ...withSendButtonV2Rows(sendKey, container, customRows as ActionRowBuilder<ButtonBuilder>[], trailing),
-    content: null,
-  } as never)
+  try {
+    await interaction.editReply({
+      ...withSendButtonV2Rows(sendKey, container, customRows as ActionRowBuilder<ButtonBuilder>[], trailing),
+      content: null,
+    } as never)
+  } catch (err) {
+    // Discord rejected the full card (e.g. 50035 from one bad custom button).
+    // Log the cause, then retry with the card only (no custom/manage buttons).
+    const tag = `cmd=info step=editReply (full card) user=${interaction.user.id} guild=${interaction.guildId ?? 'dm'}`
+    console.error(`[info] ${tag}`, err)
+    errorReport(tag, err)
+    // The Send-to-Channel snapshot must drop the custom rows too, or it fails with the same 50035.
+    registerSendable(sendKey, () => ({ components: [infoContainer(biz)], flags: 32768 }))
+    await interaction.editReply({
+      ...withSendButtonV2Rows(sendKey, container, [], []),
+      content: null,
+    } as never)
+  }
 }

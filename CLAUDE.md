@@ -68,7 +68,7 @@ Register in both `src/bot/registerCommands.ts` AND `src/bot/events/interactionCr
 | Command | File | Access | What it does |
 |---|---|---|---|
 | `/lookup` | `commands/lookup.ts` | McKenzie staff | Character lookup via MKE API. Shows CSN, DOB, phone, bank, standing (auto-derived from latest MKE Good/Bad Experience marker), notes count. Buttons: Add Note, View Notes, Send to Channel. Always uses McKenzie — no business selector. |
-| `/business` | `commands/business.ts` | Any staff | Search business roster by name (MKE API). Staff of that business get a Lookup Employee button. |
+| `/business` | `commands/business.ts` | Any staff | Search business roster by name (MKE API). Sudo, staff of that business and McKenzie staff get the full card (CSN, phone, bank) with Lookup Employee and Send to Channel; Send to Channel and Lookup Employee re-check that access on click. Other staff get a names-only card with no buttons. |
 | `/employee` | `commands/employee.ts` | Manager+ | Hire, fire, promote, demote. Custom roles. Business selector if managing multiple. McKenzie is read-only (external management). |
 | `/portal` | `commands/portal.ts` | Sudo only | Create/edit/deactivate businesses. Manage role mappings, owners, and permission flags — all in DB. |
 | `/oc` | `commands/oc.ts` | Anyone | OC stock view (🟢/🟠/🔴) with clickable product links. Buttons: Requirements (ephemeral), Send to Channel, Manage Stock (manager+). Ephemeral by default. |
@@ -184,8 +184,8 @@ All routing is in `src/bot/events/interactionCreate.ts`.
 | `lookup_char_select:{businessId}:{targetDiscordId}` | `selects/characterSelect.ts` | |
 | `note_type_select:{sessionKey}` | `selects/noteTypeSelect.ts` | Pick note visibility tier when adding a note |
 | `help:section` | `selects/helpSelect.ts` | Navigate to a section of the `/help` menu |
-| `business_employee_select:{sessionKey}` | `selects/businessEmployeeSelect.ts` | |
-| `emp_business_select:{sessionKey}` | `selects/employeeBusinessSelect.ts` | |
+| `business_employee_select:{sessionKey}` | `selects/businessEmployeeSelect.ts` | Roster session is bound to the searching user; rank re-resolved per click; audited as `lookup` |
+| `emp_business_select:{pickKey}` | `selects/employeeBusinessSelect.ts` | Pick session (`storeEmployeePickSession`) holds the target; only the command user may use it |
 | `emp_custom_role:{sessionKey}` | `selects/employeeCustomRoleSelect.ts` | |
 | `portal_biz_select:{sessionKey}` | `selects/portalSelect.ts` | |
 | `portal_rm_role:{sessionKey}` | `selects/portalSelect.ts` | |
@@ -318,6 +318,7 @@ await interaction.editReply({ ...withSendButtonV2(sendKey, container, extraButto
 | `BOTPANEL_RPC_SECRET` | No | HMAC-SHA256 secret shared with botpanel. Must match the value in the botpanel stack. If unset, the RPC subscriber and cache-invalidate subscriber log a warning at startup and never connect — the bot still runs as a publish-only client. The command bus fails closed on a mismatch (envelope dropped with a warn, no information leak). |
 | `REDIS_URL` | No | Redis connection string for the pub/sub command bus and cache invalidation. Validated at startup via the env schema (not read raw). Default: `redis://redis:6379` (the docker-network hostname). Override for local or non-docker runs. |
 | `PANEL_BASE_URL` | No | Base URL of the botpanel website for the "do this on the website" links appended to slash command replies. Defaults to `https://bots.tucker.host`. |
+| `MOVECHANNEL_CATEGORY_IDS` | No | Comma-separated category snowflakes non-sudo managers may move channels OUT OF with `/movechannel` (they may move them to any category). Unset → defaults to the ticket category `1101739267908177991`. Sudo is unrestricted. |
 
 ---
 
@@ -325,7 +326,7 @@ await interaction.editReply({ ...withSendButtonV2(sendKey, container, extraButto
 
 The bot and botpanel communicate exclusively over Redis pub/sub — no HTTP between them.
 
-**Inbound commands (panel → bot):** botpanel publishes on `cmd.otter.<verb>`. The bot's subscriber (`src/services/rpcServer.ts`) `psubscribe`s `cmd.otter.*`, HMAC-verifies every envelope (`{requestId, ts, hmac, params}` where `hmac = HMAC-SHA256(BOTPANEL_RPC_SECRET, "${channel}|${requestId}|${ts}|${JSON.stringify(params)}")`), replay-checks against a 30-second window + an in-memory LRU `Map` of 5000 `requestId`s, then dispatches to a verb registry (`src/services/rpc/registry.ts`). Verb handlers live under `src/services/rpc/handlers/`. Replies publish on `res.<requestId>` via the existing event-bus publisher.
+**Inbound commands (panel → bot):** botpanel publishes on `cmd.otter.<verb>`. The bot's subscriber (`src/services/rpcServer.ts`) `psubscribe`s `cmd.otter.*`, HMAC-verifies every envelope (`{requestId, ts, hmac, params}` where `hmac = HMAC-SHA256(BOTPANEL_RPC_SECRET, "${channel}|${requestId}|${ts}|${JSON.stringify(params)}")`), replay-checks against a 30-second window + an in-memory LRU `Map` of 5000 `requestId`s, then dispatches to a verb registry (`src/services/rpc/registry.ts`). Verb handlers live under `src/services/rpc/handlers/`. Replies publish on `res.<requestId>` via the existing event-bus publisher, HMAC-signed (`signRpcReply` in `src/utils/hmac.ts`): payload `{...result, ts, hmac}` with `hmac = HMAC-SHA256(BOTPANEL_RPC_SECRET, "res.${requestId}|${requestId}|${ts}|${JSON.stringify(result)}")`; botpanel verifies it (and can refuse unsigned replies via `BOTPANEL_RPC_REQUIRE_SIGNED_REPLIES`). Limitation: the secret is shared by every bot, so signing only stops Redis clients without the secret, not one bot forging another's reply.
 
 `business.user_ranks` additionally returns `roleIds` — every Discord role id the user holds in the Otter guild(s), `@everyone` excluded — so the panel can evaluate access rules that name roles directly (botpanel's configurable OC Stock see/edit allowlists) instead of only ranks.
 

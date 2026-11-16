@@ -13,6 +13,8 @@
 
 import { MessageFlags, type Channel } from 'discord.js'
 import { registerVerb } from '../registry'
+import { isChannelInGuild, loadBusinessForPost } from '../rpcGuards'
+import { createLogger } from '../../../utils/logger'
 import {
   cakedContactInfoContainer,
   cakedEventInfoContainer,
@@ -23,8 +25,9 @@ import { parseSnowflake } from '../../../utils/validators'
 import {
   CAKED_EDITABLE_KEYS,
   getBusinessMessageOverrides,
-  resolveBusinessIdBySlug,
 } from '../../businessMessagesService'
+
+const logger = createLogger('rpc.caked')
 
 const KINDS = ['contact', 'event', 'pricing', 'announcement'] as const
 type CakedKind = (typeof KINDS)[number]
@@ -72,6 +75,9 @@ registerVerb('caked.message_post', async (params, ctx) => {
     return { ok: false, error: parsed.error }
   }
 
+  const biz = await loadBusinessForPost('caked-up')
+  if ('error' in biz) return { ok: false, error: biz.error }
+
   let channel: Channel | null = null
   try {
     channel = await ctx.client.channels.fetch(parsed.channelId)
@@ -98,10 +104,7 @@ registerVerb('caked.message_post', async (params, ctx) => {
   // Announcements skip this — their body is per-call freeform text.
   let overrides: Record<string, string> = {}
   if (parsed.kind !== 'announcement') {
-    const businessId = await resolveBusinessIdBySlug('caked-up')
-    if (businessId) {
-      overrides = await getBusinessMessageOverrides(businessId, CAKED_EDITABLE_KEYS)
-    }
+    overrides = await getBusinessMessageOverrides(biz.id, CAKED_EDITABLE_KEYS)
   }
 
   const container = (() => {
@@ -116,6 +119,10 @@ registerVerb('caked.message_post', async (params, ctx) => {
         return cakedAnnouncementContainer(parsed.body!)
     }
   })()
+
+  if (!isChannelInGuild(channel, biz.guildId)) {
+    return { ok: false, error: 'channel-not-allowed' }
+  }
 
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -134,7 +141,7 @@ registerVerb('caked.message_post', async (params, ctx) => {
       },
     }
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    return { ok: false, error: message }
+    logger.warn('rpc post send failed', { verb: 'caked.message_post', error: err instanceof Error ? err.message : String(err) })
+    return { ok: false, error: 'send-failed' }
   }
 })

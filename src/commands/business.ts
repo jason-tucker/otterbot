@@ -6,6 +6,8 @@ import { buildBusinessEmbed } from '../embeds/businessEmbed'
 import { audit } from '../services/auditService'
 import { storeBusinessRosterSession } from '../services/interactionCache'
 import { panelLinkDisplay } from '../utils/panelLink'
+import { checkBusinessCooldown, hasRosterDetailAccess } from '../services/rosterAccess'
+import { rosterSendAuthorizer } from '../services/rosterDetailAccess'
 
 export const data = new SlashCommandBuilder()
   .setName('business')
@@ -17,18 +19,6 @@ export const data = new SlashCommandBuilder()
       .setRequired(true)
   )
   .setDMPermission(false)
-
-/**
- * Per-user rate limit for `/business`. It's the only command that hits the
- * MKE roster API with an arbitrary search string and had no throttle; 30s
- * mirrors `/lookup`. Sudo bypasses.
- */
-const BUSINESS_COOLDOWN_MS = 30_000
-const lastBusinessSearchAt = new Map<string, number>()
-function sweepBusinessCooldowns(): void {
-  const cutoff = Date.now() - BUSINESS_COOLDOWN_MS
-  for (const [k, t] of lastBusinessSearchAt) if (t < cutoff) lastBusinessSearchAt.delete(k)
-}
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!interaction.inGuild() || !interaction.guild) {
@@ -58,14 +48,11 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   }
 
   if (!sudo) {
-    const last = lastBusinessSearchAt.get(interaction.user.id) ?? 0
-    const remaining = BUSINESS_COOLDOWN_MS - (Date.now() - last)
-    if (remaining > 0) {
-      await interaction.editReply({ content: `⏳ Slow down — try again in ${Math.ceil(remaining / 1000)}s.` })
+    const wait = checkBusinessCooldown(interaction.user.id)
+    if (wait > 0) {
+      await interaction.editReply({ content: `⏳ Slow down — try again in ${wait}s.` })
       return
     }
-    if (lastBusinessSearchAt.size > 500) sweepBusinessCooldowns()
-    lastBusinessSearchAt.set(interaction.user.id, Date.now())
   }
 
   const roster = await MckenzieProvider.findByName(searchName)
@@ -83,16 +70,17 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     return
   }
 
-  // Pick the resolved-business that matches the searched roster (so the Lookup Employee
-  // session attaches the right rank); fall back to the first resolved or null.
-  const rosterName = roster.businessName.trim().toLowerCase()
-  const resolved = allResolved.find((r) => {
-    const apiName = ((r.business.settings?.apiBusinessName as string | undefined) ?? r.business.name).trim().toLowerCase()
-    return apiName === rosterName || r.business.name.trim().toLowerCase() === rosterName
-  }) ?? allResolved[0] ?? null
-
-  const sessionKey = storeBusinessRosterSession({ resolved, roster })
-  const response = buildBusinessEmbed({ name: roster.businessName, providerType: 'mckenzie' }, roster, sessionKey)
+  // Least privilege: contact details, Lookup Employee and Send to Channel only
+  // for sudo, staff of the searched business and McKenzie staff.
+  const full = hasRosterDetailAccess(allResolved, roster.businessName, sudo)
+  const sessionKey = full
+    ? storeBusinessRosterSession({ actorDiscordId: interaction.user.id, roster })
+    : undefined
+  const response = buildBusinessEmbed({ name: roster.businessName, providerType: 'mckenzie' }, roster, {
+    sessionKey,
+    full,
+    authorizeSend: full ? rosterSendAuthorizer(interaction.user.id, roster.businessName) : undefined,
+  })
   response.components.push(panelLinkDisplay('/otter/businesses', 'Open businesses on the website') as any)
   await interaction.editReply({ ...response, content: null } as any)
 }

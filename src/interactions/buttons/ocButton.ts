@@ -2,6 +2,7 @@ import { type ButtonInteraction } from 'discord.js'
 import { resolveBusinesses, hasMinRank } from '../../services/permissionService'
 import { getAllStock, getStockById, updateStockStatus, removeStockItem } from '../../services/ocStockService'
 import { buildOCManageEmbed, buildOCEditItemEmbed, buildOCAddModal, buildOCUrlModal, buildOCRequirementsEmbed } from '../../embeds/ocEmbed'
+import { auditSafe } from '../../services/auditService'
 import type { OcStockStatus } from '../../services/ocStockService'
 import {
   OC_EDITABLE_KEYS,
@@ -69,6 +70,15 @@ export async function handleOCButton(interaction: ButtonInteraction): Promise<vo
     const itemId = parts[1]
     const newStatus = parts[2] as OcStockStatus
     await updateStockStatus(itemId, newStatus, interaction.user.id)
+    await auditSafe({
+      actorDiscordId: interaction.user.id,
+      actorName: interaction.user.username,
+      businessId: oc.business.id,
+      action: 'oc_stock_status',
+      targetType: 'oc_stock',
+      targetId: itemId,
+      details: { status: newStatus },
+    })
     const item = await getStockById(itemId)
     if (!item) {
       const items = await getAllStock()
@@ -89,6 +99,14 @@ export async function handleOCButton(interaction: ButtonInteraction): Promise<vo
     }
     const itemId = id.split(':')[1]
     await removeStockItem(itemId, interaction.user.id)
+    await auditSafe({
+      actorDiscordId: interaction.user.id,
+      actorName: interaction.user.username,
+      businessId: oc.business.id,
+      action: 'oc_stock_remove',
+      targetType: 'oc_stock',
+      targetId: itemId,
+    })
     const items = await getAllStock()
     await interaction.editReply({ ...buildOCManageEmbed(items), content: null } as any)
     return

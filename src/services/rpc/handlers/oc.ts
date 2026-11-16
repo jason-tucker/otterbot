@@ -13,9 +13,13 @@
 
 import { MessageFlags, type Channel } from 'discord.js'
 import { registerVerb } from '../registry'
+import { isChannelInGuild, loadBusinessForPost } from '../rpcGuards'
+import { createLogger } from '../../../utils/logger'
 import { getAllStock } from '../../ocStockService'
 import { buildOCPublicContainer } from '../../../embeds/ocEmbed'
 import { parseSnowflake } from '../../../utils/validators'
+
+const logger = createLogger('rpc.oc')
 
 interface StockPostParams {
   channelId: string
@@ -33,6 +37,9 @@ registerVerb('oc.stock_post', async (params, ctx) => {
   if (!parsed) {
     return { ok: false, error: 'invalid-params' }
   }
+
+  const biz = await loadBusinessForPost('original-clothing')
+  if ('error' in biz) return { ok: false, error: biz.error }
 
   let channel: Channel | null = null
   try {
@@ -55,6 +62,10 @@ registerVerb('oc.stock_post', async (params, ctx) => {
   const items = await getAllStock()
   const container = buildOCPublicContainer(items)
 
+  if (!isChannelInGuild(channel, biz.guildId)) {
+    return { ok: false, error: 'channel-not-allowed' }
+  }
+
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sendable = channel as any
@@ -72,7 +83,7 @@ registerVerb('oc.stock_post', async (params, ctx) => {
       data: { messageId: msg.id, channelId: parsed.channelId },
     }
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    return { ok: false, error: message }
+    logger.warn('rpc post send failed', { verb: 'oc.stock_post', error: err instanceof Error ? err.message : String(err) })
+    return { ok: false, error: 'send-failed' }
   }
 })

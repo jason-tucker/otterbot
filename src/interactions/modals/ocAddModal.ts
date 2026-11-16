@@ -1,6 +1,7 @@
 import { type ModalSubmitInteraction } from 'discord.js'
 import { resolveBusinesses, hasMinRank } from '../../services/permissionService'
 import { addStockItem, getAllStock } from '../../services/ocStockService'
+import { auditSafe } from '../../services/auditService'
 import { buildOCManageEmbed } from '../../embeds/ocEmbed'
 
 export async function handleOCAddSubmit(interaction: ModalSubmitInteraction): Promise<void> {
@@ -22,6 +23,14 @@ export async function handleOCAddSubmit(interaction: ModalSubmitInteraction): Pr
   }
 
   await addStockItem(name, interaction.user.id)
+  await auditSafe({
+    actorDiscordId: interaction.user.id,
+    actorName: interaction.user.username,
+    businessId: oc.business.id,
+    action: 'oc_stock_add',
+    targetType: 'oc_stock',
+    details: { name },
+  })
   const items = await getAllStock()
 
   if (interaction.isFromMessage()) {

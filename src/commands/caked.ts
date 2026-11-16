@@ -21,6 +21,7 @@ import { isSudoUser } from '../services/sudoService'
 import { listEnabledButtons } from '../services/businessButtonsService'
 import { buildCustomButtonRows, manageButtonsButton } from '../embeds/businessButtons'
 import { appendPanelLink } from '../utils/panelLink'
+import { errorReport } from '../utils/errorReport'
 
 // Re-exported so existing button / modal handlers that import
 // `CAKED_COLOR` / `cakedMainContainer` from this module keep working.
@@ -123,8 +124,26 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const trailing: ButtonBuilder[] =
     isManager && businessId ? [manageButtonsButton(businessId)] : []
 
-  await interaction.editReply({
-    ...withSendButtonV2Rows(sendKey, container, extraRows, trailing),
-    content: null,
-  })
+  try {
+    await interaction.editReply({
+      ...withSendButtonV2Rows(sendKey, container, extraRows, trailing),
+      content: null,
+    })
+  } catch (err) {
+    // Discord rejected the full card (e.g. 50035 from one bad custom button).
+    // Log the cause, then retry with only the card and the built-in buttons.
+    const tag = `cmd=caked step=editReply (full card) user=${interaction.user.id} guild=${interaction.guildId ?? 'dm'}`
+    console.error(`[caked] ${tag}`, err)
+    errorReport(tag, err)
+    // The Send-to-Channel snapshot must drop the custom rows too, or it fails with the same 50035.
+    registerSendable(sendKey, () => ({
+      components: [cakedMainContainer(overrides)],
+      flags: MessageFlags.IsComponentsV2,
+    }))
+    const fallbackRows = [new ActionRowBuilder<ButtonBuilder>().addComponents(...cakedNavButtons)]
+    await interaction.editReply({
+      ...withSendButtonV2Rows(sendKey, container, fallbackRows, []),
+      content: null,
+    })
+  }
 }
