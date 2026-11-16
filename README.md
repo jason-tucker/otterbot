@@ -47,7 +47,7 @@ The botpanel web UI drives the same operations over a Redis command bus: an HMAC
 
 - [discord.js](https://discord.js.org/) v14 with **Components V2** for all embeds
 - TypeScript (compiled in CI only — never on the VPS, it OOMs)
-- PostgreSQL + [Drizzle ORM](https://orm.drizzle.team/), schema applied with **`drizzle-kit push`** at container start
+- PostgreSQL + [Drizzle ORM](https://orm.drizzle.team/), schema applied by tracked SQL migrations (`src/db/migrate.ts`) at container start
 - [ioredis](https://github.com/redis/ioredis) — event bus + command bus to the botpanel web UI
 - [Zod](https://zod.dev/) for env validation
 - [pnpm](https://pnpm.io/) for package management
@@ -66,8 +66,8 @@ pnpm install
 cp .env.example .env
 # edit .env — fill in Discord + Euphoric API credentials and DATABASE_URL
 
-# 3. Apply the database schema (drizzle-kit push — no SQL migration step)
-pnpm drizzle-kit push
+# 3. Apply the database schema (tracked migrations)
+pnpm db:migrate
 
 # 4. Seed the starter businesses (then manage everything via /portal)
 pnpm db:seed
@@ -188,7 +188,8 @@ NODE_ENV=production pnpm scan:roles
 | `pnpm dev` | Start in watch mode (tsx) |
 | `pnpm commands:deploy` | Push slash commands to Discord |
 | `pnpm commands:clear` | Remove all slash commands from Discord |
-| `pnpm drizzle-kit push` | Apply the schema to the DB |
+| `pnpm db:migrate` | Apply the tracked SQL migrations to the DB |
+| `pnpm db:generate --name <name>` | Generate a migration after a schema change |
 | `pnpm db:seed` | Sync `businesses.config.ts` to the database |
 | `pnpm db:studio` | Open Drizzle Studio (database UI) |
 | `pnpm scan:roles` | Verify configured role names exist in the server |
@@ -198,7 +199,7 @@ NODE_ENV=production pnpm scan:roles
 
 ## Deployment
 
-Production runs the bot as the Docker Compose service `otterbot` (container `otterbot-otterbot-1`, image `ghcr.io/jason-tucker/otterbot:latest`) alongside its own Postgres. Schema is applied via `drizzle-kit push` from the entrypoint on every start — there is no separate migration step in the deploy path.
+Production runs the bot as the Docker Compose service `otterbot` (container `otterbot-otterbot-1`, image `ghcr.io/jason-tucker/otterbot:latest`) alongside its own Postgres. Pending SQL migrations are applied by the entrypoint (`node dist/db/migrate.js`) on every start; the bot does not start if the migrator fails. See `docs/DEPLOYMENT.md`.
 
 Two delivery mechanisms keep the VPS current after a push to `main`:
 

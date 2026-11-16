@@ -132,7 +132,7 @@ jobs:
             # 10s after `compose up` raced watchtower here the same way
             # `compose up` itself used to: watchtower can be mid-recreate at
             # check time (old container renamed away, new one still inside the
-            # entrypoint's `drizzle-kit push`), so the single `ps` snapshot saw
+            # entrypoint's migrator run), so the single `ps` snapshot saw
             # "not running" and failed a deploy that converged fine seconds
             # later (run 30321327502). Poll for up to 2 minutes instead, and
             # require two consecutive positive checks 10s apart so a

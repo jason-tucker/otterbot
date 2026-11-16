@@ -20,15 +20,16 @@ FROM node:24-alpine AS production
 
 WORKDIR /app
 
-# Copy compiled output and all node_modules (includes drizzle-kit for schema push)
+# Copy compiled output and node_modules (drizzle-orm + postgres run the migrator)
 COPY --from=builder /build/dist ./dist
 COPY --from=builder /build/node_modules ./node_modules
 COPY --from=builder /build/package.json ./package.json
 
-# Runtime config for drizzle-kit push (reads from compiled dist/db/schema)
-COPY drizzle.docker.config.cjs ./drizzle.docker.config.cjs
+# Tracked SQL migrations, read at runtime by dist/db/migrate.js (default
+# MIGRATIONS_DIR is ./src/db/migrations relative to WORKDIR /app).
+COPY --from=builder /build/src/db/migrations ./src/db/migrations
 
-# Entrypoint: runs drizzle-kit push then starts bot
+# Entrypoint: runs the migrator (dist/db/migrate.js) then starts the bot
 COPY scripts/docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x docker-entrypoint.sh
 

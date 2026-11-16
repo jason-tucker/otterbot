@@ -4,3 +4,9 @@
 # resulting order may be jumbled — clean up under-headers in a follow-up
 # tidy commit if needed.
 CHANGELOG.md merge=union
+
+# Migration files are hashed byte-for-byte; keep LF on every platform.
+src/db/migrations/** text eol=lf
+
+scripts/*.sh text eol=lf
+scripts/db/*.sh text eol=lf

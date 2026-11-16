@@ -9,9 +9,6 @@ dist
 # Dev dependencies not needed in image context
 node_modules
 
-# Migration SQL files — schema is applied via drizzle-kit push at startup
-src/db/migrations
-
 # Runtime and local tooling
 logs
 *.log
@@ -35,5 +32,5 @@ scripts/clearCommands.ts
 scripts/scanRoles.ts
 scripts/seed.ts
 
-# drizzle local-dev config (Docker uses drizzle.docker.config.cjs)
+# drizzle-kit local-dev config (the image only runs the compiled migrator)
 drizzle.config.ts

@@ -96,13 +96,76 @@ cd otterbot && docker compose up -d
 
 ---
 
-## Schema Management (no migration files)
+## Schema Management (tracked migrations)
 
-Otterbot uses `drizzle-kit push` at container startup. No SQL migration files are committed to git or included in the image.
+Otterbot applies **tracked SQL migrations** at container start. `scripts/docker-entrypoint.sh` runs `node dist/db/migrate.js`; if it exits non-zero the container stops and the bot does not start.
 
-- Schema lives in `src/db/schema/*.ts`
-- On every start, schema is compared to the live DB and applied automatically
-- `--force` is set in the entrypoint — destructive changes auto-apply (be careful)
+- Schema lives in `src/db/schema/*.ts`; every schema change ships with a generated migration in `src/db/migrations/` (`pnpm db:generate --name <short_name>`, review the SQL, commit both).
+- The migrator takes a Postgres advisory lock (waits up to 60 s), runs all pending migrations in one transaction, and records them in `drizzle.__drizzle_migrations`.
+- There is no `drizzle-kit push` at boot any more. Nothing drops or truncates data unless a reviewed migration says so. Destructive SQL (DROP, TRUNCATE, ALTER COLUMN TYPE, RENAME, DELETE FROM) must carry a `-- obd3:allow-destructive <reason>` comment inside the statement, or `src/db/migrations.test.ts` fails. Avoid `CREATE INDEX CONCURRENTLY` (migrations run in a transaction).
+- CI (`.github/workflows/db-check.yml`, pull requests) fails when `src/db/schema` changed without a migration.
+- Safety guards in the migrator (exit 1, nothing changed): public tables exist but no baseline marker; baseline marker exists but the public tables are gone; lock not obtained within 60 s.
+- Fresh databases no longer receive the 22 `oc_stock` seed rows; run `scripts/seedOcStock.ts` if you need them.
+- Local dev databases built earlier with `drizzle-kit push` need the marker SQL below (or recreate the database).
+
+### One-time production steps (OB-D3) — do these BEFORE merging the PR
+
+The production database was built by `drizzle-kit push`, so it has the tables but no migration record. The marker adopts it without running any DDL in `public`. Each step needs the operator's approval; P0-P3 change nothing. Container names below assume the compose project `otterbot` (`otterbot-db-1`, `otterbot-otterbot-1`).
+
+**P0. Confirm push has kept production equal to the schema.** Push swallows errors, so the log is the only signal:
+`docker logs otterbot-otterbot-1 2>&1 | grep -A3 "Applying database schema" | tail -8` — the last start should say "No changes detected" and show no error.
+
+**P1. Read-only inspection.** Open a read-only session:
+`docker exec -i -e PGOPTIONS='-c default_transaction_read_only=on' otterbot-db-1 psql -U otterbot -d otterbot -v ON_ERROR_STOP=1 -X`
+and run:
+```sql
+SELECT version();
+SELECT current_user, rolsuper, has_database_privilege(current_user, current_database(), 'CREATE') AS can_create
+  FROM pg_roles WHERE rolname = current_user;
+SELECT nspname FROM pg_namespace WHERE nspname NOT LIKE 'pg\_%' AND nspname <> 'information_schema' ORDER BY 1;
+SELECT to_regclass('drizzle.__drizzle_migrations') AS drizzle_tbl, to_regclass('public.__drizzle_migrations') AS public_tbl;
+-- only if drizzle_tbl is not null:
+SELECT id, hash, created_at FROM drizzle.__drizzle_migrations ORDER BY created_at;
+SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY 1;
+SELECT table_name, column_name, data_type, is_nullable, column_default
+  FROM information_schema.columns WHERE table_schema = 'public' ORDER BY table_name, ordinal_position;
+SELECT tablename, indexname, indexdef FROM pg_indexes WHERE schemaname = 'public' ORDER BY 1, 2;
+SELECT conrelid::regclass AS tbl, conname, pg_get_constraintdef(oid) AS def
+  FROM pg_constraint WHERE connamespace = 'public'::regnamespace ORDER BY 1, 2;
+SELECT relname, n_live_tup FROM pg_stat_user_tables ORDER BY 1;
+```
+It must show exactly these 11 public tables: `audit_logs, business_buttons, business_messages, business_owners, business_role_mappings, businesses, lookup_sessions, notes, oc_stock, report_sessions, standings`; a user that can CREATE; PostgreSQL 16. Note whether a `drizzle` schema already exists and its newest `created_at` (it must be smaller than the baseline `when` in `src/db/migrations/meta/_journal.json`).
+
+**P2. Schema-only dump (no row data)** to compare with a database built from the migrations:
+`docker exec otterbot-db-1 pg_dump -U otterbot -d otterbot --schema-only --no-owner > otterbot-schema.sql`
+Do not continue if it differs from a fresh migrated database (apart from the `drizzle` schema); reconcile first.
+
+**P3. Full backup, then a restore test:**
+```bash
+mkdir -p ~/backups && chmod 700 ~/backups
+docker exec otterbot-db-1 pg_dump -U otterbot -d otterbot -Fc -f /tmp/otterbot-pre-obd3.dump
+docker cp otterbot-db-1:/tmp/otterbot-pre-obd3.dump ~/backups/
+chmod 600 ~/backups/otterbot-pre-obd3.dump
+docker exec otterbot-db-1 rm -f /tmp/otterbot-pre-obd3.dump   # do not leave the dump inside the container
+```
+Check it with `pg_restore --list`, restore it into a throwaway `postgres:16-alpine` container, then remove that container. Keep the dump on the VPS.
+
+**P4. Write the baseline marker (quiet window).** It only creates the `drizzle` bookkeeping table and inserts one row; it changes nothing in `public` and is harmless to the old image (push ignores the `drizzle` schema). It is idempotent and refuses to run unless all 11 tables exist:
+The VPS checkout tracks `origin/main`, so the file does not exist there before the merge. Pipe it from the exact commit that will be merged (`<final PR head sha>`):
+```bash
+git fetch origin fix/schema-migrations
+git show <final PR head sha>:scripts/db/baseline-mark-applied.sql | docker exec -i otterbot-db-1 psql -U otterbot -d otterbot -v ON_ERROR_STOP=1 -X
+```
+**P4 must use the same commit that gets merged.** The marker embeds the hash of `0000_baseline.sql`; if the baseline or marker changes after P4, redo P4 from the new head before merging.
+Then check `SELECT * FROM drizzle.__drizzle_migrations ORDER BY created_at DESC LIMIT 1` shows the baseline `when`.
+
+**P5. Merge the PR.** CI builds the image and watchtower/the deploy job rolls it out. Watch `docker logs otterbot-otterbot-1 --tail 30` for "Migrations complete." and the bot becoming ready. Re-run the table/index queries from P1 (expect no difference) and smoke-test `/oc`, `/lookup` Add Note, and the botpanel otter pages.
+
+**Order matters:** P4 before P5. If the marker is missing at deploy the migrator exits 1 and the container crash-loops (no data changes) until P4 is run or the previous image is pinned.
+
+**Rollback.** Code: revert the merge, or set `BOT_IMAGE=ghcr.io/jason-tucker/otterbot:sha-<previous>` and run `docker compose up -d otterbot`; the old push sees no changes and the marker may stay. To remove the marker only if no `drizzle` schema existed in P1: `DROP TABLE drizzle.__drizzle_migrations; DROP SCHEMA drizzle;` — otherwise delete just the baseline row by `created_at`. Restore the P3 dump with `pg_restore --clean` only if data was damaged (nothing here runs DDL in `public`).
+
+**Warning: image rollback is only safe while the journal holds just the baseline migration.** A pre-OB-D3 image runs `drizzle-kit push --force` at boot; once a later migration has been applied, that push sees the new tables/columns as drift and can drop them (data loss). After the first post-baseline migration ships, roll back by reverting forward (a new migration) or restoring a backup, not by pinning a pre-OB-D3 image.
 
 ---
 
