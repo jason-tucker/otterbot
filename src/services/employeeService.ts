@@ -485,11 +485,11 @@ export async function demoteToEmployee(
 ): Promise<void> {
   if (!config.roles.manager) throw new RoleMissingError('(no manager role configured)')
   const managerRole = findRole(guild, config.roles.manager)
+  const empRole = config.roles.employee ? findRole(guild, config.roles.employee) : null
+  // Validate the grant BEFORE removing the manager role (see demoteOwnerToManager).
+  if (empRole && !target.roles.cache.has(empRole.id)) await assertGrantable(target, empRole)
   if (target.roles.cache.has(managerRole.id)) await safeRemove(target, managerRole)
-  if (config.roles.employee) {
-    const empRole = findRole(guild, config.roles.employee)
-    await ensureRole(target, empRole)
-  }
+  if (empRole) await ensureRole(target, empRole)
 }
 
 export async function promoteToOwner(

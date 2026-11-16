@@ -31,6 +31,14 @@ function ticketMsg(id: string, ts: number, authorId = BOT, customId = `ticket_ac
   }
 }
 
+type ReplyArg = { content?: string; components?: unknown[]; ephemeral?: boolean }
+
+function firstArg(fn: { mock: { calls: ReplyArg[][] } }): ReplyArg {
+  const arg = fn.mock.calls[0]?.[0]
+  if (!arg) throw new Error('expected at least one call')
+  return arg
+}
+
 function makeInteraction(opts: {
   userId?: string
   customId?: string
@@ -68,9 +76,9 @@ function makeInteraction(opts: {
           fetch: vi.fn(),
         },
       },
-      reply: vi.fn(async () => undefined),
+      reply: vi.fn(async (_arg: ReplyArg) => undefined),
       deferReply: vi.fn(async () => undefined),
-      editReply: vi.fn(async () => undefined),
+      editReply: vi.fn(async (_arg: ReplyArg) => undefined),
     },
   }
 }
@@ -106,14 +114,14 @@ describe('ticket_account_made button', () => {
     await handleTicketAccountMadeButton(i as never)
     expect(pub.edit).toHaveBeenCalledTimes(1)
     expect(clicked.edit).not.toHaveBeenCalled()
-    expect(i.editReply.mock.calls[0][0].content).toContain('updated the ticket message')
+    expect(firstArg(i.editReply).content).toContain('updated the ticket message')
   })
 
   it('shows the card in the ephemeral and does not claim an update when no public message is found', async () => {
     const t = 'subject-2'
     const { i } = makeInteraction({ userId: t, customId: `ticket_account_made:${t}`, ephemeralClick: true, channelMessages: [] })
     await handleTicketAccountMadeButton(i as never)
-    const arg = i.editReply.mock.calls[0][0]
+    const arg = firstArg(i.editReply)
     expect(arg.content).toBeUndefined()
     expect(arg.components).toEqual(['card'])
   })
@@ -124,7 +132,7 @@ describe('ticket_account_made button', () => {
     pub.edit.mockRejectedValue(new Error('Unknown Message'))
     const { i } = makeInteraction({ userId: t, customId: `ticket_account_made:${t}`, ephemeralClick: true, channelMessages: [pub] })
     await handleTicketAccountMadeButton(i as never)
-    const arg = i.editReply.mock.calls[0][0]
+    const arg = firstArg(i.editReply)
     expect(arg.content).toBeUndefined()
     expect(arg.components).toEqual(['card'])
   })
@@ -143,7 +151,7 @@ describe('ticket_account_help button', () => {
     const { i, channel } = makeInteraction({ userId: 'stranger', customId: `ticket_account_help:${TARGET}`, channelId: 'help-1' })
     await handleTicketAccountHelpButton(i as never)
     expect(channel.send).not.toHaveBeenCalled()
-    expect(i.reply.mock.calls[0][0]).toMatchObject({ ephemeral: true })
+    expect(firstArg(i.reply)).toMatchObject({ ephemeral: true })
   })
 
   it('pings once per window per channel and refuses the repeat', async () => {
@@ -154,7 +162,7 @@ describe('ticket_account_help button', () => {
     const again = makeInteraction({ userId: TARGET, customId: `ticket_account_help:${TARGET}`, channelId: 'help-2' })
     await handleTicketAccountHelpButton(again.i as never)
     expect(again.channel.send).not.toHaveBeenCalled()
-    expect(again.i.reply.mock.calls[0][0]).toMatchObject({ ephemeral: true })
+    expect(firstArg(again.i.reply)).toMatchObject({ ephemeral: true })
 
     // A different ticket channel is unaffected.
     const other = makeInteraction({ userId: TARGET, customId: `ticket_account_help:${TARGET}`, channelId: 'help-3' })

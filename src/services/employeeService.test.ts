@@ -17,6 +17,7 @@ import {
   hireEmployee,
   demoteOwnerToManager,
   demoteOwnerToEmployee,
+  demoteToEmployee,
   RoleNotGrantableError,
   RoleHierarchyError,
   type DbEmployeeBusinessConfig,
@@ -357,6 +358,17 @@ describe('safeAdd grant-time role check', () => {
       }
       await expect(demoteOwnerToEmployee(guild as never, member as never, makeConfig())).rejects.toBeInstanceOf(RoleNotGrantableError)
       expect(member.roles.remove).not.toHaveBeenCalled()
+    })
+
+    it('demoteToEmployee refuses before removing the manager role', async () => {
+      const { guild, member } = demoteSetup()
+      member.roles.cache.set('r2', guild.roles.cache.get('r2') as never)
+      ;(guild.roles.cache.get('r1') as { permissions: unknown }).permissions = {
+        has: (p: bigint) => p === PermissionFlagsBits.Administrator,
+      }
+      await expect(demoteToEmployee(guild as never, member as never, makeConfig())).rejects.toBeInstanceOf(RoleNotGrantableError)
+      expect(member.roles.remove).not.toHaveBeenCalled()
+      expect(member.roles.add).not.toHaveBeenCalled()
     })
 
     it('demoteOwnerToEmployee removes owner and grants employee when grantable', async () => {

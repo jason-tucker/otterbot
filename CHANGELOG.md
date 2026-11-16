@@ -41,6 +41,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Roles are re-checked at grant time (Administrator, Manage Roles, Manage Server, Manage Webhooks or Ban Members; above the bot; managed; @everyone), so roles mapped earlier with ordinary moderation bits still work in `employeeService.safeAdd`, RPC `business.sync_roles` and the employee action buttons; refused roles are logged and `sync_roles` counts them as `skipped`.
 
 ### Fixed
+- Demoting a manager to employee now checks the employee role is grantable before removing the manager role, so a refusal can no longer leave the member with no role.
 - Ticket Retry (from the ephemeral reply) now finds and edits the public ticket message instead of failing to edit the ephemeral and falsely saying "updated the message above"; if the public message cannot be edited the character card is shown ephemerally and the reply says so.
 - Ticket "Ask for Help" now requires the ticket creator or ManageChannels staff and pings the support role at most once per 10 minutes per channel.
 - Ticket character selector errors are sent as ephemeral follow-ups so the public selector message is no longer replaced.
